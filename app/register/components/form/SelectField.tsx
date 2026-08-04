@@ -1,13 +1,14 @@
 "use client";
 
 import { SelectHTMLAttributes } from "react";
-import { FieldError } from "react-hook-form";
+import { FieldError, UseFormRegisterReturn } from "react-hook-form";
 
 type SelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & {
   label: string;
   options: string[];
   placeholder?: string;
   error?: FieldError;
+  registration?: UseFormRegisterReturn;
 };
 
 export default function SelectField({
@@ -15,6 +16,7 @@ export default function SelectField({
   options,
   placeholder = "Select",
   error,
+  registration,
   className = "",
   ...props
 }: SelectFieldProps) {
@@ -28,6 +30,7 @@ export default function SelectField({
       </label>
 
       <select
+        {...registration}
         {...props}
         className={`w-full rounded-xl border bg-white px-4 py-3 outline-none transition-all duration-200
         ${

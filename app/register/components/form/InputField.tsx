@@ -1,16 +1,18 @@
 "use client";
 
 import { InputHTMLAttributes } from "react";
-import { FieldError } from "react-hook-form";
+import { FieldError, UseFormRegisterReturn } from "react-hook-form";
 
 type InputFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   error?: FieldError;
+  registration?: UseFormRegisterReturn;
 };
 
 export default function InputField({
   label,
   error,
+  registration,
   className = "",
   ...props
 }: InputFieldProps) {
@@ -24,6 +26,7 @@ export default function InputField({
       </label>
 
       <input
+        {...registration}
         {...props}
         className={`w-full rounded-xl border px-4 py-3 outline-none transition-all duration-200
         ${
@@ -41,4 +44,4 @@ export default function InputField({
       )}
     </div>
   );
-}   
+}

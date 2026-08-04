@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+
 import {
   generateOTP,
   getOTPExpiry,
@@ -13,15 +14,78 @@ export async function POST(req: NextRequest) {
 
     const mobile = String(body.mobile ?? "").trim();
 
+    const otpType =
+      body.type === "REGISTRATION"
+        ? "REGISTRATION"
+        : "LOGIN";
+
+    // ===========================
+    // Validate Mobile
+    // ===========================
+
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid mobile number.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
+
+    // ===========================
+    // Registration Check
+    // ===========================
+
+    if (otpType === "REGISTRATION") {
+      const existingUser = await prisma.user.findUnique({
+        where: {
+          mobile,
+        },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Mobile number already registered.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+    }
+
+    // ===========================
+    // Login Check
+    // ===========================
+
+    if (otpType === "LOGIN") {
+      const existingUser = await prisma.user.findUnique({
+        where: {
+          mobile,
+        },
+      });
+
+      if (!existingUser) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Mobile number not registered.",
+          },
+          {
+            status: 404,
+          }
+        );
+      }
+    }
+
+    // ===========================
+    // Generate OTP
+    // ===========================
 
     const otp = generateOTP();
 
@@ -29,32 +93,42 @@ export async function POST(req: NextRequest) {
 
     const expiresAt = getOTPExpiry();
 
-    // Delete old OTPs for this mobile
+    // ===========================
+    // Delete Old OTPs
+    // ===========================
+
     await prisma.oTP.deleteMany({
       where: {
         mobile,
       },
     });
 
-    // Save new OTP
+    // ===========================
+    // Save OTP
+    // ===========================
+
     await prisma.oTP.create({
       data: {
         mobile,
         code: hashedOTP,
-        type: "LOGIN",
+        type: otpType,
         expiresAt,
         verified: false,
       },
     });
 
-    // Print OTP in development mode
+    // ===========================
+    // Development OTP
+    // ===========================
+
     printDevelopmentOTP(mobile, otp);
 
     return NextResponse.json({
       success: true,
-      message: "OTP generated successfully.",
+      message: "OTP sent successfully.",
       development: process.env.NODE_ENV === "development",
     });
+
   } catch (error) {
     console.error("Send OTP Error:", error);
 

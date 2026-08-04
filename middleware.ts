@@ -24,4 +24,4 @@ export const config = {
     "/dashboard/:path*",
     "/admin/:path*",
   ],
-};
+}

@@ -10,6 +10,11 @@ export async function POST(req: NextRequest) {
     const mobile = String(body.mobile ?? "").trim();
     const otp = String(body.otp ?? "").trim();
 
+    const otpType =
+      body.type === "REGISTRATION"
+        ? "REGISTRATION"
+        : "LOGIN";
+
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       return NextResponse.json(
         {
@@ -34,7 +39,7 @@ export async function POST(req: NextRequest) {
       where: {
         mobile,
         verified: false,
-        type: "LOGIN",
+        type: otpType,
       },
       orderBy: {
         createdAt: "desc",
@@ -79,6 +84,11 @@ export async function POST(req: NextRequest) {
         verified: true,
       },
     });
+    await prisma.oTP.deleteMany({
+  where: {
+    mobile,
+  },
+});
 
     let user = await prisma.user.findUnique({
       where: {
@@ -86,23 +96,43 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          mobile,
-          mobileVerified: true,
-        },
-      });
-    } else {
-      user = await prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          mobileVerified: true,
-        },
+    // Registration Flow
+    if (otpType === "REGISTRATION") {
+      if (user) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Mobile number already registered.",
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "OTP verified successfully.",
       });
     }
+
+    // Login Flow
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Account not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    user = await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        mobileVerified: true,
+      },
+    });
 
     const token = await generateToken(user.id, user.mobile);
 
@@ -110,7 +140,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "OTP verified successfully.",
       userId: user.id,
-      isNewUser: !user.fullName,
+      isNewUser: false,
     });
 
     response.cookies.set("nnvs_token", token, {
@@ -122,6 +152,7 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
+
   } catch (error) {
     console.error("Verify OTP Error:", error);
 
