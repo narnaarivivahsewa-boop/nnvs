@@ -4,9 +4,13 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("nnvs_token")?.value;
 
   const protectedRoutes = [
-    "/dashboard",
-    "/admin",
-  ];
+  "/dashboard",
+  "/profile",
+  "/profiles",
+  "/membership",
+  "/settings",
+  "/admin",
+];
 
   const isProtected = protectedRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
@@ -21,7 +25,11 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/admin/:path*",
-  ],
+  "/dashboard/:path*",
+  "/profile/:path*",
+  "/profiles/:path*",
+  "/membership/:path*",
+  "/settings/:path*",
+  "/admin/:path*",
+],
 }
