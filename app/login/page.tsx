@@ -29,8 +29,9 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobile,
-        }),
+  mobile,
+  type: "LOGIN",
+}),
       });
 
       const data = await res.json();
@@ -66,9 +67,10 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobile,
-          otp,
-        }),
+  mobile,
+  otp,
+  type: "LOGIN",
+}),
       });
 
       const data = await res.json();
