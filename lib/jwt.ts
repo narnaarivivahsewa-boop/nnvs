@@ -4,10 +4,15 @@ const secret = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET!
 );
 
-export async function generateToken(userId: string, mobile: string) {
+export async function generateToken(
+  userId: string,
+  mobile: string,
+  role: string
+) {
   return await new SignJWT({
     userId,
     mobile,
+    role,
   })
     .setProtectedHeader({
       alg: "HS256",
@@ -23,5 +28,6 @@ export async function verifyToken(token: string) {
   return {
     userId: String(payload.userId),
     mobile: String(payload.mobile),
+    role: String(payload.role),
   };
 }

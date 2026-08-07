@@ -1,48 +1,27 @@
-    export default function FeaturedProfiles() {
-  const profiles = [
-    {
-      id: 1,
-      name: "Pooja Sharma",
-      gender: "Bride",
-      age: 25,
-      height: "5'4\"",
-      education: "M.Com",
-      occupation: "Teacher",
-      city: "Hisar",
-      religion: "Hindu",
-      verified: true,
-      online: true,
-      image: "https://randomuser.me/api/portraits/women/68.jpg",
-    },
-    {
-      id: 2,
-      name: "Rahul Verma",
-      gender: "Groom",
-      age: 28,
-      height: "5'10\"",
-      education: "B.Tech",
-      occupation: "Software Engineer",
-      city: "Delhi",
-      religion: "Hindu",
-      verified: true,
-      online: false,
-      image: "https://randomuser.me/api/portraits/men/32.jpg",
-    },
-    {
-      id: 3,
-      name: "Priya Gupta",
-      gender: "Bride",
-      age: 24,
-      height: "5'3\"",
-      education: "MBA",
-      occupation: "Bank Manager",
-      city: "Rohtak",
-      religion: "Hindu",
-      verified: true,
-      online: true,
-      image: "https://randomuser.me/api/portraits/women/44.jpg",
-    },
-  ];
+    "use client";
+
+import { useEffect, useState } from "react";
+
+export default function FeaturedProfiles() {
+  const [profiles, setProfiles] = useState<any[]>([]);
+
+useEffect(() => {
+  loadProfiles();
+}, []);
+
+async function loadProfiles() {
+  try {
+    const res = await fetch("/api/public/profiles");
+
+    const data = await res.json();
+
+    if (data.success) {
+      setProfiles(data.profiles);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
 
   return (
     <section className="bg-white py-24">

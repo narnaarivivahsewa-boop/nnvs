@@ -134,14 +134,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const token = await generateToken(user.id, user.mobile);
+    const token = await generateToken(
+  user.id,
+  user.mobile,
+  user.role
+);
 
     const response = NextResponse.json({
-      success: true,
-      message: "OTP verified successfully.",
-      userId: user.id,
-      isNewUser: false,
-    });
+  success: true,
+  message: "OTP verified successfully.",
+  userId: user.id,
+  role: user.role,
+  isNewUser: false,
+});
 
     response.cookies.set("nnvs_token", token, {
       httpOnly: true,

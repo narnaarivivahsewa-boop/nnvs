@@ -235,6 +235,7 @@ model Interest {
   receiver Profile @relation("InterestReceiver", fields: [receiverProfileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  @@unique([senderProfileId, receiverProfileId])
 }
 
 model Shortlist {
