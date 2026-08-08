@@ -31,7 +31,7 @@ export default function ProfilesPage() {
 
   async function loadProfiles() {
     try {
-      const res = await fetch("/api/profiles");
+      const res = await fetch("/api/public/profiles");
 
       const data = await res.json();
 

@@ -1,7 +1,6 @@
 export default function HowItWorks() {
   return (
-    <section className="py-24 bg-white">
-
+    <section className="py-20">
       <div className="max-w-7xl mx-auto px-6">
 
         <div className="text-center mb-16">
@@ -16,50 +15,81 @@ export default function HowItWorks() {
 
         <div className="grid md:grid-cols-4 gap-8">
 
+          {/* Find Your Match */}
           <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">📝</div>
-            <h3 className="text-2xl font-bold text-red-900">
-              Register
-            </h3>
-            <p className="mt-4 text-gray-600">
-              Fill the registration form and submit your details.
-            </p>
-          </div>
+            <div className="text-5xl mb-4">
+              🔍
+            </div>
 
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">✅</div>
-            <h3 className="text-2xl font-bold text-red-900">
-              Verification
-            </h3>
-            <p className="mt-4 text-gray-600">
-              Our team verifies every profile before publishing.
-            </p>
-          </div>
-
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">📢</div>
-            <h3 className="text-2xl font-bold text-red-900">
-              Profile Published
-            </h3>
-            <p className="mt-4 text-gray-600">
-              Your profile becomes visible to verified members.
-            </p>
-          </div>
-
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">💍</div>
             <h3 className="text-2xl font-bold text-red-900">
               Find Your Match
             </h3>
+
             <p className="mt-4 text-gray-600">
-              Connect with families and begin your journey.
+              Browse verified profiles and find suitable matches.
+            </p>
+          </div>
+
+          {/* Create Profile */}
+          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
+            <div className="text-5xl mb-4">
+              📝
+            </div>
+
+            <h3 className="text-2xl font-bold text-red-900">
+              Create Profile
+            </h3>
+
+            <p className="mt-4 text-gray-600">
+              Register and create your matrimonial profile.
+            </p>
+          </div>
+
+          {/* Connect */}
+          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
+            <div className="text-5xl mb-4">
+              💌
+            </div>
+
+            <h3 className="text-2xl font-bold text-red-900">
+              Connect
+            </h3>
+
+            <p className="mt-4 text-gray-600">
+              Explore suitable profiles and connect with families.
+            </p>
+
+            <div className="mt-5 space-y-2 text-gray-700 text-sm">
+              <p>
+                <strong>Email:</strong>{" "}
+                narnaarivivahsewa@gmail.com
+              </p>
+
+              <p>
+                <strong>Phone:</strong>{" "}
+                +91 9871592002
+              </p>
+            </div>
+          </div>
+
+          {/* Begin Your Journey */}
+          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
+            <div className="text-5xl mb-4">
+              🤝
+            </div>
+
+            <h3 className="text-2xl font-bold text-red-900">
+              Begin Your Journey
+            </h3>
+
+            <p className="mt-4 text-gray-600">
+              Take the next step towards finding your life partner.
             </p>
           </div>
 
         </div>
 
       </div>
-
     </section>
   );
 }

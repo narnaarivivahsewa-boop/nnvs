@@ -130,16 +130,28 @@ export default function FeaturedProfilesNew() {
               <div className="flex items-center justify-center bg-gray-100 p-8">
 
                 {profile.photos.length > 0 ? (
-                  <img
-                    src={profile.photos[0].imageUrl}
-                    alt={profile.user.fullName}
-                    className="h-44 w-44 rounded-full object-cover border-4 border-red-700"
-                  />
-                ) : (
-                  <div className="flex h-44 w-44 items-center justify-center rounded-full border-4 border-red-700 bg-gray-200 text-7xl">
-                    👤
-                  </div>
-                )}
+  <img
+    src={profile.photos[0].imageUrl}
+    alt={profile.user.fullName}
+    className="h-44 w-44 rounded-full object-cover border-4 border-red-700"
+  />
+) : (
+  <div className="flex h-44 w-44 items-center justify-center rounded-full border-4 border-red-700 bg-gray-100">
+    <div className="text-center">
+      <div className="text-7xl">
+        {profile.user.gender?.toUpperCase() === "FEMALE"
+          ? "👩"
+          : "👨"}
+      </div>
+
+      <p className="mt-1 text-xs font-semibold text-gray-500">
+        {profile.user.gender?.toUpperCase() === "FEMALE"
+          ? "GIRL PROFILE"
+          : "BOY PROFILE"}
+      </p>
+    </div>
+  </div>
+)}
 
               </div>
 
