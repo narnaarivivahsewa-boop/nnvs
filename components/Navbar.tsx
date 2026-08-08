@@ -2,57 +2,71 @@ import Link from "next/link";
 
 export default function Navbar() {
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-8 py-4">
-        <div>
-          <Link href="/">
-            <h1 className="text-2xl font-bold text-red-900 cursor-pointer">
+    <>
+      <nav className="w-full border-b bg-white shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+
+          <div>
+            <Link
+              href="/"
+              className="text-2xl font-bold text-red-900"
+            >
               NNVS MATRIMONY
-            </h1>
-          </Link>
+            </Link>
 
-          <p className="text-sm text-gray-500">
-            समाज के प्रति एक सेवा
-          </p>
+            <p className="text-sm text-gray-500">
+              समाज के प्रति एक सेवा
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+
+            <Link
+              href="/"
+              className="text-gray-700 transition hover:text-red-900"
+            >
+              Home
+            </Link>
+
+            <Link
+              href="/profiles"
+              className="text-gray-700 transition hover:text-red-900"
+            >
+              Profiles
+            </Link>
+
+            <Link
+              href="/about"
+              className="text-gray-700 transition hover:text-red-900"
+            >
+              About
+            </Link>
+
+            <Link
+              href="/login"
+              className="rounded-lg border border-red-900 px-5 py-2 text-red-900 transition hover:bg-red-50"
+            >
+              Login
+            </Link>
+
+            <Link
+              href="/register"
+              className="rounded-lg bg-red-900 px-5 py-2 text-white transition hover:bg-red-800"
+            >
+              Register
+            </Link>
+
+          </div>
+
         </div>
+      </nav>
 
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="text-gray-700 hover:text-red-900"
-          >
-            Home
-          </Link>
-
-          <Link
-            href="/profiles"
-            className="text-gray-700 hover:text-red-900"
-          >
-            Profiles
-          </Link>
-
-          <Link
-            href="/about"
-            className="text-gray-700 hover:text-red-900"
-          >
-            About
-          </Link>
-
-          <Link
-            href="/login"
-            className="border border-red-900 text-red-900 px-5 py-2 rounded-lg hover:bg-red-50 transition"
-          >
-            Login
-          </Link>
-
-          <Link
-            href="/register"
-            className="bg-red-900 text-white px-5 py-2 rounded-lg hover:bg-red-800 transition"
-          >
-            Register
-          </Link>
-        </div>
+      {/* Jai Shree Shyam */}
+      <div className="w-full bg-white py-4 text-center">
+        <p className="text-xl font-semibold tracking-wide text-red-900">
+          🙏 जय श्री श्याम 🙏
+        </p>
       </div>
-    </nav>
+    </>
   );
 }
