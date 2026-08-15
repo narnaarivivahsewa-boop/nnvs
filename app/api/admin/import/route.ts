@@ -436,25 +436,52 @@ function parseExcelDate(value: any): Date | null {
 
 function convertHeight(
   height: string
-): number | null {
+): string | null {
 
   if (!height) return null;
 
-  const match = height.match(
-    /(\d+)\D+(\d+)/
+  const value = height.trim();
+
+  // Already in feet/inches format:
+  // 5'6", 6'0", 5'10"
+  const feetInchesMatch = value.match(
+    /^(\d+)\s*['’]\s*(\d+)\s*["”]?$/
   );
 
-  if (!match) return null;
+  if (feetInchesMatch) {
+    const feet = Number(feetInchesMatch[1]);
+    const inches = Number(feetInchesMatch[2]);
 
-  const feet = Number(match[1]);
+    return `${feet}'${inches}"`;
+  }
 
-  const inches = Number(match[2]);
-
-  return Math.round(
-    (feet * 12 + inches) * 2.54
+  // Formats such as:
+  // 5 feet 6 inches
+  // 5 ft 6 in
+  const wordsMatch = value.match(
+    /^(\d+)\s*(?:feet|foot|ft)\s*(\d+)\s*(?:inches|inch|in)?$/i
   );
+
+  if (wordsMatch) {
+    const feet = Number(wordsMatch[1]);
+    const inches = Number(wordsMatch[2]);
+
+    return `${feet}'${inches}"`;
+  }
+
+  // Formats such as:
+  // 5 feet
+  // 6 ft
+  const feetOnlyMatch = value.match(
+    /^(\d+)\s*(?:feet|foot|ft)$/i
+  );
+
+  if (feetOnlyMatch) {
+    return `${Number(feetOnlyMatch[1])}'0"`;
+  }
+
+  return value;
 }
-
 function extractBrothers(
   value: string
 ): number {

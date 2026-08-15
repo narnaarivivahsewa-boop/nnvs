@@ -145,9 +145,9 @@ export async function POST(req: NextRequest) {
             : null,
 
           height:
-            height && height !== ""
-              ? parseInt(height)
-              : null,
+  height && height !== ""
+    ? String(height)
+    : null,
 
           maritalStatus,
           religion,
@@ -232,14 +232,14 @@ export async function POST(req: NextRequest) {
               : null,
 
           minHeight:
-            minHeight && minHeight !== ""
-              ? parseInt(minHeight)
-              : null,
+  minHeight && minHeight !== ""
+    ? String(minHeight)
+    : null,
 
           maxHeight:
-            maxHeight && maxHeight !== ""
-              ? parseInt(maxHeight)
-              : null,
+  maxHeight && maxHeight !== ""
+    ? String(maxHeight)
+    : null,
 
           preferredReligion,
           preferredCaste,

@@ -10,7 +10,7 @@ export default function TermsPage() {
           </h1>
 
           <p className="mt-4 text-gray-500">
-            Last Updated: 08 August 2026
+            Last Updated: 15 August 2026
           </p>
 
           <div className="mt-10 space-y-8 text-gray-700 leading-8">
@@ -51,11 +51,80 @@ export default function TermsPage() {
                 verify, approve, reject or remove profiles where
                 necessary.
               </p>
+
+              <p className="mt-3">
+                Registration with NNVS Matrimony is subject to completion
+                of the registration process and payment of the applicable
+                registration fee, wherever applicable.
+              </p>
             </section>
 
             <section>
               <h2 className="text-2xl font-bold text-red-900">
-                4. Member Responsibility
+                4. Registration Fee
+              </h2>
+
+              <p className="mt-3">
+                The registration fee is a <strong>one-time registration
+                fee</strong> for registration with NNVS Matrimony. It is
+                not a monthly, quarterly or annual subscription fee.
+              </p>
+
+              <p className="mt-3">
+                The registration fee applicable at the time of registration
+                will be displayed on the website during the registration
+                and payment process. Applicable Goods and Services Tax
+                (GST) and other applicable statutory charges, if any, may
+                be charged in addition to the registration fee.
+              </p>
+
+              <p className="mt-3">
+                The registration fee currently displayed by NNVS Matrimony
+                is ₹799 plus applicable GST for male registration and
+                ₹399 plus applicable GST for female registration.
+              </p>
+
+              <p className="mt-3">
+                Payment of the applicable registration fee does not
+                automatically guarantee acceptance, approval or publication
+                of a matrimonial profile. The profile remains subject to
+                the registration, verification and approval process of
+                NNVS Matrimony.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                5. Changes to Fees and Registration Process
+              </h2>
+
+              <p className="mt-3">
+                NNVS Matrimony reserves the right, at its sole discretion,
+                to modify, revise, increase or decrease its registration
+                fees, applicable charges, registration process, verification
+                process, eligibility requirements or other related
+                procedures from time to time.
+              </p>
+
+              <p className="mt-3">
+                Such changes may be made without any individual prior notice
+                to existing or prospective members. The revised fee,
+                process or requirements shall become applicable from the
+                date they are displayed, published or otherwise made
+                available on the NNVS Matrimony website or during the
+                registration process.
+              </p>
+
+              <p className="mt-3">
+                Members are advised to check the applicable fee and
+                registration requirements before making payment or
+                completing registration.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                6. Member Responsibility
               </h2>
 
               <p className="mt-3">
@@ -69,7 +138,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-bold text-red-900">
-                5. Prohibited Use
+                7. Prohibited Use
               </h2>
 
               <p className="mt-3">
@@ -81,19 +150,118 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-bold text-red-900">
-                6. Service Availability
+                8. Service Availability and Changes
               </h2>
 
               <p className="mt-3">
-                NNVS may modify, suspend or discontinue any feature or
-                service when reasonably necessary for operational,
-                technical, security or administrative reasons.
+                NNVS may modify, suspend, restrict or discontinue any
+                feature, service, facility or functionality when reasonably
+                necessary for operational, technical, security,
+                administrative or other legitimate reasons.
+              </p>
+
+              <p className="mt-3">
+                NNVS also reserves the right to modify the manner in which
+                registration, verification, profile approval, profile
+                publication, communication and other services are provided.
               </p>
             </section>
 
             <section>
               <h2 className="text-2xl font-bold text-red-900">
-                7. Contact
+                9. Profile Verification and Approval
+              </h2>
+
+              <p className="mt-3">
+                NNVS may verify information submitted by members and may
+                request additional information or documents wherever
+                considered necessary.
+              </p>
+
+              <p className="mt-3">
+                NNVS reserves the right to approve, reject, suspend,
+                restrict or remove any profile where the information is
+                found to be incomplete, inaccurate, misleading, unverifiable
+                or otherwise inconsistent with the requirements of NNVS
+                Matrimony.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                10. Information Provided by Members
+              </h2>
+
+              <p className="mt-3">
+                Members are responsible for the accuracy, completeness and
+                authenticity of all information, photographs, documents
+                and other material submitted by them.
+              </p>
+
+              <p className="mt-3">
+                NNVS Matrimony shall not be responsible for matrimonial
+                decisions made by members based on information provided by
+                another member. Members are advised to independently verify
+                all relevant information before taking any personal,
+                matrimonial or financial decision.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                11. Limitation of Responsibility
+              </h2>
+
+              <p className="mt-3">
+                NNVS Matrimony provides a platform intended to facilitate
+                matrimonial introductions and communication between
+                individuals and families. NNVS does not guarantee that a
+                member will receive a matrimonial proposal, communication,
+                response, meeting or marriage through the platform.
+              </p>
+
+              <p className="mt-3">
+                Members are solely responsible for their personal
+                interactions, communications, meetings and decisions with
+                other members.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                12. Privacy
+              </h2>
+
+              <p className="mt-3">
+                The collection, use, storage and handling of member
+                information shall be governed by the NNVS Matrimony
+                Privacy Policy.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                13. Changes to These Terms
+              </h2>
+
+              <p className="mt-3">
+                NNVS Matrimony reserves the right to modify, update,
+                replace or revise these Terms & Conditions from time to
+                time. Updated Terms may be published on the website
+                without individual prior notice to each member.
+              </p>
+
+              <p className="mt-3">
+                Continued use of the NNVS Matrimony platform after the
+                updated Terms are published shall constitute acceptance of
+                the revised Terms, to the extent permitted by applicable
+                law.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-red-900">
+                14. Contact
               </h2>
 
               <p className="mt-3">

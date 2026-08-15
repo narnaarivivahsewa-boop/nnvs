@@ -3,10 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
 enum UserRole {
   MEMBER
   ADMIN
@@ -51,17 +52,17 @@ model User {
   id String @id @default(cuid())
 
   fullName String?
-  mobile String @unique
-  email String? @unique
+  mobile   String  @unique
+  email    String? @unique
   password String?
 
   gender Gender?
 
-  role UserRole @default(MEMBER)
+  role   UserRole      @default(MEMBER)
   status AccountStatus @default(PENDING)
 
   mobileVerified Boolean @default(false)
-  emailVerified Boolean @default(false)
+  emailVerified  Boolean @default(false)
 
   profile Profile?
 
@@ -84,24 +85,25 @@ model User {
 
   auditLogs AuditLog[]
 }
+
 model Profile {
   id String @id @default(cuid())
 
-  userId String @unique
+  userId    String @unique
   profileId String @unique
 
   profileCompletion Int @default(0)
 
-  firstName String?
-  lastName String?
-  dateOfBirth DateTime?
-  height Int?
+  firstName     String?
+  lastName      String?
+  dateOfBirth   DateTime?
+  height 	String?
   maritalStatus String?
-  religion String?
-  caste String?
-  motherTongue String?
+  religion      String?
+  caste         String?
+  motherTongue  String?
 
-  isVisible Boolean @default(false)
+  isVisible        Boolean @default(false)
   paymentCompleted Boolean @default(false)
 
   approvalStatus ProfileApprovalStatus @default(DRAFT)
@@ -110,19 +112,22 @@ model Profile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  photos ProfilePhoto[]
-  family             Family?
-education          Education?
-occupation         Occupation?
-partnerPreference  PartnerPreference?
-interestsSent      Interest[] @relation("InterestSender")
-interestsReceived  Interest[] @relation("InterestReceiver")
-shortlists         Shortlist[]
-blocks             Block[]
+  photos            ProfilePhoto[]
+  family            Family?
+  education         Education?
+  occupation        Occupation?
+  partnerPreference PartnerPreference?
+  interestsSent     Interest[]         @relation("InterestSender")
+  interestsReceived Interest[]         @relation("InterestReceiver")
+  shortlists        Shortlist[]
+  blocks            Block[]
+  phoneNumbers      ProfilePhone[]
+  promoCodes PromoCode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 model ProfilePhoto {
   id String @id @default(cuid())
 
@@ -169,16 +174,17 @@ model LoginHistory {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
 model Family {
   id String @id @default(cuid())
 
   profileId String @unique
 
-  fatherName String?
-  motherName String?
-  brothers Int? @default(0)
-  sisters Int? @default(0)
-  familyType String?
+  fatherName   String?
+  motherName   String?
+  brothers     Int?    @default(0)
+  sisters      Int?    @default(0)
+  familyType   String?
   familyStatus String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -190,8 +196,8 @@ model Education {
   profileId String @unique
 
   highestQualification String?
-  college String?
-  occupationField String?
+  college              String?
+  occupationField      String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }
@@ -201,8 +207,8 @@ model Occupation {
 
   profileId String @unique
 
-  profession String?
-  company String?
+  profession   String?
+  company      String?
   annualIncome String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -213,52 +219,56 @@ model PartnerPreference {
 
   profileId String @unique
 
-  minAge Int?
-  maxAge Int?
-  minHeight Int?
-  maxHeight Int?
+  minAge    Int?
+  maxAge    Int?
+  minHeight String?
+  maxHeight String?
 
   preferredReligion String?
-  preferredCaste String?
+  preferredCaste    String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }
+
 model Interest {
   id String @id @default(cuid())
 
-  senderProfileId String
+  senderProfileId   String
   receiverProfileId String
 
   status String @default("PENDING")
 
-  sender Profile @relation("InterestSender", fields: [senderProfileId], references: [id], onDelete: Cascade)
+  sender   Profile @relation("InterestSender", fields: [senderProfileId], references: [id], onDelete: Cascade)
   receiver Profile @relation("InterestReceiver", fields: [receiverProfileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
   @@unique([senderProfileId, receiverProfileId])
 }
 
 model Shortlist {
   id String @id @default(cuid())
 
-  profileId String
+  profileId            String
   shortlistedProfileId String
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+@@unique([profileId, shortlistedProfileId])
 }
 
 model Block {
   id String @id @default(cuid())
 
-  profileId String
+  profileId        String
   blockedProfileId String
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -278,10 +288,10 @@ model Subscription {
   userId String
 
   planName String
-  amount Decimal @db.Decimal(10,2)
+  amount   Decimal @db.Decimal(10, 2)
 
   startDate DateTime
-  endDate DateTime
+  endDate   DateTime
 
   status SubscriptionStatus @default(ACTIVE)
 
@@ -296,16 +306,56 @@ model Payment {
 
   userId String
 
-  amount Decimal @db.Decimal(10,2)
+  amount Decimal @db.Decimal(10, 2)
 
   status PaymentStatus @default(PENDING)
 
   paymentGateway String?
-  transactionId String?
+  transactionId  String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+}
+enum PromoDiscountType {
+  PERCENTAGE
+}
+
+enum PromoCodeStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  DISABLED
+}
+
+model PromoCode {
+  id String @id @default(cuid())
+
+  code String @unique
+
+  discountType  PromoDiscountType @default(PERCENTAGE)
+  discountValue Decimal @db.Decimal(5, 2)
+
+  assignedProfileId String?
+  assignedEmail     String?
+  assignedMobile    String?
+
+  status PromoCodeStatus @default(ACTIVE)
+
+  expiresAt DateTime?
+
+  usedAt DateTime?
+  usedPaymentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedProfile Profile? @relation(fields: [assignedProfileId], references: [id], onDelete: SetNull)
+
+  @@index([assignedProfileId])
+  @@index([assignedEmail])
+  @@index([assignedMobile])
+  @@index([status])
 }
 enum MessageStatus {
   SENT
@@ -317,7 +367,7 @@ model Conversation {
   id String @id @default(cuid())
 
   participants ConversationParticipant[]
-  messages Message[]
+  messages     Message[]
 
   createdAt DateTime @default(now())
 }
@@ -326,10 +376,10 @@ model ConversationParticipant {
   id String @id @default(cuid())
 
   conversationId String
-  userId String
+  userId         String
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
 }
@@ -338,14 +388,14 @@ model Message {
   id String @id @default(cuid())
 
   conversationId String
-  senderId String
+  senderId       String
 
   message String @db.Text
 
   status MessageStatus @default(SENT)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
@@ -356,7 +406,7 @@ model Notification {
   userId String
 
   title String
-  body String @db.Text
+  body  String @db.Text
 
   isRead Boolean @default(false)
 
@@ -364,6 +414,7 @@ model Notification {
 
   createdAt DateTime @default(now())
 }
+
 enum VendorStatus {
   PENDING
   APPROVED
@@ -376,14 +427,14 @@ model Vendor {
   userId String @unique
 
   businessName String
-  category String
+  category     String
 
   description String? @db.Text
 
   phone String
   email String?
 
-  city String?
+  city  String?
   state String?
 
   isVerified Boolean @default(false)
@@ -393,7 +444,7 @@ model Vendor {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   galleries VendorGallery[]
-  reviews VendorReview[]
+  reviews   VendorReview[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -422,6 +473,7 @@ model VendorReview {
 
   createdAt DateTime @default(now())
 }
+
 enum CouponType {
   PERCENTAGE
   FIXED
@@ -430,12 +482,12 @@ enum CouponType {
 model MembershipPlan {
   id String @id @default(cuid())
 
-  name String
-  price Decimal @db.Decimal(10,2)
+  name         String
+  price        Decimal @db.Decimal(10, 2)
   durationDays Int
 
-  canChat Boolean @default(true)
-  canViewContact Boolean @default(true)
+  canChat                  Boolean @default(true)
+  canViewContact           Boolean @default(true)
   canSendInterestUnlimited Boolean @default(false)
 
   isActive Boolean @default(true)
@@ -451,7 +503,7 @@ model Coupon {
 
   type CouponType
 
-  value Decimal @db.Decimal(10,2)
+  value Decimal @db.Decimal(10, 2)
 
   validFrom DateTime
   validTill DateTime
@@ -504,9 +556,25 @@ model AdminSetting {
 
   maintenanceMode Boolean @default(false)
 
-  gstPercentage Decimal @db.Decimal(5,2)
+  gstPercentage Decimal @db.Decimal(5, 2)
 
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+}
+
+model ProfilePhone {
+  id String @id @default(cuid())
+
+  profileId String
+  phone     String
+
+  isPrimary Boolean @default(false)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, phone])
 }

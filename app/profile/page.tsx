@@ -110,10 +110,13 @@ export default function ProfilePage() {
             </p>
 
             <button
-              className="mt-6 rounded-xl bg-red-700 px-6 py-3 text-white hover:bg-red-800"
-            >
-              Edit Profile
-            </button>
+  onClick={() => {
+    window.location.href = "/profile/edit";
+  }}
+  className="mt-6 rounded-xl bg-red-700 px-6 py-3 text-white hover:bg-red-800"
+>
+  Edit Profile
+</button>
 
           </div>
 

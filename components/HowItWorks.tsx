@@ -1,92 +1,117 @@
+import Link from "next/link";
+
+const steps = [
+  {
+    icon: "🔎",
+    title: "Find Your Match",
+    description: "Browse suitable profiles and discover your perfect match.",
+    href: "/profiles",
+    button: "Browse Profiles",
+  },
+  {
+    icon: "📝",
+    title: "Create Profile",
+    description: "Register and create your matrimonial profile with your details.",
+    href: "/register",
+    button: "Register Now",
+  },
+  {
+    icon: "💌",
+    title: "Connect",
+    description: "Explore suitable profiles and connect with families.",
+    href: "/contact",
+    button: "Contact Us",
+  },
+  {
+    icon: "🤝",
+    title: "Begin Your Journey",
+    description: "Take the next step towards finding your life partner.",
+    href: "/register",
+    button: "Start Your Journey",
+  },
+];
+
 export default function HowItWorks() {
   return (
-    <section className="py-20">
-      <div className="max-w-7xl mx-auto px-6">
+    <section className="bg-gradient-to-b from-white to-rose-50 px-6 py-20">
+      <div className="mx-auto max-w-7xl">
 
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-red-900">
+        {/* Heading */}
+        <div className="mb-14 text-center">
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.25em] text-red-800">
+            Simple & Trusted
+          </p>
+
+          <h2 className="text-4xl font-extrabold text-red-900 sm:text-5xl">
             How It Works
           </h2>
 
-          <p className="mt-4 text-gray-500 text-xl">
-            Simple steps to find your perfect life partner.
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
+            A simple journey from creating your profile to finding
+            a suitable life partner.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-8">
+        {/* Steps */}
+        <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-4">
 
-          {/* Find Your Match */}
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">
-              🔍
-            </div>
+          {steps.map((step, index) => (
+            <Link
+              key={step.title}
+              href={step.href}
+              className="group relative rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-md transition duration-300 hover:-translate-y-2 hover:shadow-2xl"
+            >
 
-            <h3 className="text-2xl font-bold text-red-900">
-              Find Your Match
-            </h3>
+              {/* Step Number */}
+              <div className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-red-900 text-sm font-bold text-white">
+                {index + 1}
+              </div>
 
-            <p className="mt-4 text-gray-600">
-              Browse verified profiles and find suitable matches.
-            </p>
-          </div>
+              {/* Icon */}
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-red-50 text-5xl shadow-inner transition duration-300 group-hover:scale-110 group-hover:bg-red-100">
+                {step.icon}
+              </div>
 
-          {/* Create Profile */}
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">
-              📝
-            </div>
+              {/* Title */}
+              <h3 className="mt-7 text-2xl font-bold text-red-900">
+                {step.title}
+              </h3>
 
-            <h3 className="text-2xl font-bold text-red-900">
-              Create Profile
-            </h3>
-
-            <p className="mt-4 text-gray-600">
-              Register and create your matrimonial profile.
-            </p>
-          </div>
-
-          {/* Connect */}
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">
-              💌
-            </div>
-
-            <h3 className="text-2xl font-bold text-red-900">
-              Connect
-            </h3>
-
-            <p className="mt-4 text-gray-600">
-              Explore suitable profiles and connect with families.
-            </p>
-
-            <div className="mt-5 space-y-2 text-gray-700 text-sm">
-              <p>
-                <strong>Email:</strong>{" "}
-                narnaarivivahsewa@gmail.com
+              {/* Description */}
+              <p className="mt-4 min-h-[72px] text-base leading-7 text-gray-600">
+                {step.description}
               </p>
 
-              <p>
-                <strong>Phone:</strong>{" "}
-                +91 9871592002
-              </p>
-            </div>
-          </div>
+              {/* Button */}
+              <span className="mt-7 inline-flex rounded-full bg-red-900 px-6 py-3 text-sm font-bold text-white transition group-hover:bg-red-700">
+                {step.button}
+                <span className="ml-2 transition-transform group-hover:translate-x-1">
+                  →
+                </span>
+              </span>
 
-          {/* Begin Your Journey */}
-          <div className="bg-gray-50 rounded-2xl shadow-lg p-8 text-center hover:shadow-xl transition">
-            <div className="text-5xl mb-4">
-              🤝
-            </div>
+            </Link>
+          ))}
 
-            <h3 className="text-2xl font-bold text-red-900">
-              Begin Your Journey
-            </h3>
+        </div>
 
-            <p className="mt-4 text-gray-600">
-              Take the next step towards finding your life partner.
-            </p>
-          </div>
+        {/* Bottom CTA */}
+        <div className="mt-14 rounded-3xl bg-red-900 px-6 py-10 text-center shadow-xl">
+          <h3 className="text-2xl font-bold text-white sm:text-3xl">
+            Ready to Find Your Life Partner?
+          </h3>
 
+          <p className="mx-auto mt-3 max-w-2xl text-red-100">
+            Create your NNVS Matrimony profile and take the first
+            step towards a meaningful relationship.
+          </p>
+
+          <Link
+            href="/register"
+            className="mt-6 inline-flex rounded-xl bg-white px-8 py-4 font-bold text-red-900 shadow-lg transition hover:scale-105"
+          >
+            Register Now →
+          </Link>
         </div>
 
       </div>

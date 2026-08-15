@@ -11,7 +11,7 @@ type Profile = {
   caste?: string;
   motherTongue?: string;
   maritalStatus?: string;
-  height?: number;
+  height?: string;
   dateOfBirth?: string;
 
   user: {
@@ -48,8 +48,8 @@ type Profile = {
   partnerPreference?: {
     minAge?: number;
     maxAge?: number;
-    minHeight?: number;
-    maxHeight?: number;
+    minHeight?: string;
+    maxHeight?: string;
     preferredReligion?: string;
     preferredCaste?: string;
   };
@@ -61,9 +61,10 @@ export default function ProfileDetailsPage() {
   const profileId = params.profileId as string;
 
   const [profile, setProfile] = useState<Profile | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [shortlisting, setShortlisting] = useState(false);
+  const [isShortlisted, setIsShortlisted] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -82,39 +83,80 @@ export default function ProfileDetailsPage() {
 
       setProfile(data.profile);
 
+      const shortlistRes = await fetch(
+        `/api/shortlist?shortlistedProfileId=${data.profile.id}`
+      );
+
+      if (shortlistRes.ok) {
+        const shortlistData = await shortlistRes.json();
+        setIsShortlisted(shortlistData.shortlisted);
+      }
     } catch (error) {
       console.error(error);
-
       alert("Unable to load profile.");
     } finally {
       setLoading(false);
     }
   }
-  async function sendInterest() {
-  try {
-    setSending(true);
 
-    const res = await fetch("/api/interest/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        receiverProfileId: profile?.id,
-      }),
-    });
+  async function toggleShortlist() {
+    if (!profile) return;
 
-    const data = await res.json();
+    try {
+      setShortlisting(true);
 
-    alert(data.message);
+      const res = await fetch("/api/shortlist", {
+        method: isShortlisted ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shortlistedProfileId: profile.id,
+        }),
+      });
 
-  } catch (error) {
-    console.error(error);
-    alert("Unable to send interest.");
-  } finally {
-    setSending(false);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message);
+        return;
+      }
+
+      setIsShortlisted(data.shortlisted);
+
+      alert(data.message);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update shortlist.");
+    } finally {
+      setShortlisting(false);
+    }
   }
-}
+
+  async function sendInterest() {
+    try {
+      setSending(true);
+
+      const res = await fetch("/api/interest/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          receiverProfileId: profile?.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      alert(data.message);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to send interest.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -138,9 +180,7 @@ export default function ProfileDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-10">
-
       <div className="mx-auto max-w-6xl px-4">
-
         <div className="overflow-hidden rounded-3xl bg-white shadow-xl">
 
           <img
@@ -153,7 +193,8 @@ export default function ProfileDetailsPage() {
           />
 
           <div className="p-8">
-                        <h1 className="text-4xl font-bold text-gray-800">
+
+            <h1 className="text-4xl font-bold text-gray-800">
               {profile.user.fullName}
             </h1>
 
@@ -173,20 +214,37 @@ export default function ProfileDetailsPage() {
 
                 <div className="space-y-3">
 
-                  <p><strong>Gender:</strong> {profile.user.gender}</p>
+                  <p>
+                    <strong>Gender:</strong>{" "}
+                    {profile.user.gender}
+                  </p>
 
-                  <p><strong>Religion:</strong> {profile.religion || "-"}</p>
+                  <p>
+                    <strong>Religion:</strong>{" "}
+                    {profile.religion || "-"}
+                  </p>
 
-                  <p><strong>Caste:</strong> {profile.caste || "-"}</p>
+                  <p>
+                    <strong>Caste:</strong>{" "}
+                    {profile.caste || "-"}
+                  </p>
 
-                  <p><strong>Mother Tongue:</strong> {profile.motherTongue || "-"}</p>
+                  <p>
+                    <strong>Mother Tongue:</strong>{" "}
+                    {profile.motherTongue || "-"}
+                  </p>
 
-                  <p><strong>Marital Status:</strong> {profile.maritalStatus || "-"}</p>
+                  <p>
+                    <strong>Marital Status:</strong>{" "}
+                    {profile.maritalStatus || "-"}
+                  </p>
 
-                  <p><strong>Height:</strong> {profile.height || "-"} cm</p>
+                  <p>
+                    <strong>Height:</strong>{" "}
+                    {profile.height || "-"}
+                  </p>
 
                 </div>
-
               </div>
 
               {/* Education */}
@@ -215,7 +273,6 @@ export default function ProfileDetailsPage() {
                   </p>
 
                 </div>
-
               </div>
 
               {/* Occupation */}
@@ -244,7 +301,6 @@ export default function ProfileDetailsPage() {
                   </p>
 
                 </div>
-
               </div>
 
               {/* Family */}
@@ -283,7 +339,6 @@ export default function ProfileDetailsPage() {
                   </p>
 
                 </div>
-
               </div>
 
               {/* Partner Preference */}
@@ -298,8 +353,7 @@ export default function ProfileDetailsPage() {
 
                   <p>
                     <strong>Age:</strong>{" "}
-                    {profile.partnerPreference?.minAge || "-"} -
-                    {" "}
+                    {profile.partnerPreference?.minAge || "-"} -{" "}
                     {profile.partnerPreference?.maxAge || "-"}
                   </p>
 
@@ -314,35 +368,41 @@ export default function ProfileDetailsPage() {
                   </p>
 
                 </div>
-
               </div>
 
             </div>
 
+            {/* Actions */}
+
             <div className="mt-10 flex flex-wrap gap-4">
 
               <button
-  onClick={sendInterest}
-  disabled={sending}
-  className="rounded-xl bg-red-700 px-8 py-3 font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
->
-  {sending ? "Sending..." : "❤️ Send Interest"}
-</button>
+                onClick={sendInterest}
+                disabled={sending}
+                className="rounded-xl bg-red-700 px-8 py-3 font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
+              >
+                {sending
+                  ? "Sending..."
+                  : "❤️ Send Interest"}
+              </button>
 
               <button
-                className="rounded-xl border border-red-700 px-8 py-3 font-semibold text-red-700 transition hover:bg-red-50"
+                onClick={toggleShortlist}
+                disabled={shortlisting}
+                className="rounded-xl border border-red-700 px-8 py-3 font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
               >
-                ⭐ Shortlist
+                {shortlisting
+                  ? "Saving..."
+                  : isShortlisted
+                    ? "⭐ Shortlisted"
+                    : "⭐ Shortlist"}
               </button>
 
             </div>
 
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }

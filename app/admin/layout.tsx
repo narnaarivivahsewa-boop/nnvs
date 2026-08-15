@@ -11,6 +11,7 @@ import {
   Store,
   Settings,
   LogOut,
+  Ticket,
 } from "lucide-react";
 
 const menus = [
@@ -38,6 +39,11 @@ const menus = [
     title: "Payments",
     href: "/admin/payments",
     icon: CreditCard,
+  },
+    {
+    title: "Promo Codes",
+    href: "/admin/promo-codes",
+    icon: Ticket,
   },
   {
     title: "Vendors",
