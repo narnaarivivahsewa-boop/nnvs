@@ -44,11 +44,11 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
   };
 
   return (
-    <section className="relative -mt-10 sm:-mt-14 lg:-mt-16 z-30 px-4 sm:px-6 lg:px-10 max-w-7xl mx-auto">
-      <div className="rounded-2xl bg-[#FAF5EB] p-5 sm:p-6 lg:p-7 shadow-xl border border-[#E2D4BE]">
+    <section className="relative mt-4 sm:-mt-12 lg:-mt-16 z-30 px-3 sm:px-6 lg:px-10 max-w-7xl mx-auto">
+      <div className="rounded-2xl bg-[#FAF5EB] p-4 sm:p-6 lg:p-7 shadow-xl border border-[#E2D4BE]">
         {/* Header with Title + AI Matchmaker Button */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 sm:mb-5">
-          <h2 className="font-serif-luxury font-bold text-base sm:text-lg tracking-[0.12em] text-[#2D221E] uppercase">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4 sm:mb-5">
+          <h2 className="text-center sm:text-left font-serif-luxury font-bold text-sm sm:text-base md:text-lg tracking-[0.12em] text-[#2D221E] uppercase">
             FIND YOUR PERFECT MATCH
           </h2>
 
@@ -56,7 +56,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             <button
               type="button"
               onClick={onOpenAIMatchmaker}
-              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#4A121A] to-[#7A1F2D] px-4 py-1.5 text-xs font-bold text-[#DFBA73] shadow-sm hover:shadow-md transition hover:scale-105"
+              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#4A121A] to-[#7A1F2D] px-4 py-2 sm:py-1.5 text-xs font-bold text-[#DFBA73] shadow-sm hover:shadow-md transition hover:scale-105 active:scale-95"
             >
               <Sparkles className="h-3.5 w-3.5 animate-pulse text-[#DFBA73]" />
               <span>AI Matchmaker Bot ✨</span>
@@ -73,7 +73,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-7"
+                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2.5 sm:py-2 text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-8"
                 value={lookingFor}
                 onChange={(e) => setLookingFor(e.target.value)}
               >
@@ -81,7 +81,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
                 <option value="FEMALE">Bride (Female)</option>
                 <option value="MALE">Groom (Male)</option>
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A7972]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
             </div>
           </div>
 
@@ -92,7 +92,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-7"
+                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2.5 sm:py-2 text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-8"
                 value={ageGroup}
                 onChange={(e) => setAgeGroup(e.target.value)}
               >
@@ -103,7 +103,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
                 <option value="41-50">41 to 50 Yrs</option>
                 <option value="51+">50+ Yrs</option>
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A7972]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
             </div>
           </div>
 
@@ -114,7 +114,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-7"
+                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2.5 sm:py-2 text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-8"
                 value={religion}
                 onChange={(e) => handleReligionChange(e.target.value)}
               >
@@ -125,7 +125,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A7972]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
             </div>
           </div>
 
@@ -136,7 +136,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-7"
+                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2.5 sm:py-2 text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-8"
                 value={community}
                 onChange={(e) => setCommunity(e.target.value)}
               >
@@ -146,7 +146,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A7972]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
             </div>
           </div>
 
@@ -157,7 +157,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-7"
+                className="w-full appearance-none rounded-lg border border-[#DACBB4] bg-white px-3 py-2.5 sm:py-2 text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] pr-8"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               >
@@ -177,7 +177,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
                 <option value="Uttarakhand">Uttarakhand</option>
                 <option value="Other">Other State / International</option>
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A7972]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
             </div>
           </div>
 
@@ -185,7 +185,7 @@ export default function SearchBox({ onOpenAIMatchmaker }: { onOpenAIMatchmaker?:
           <div>
             <button
               type="submit"
-              className="w-full rounded-lg bg-[#C5A059] py-2.5 px-4 text-xs sm:text-sm font-semibold text-white shadow-sm transition hover:bg-[#B88E4C] hover:shadow active:scale-[0.99] text-center"
+              className="w-full rounded-lg bg-[#C5A059] py-3 sm:py-2.5 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#B88E4C] hover:shadow active:scale-[0.99] text-center"
             >
               Search Profiles
             </button>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Cinzel, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -26,6 +26,13 @@ export const metadata: Metadata = {
   description: "NNVS Matrimony - Premium Matchmaking for Discerning Individuals. समाज के प्रति एक सेवा.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#4A121A",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,9 +41,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased`}
+      className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased overflow-x-hidden`}
     >
-      <body className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans">
+      <body className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden">
         <Navbar />
         {children}
       </body>

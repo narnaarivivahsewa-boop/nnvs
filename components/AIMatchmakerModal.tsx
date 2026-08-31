@@ -116,24 +116,24 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-2xl transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-2xl transition-all">
         {/* Modal Top Header */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-[#4A121A] via-[#5C1924] to-[#7A1F2D] px-6 py-4 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FAF0DC] text-[#4A121A] shadow-inner">
-              <Bot className="h-6 w-6 text-[#4A121A]" />
+        <div className="flex items-center justify-between bg-gradient-to-r from-[#4A121A] via-[#5C1924] to-[#7A1F2D] px-4 sm:px-6 py-3.5 sm:py-4 text-white">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#FAF0DC] text-[#4A121A] shadow-inner flex-shrink-0">
+              <Bot className="h-5 w-5 sm:h-6 sm:w-6 text-[#4A121A]" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-white tracking-wide">
+                <h3 className="font-serif-luxury text-sm sm:text-lg font-bold text-white tracking-wide">
                   NNVS AI Matchmaker Bot
                 </h3>
-                <span className="rounded-full bg-[#DFBA73] px-2 py-0.5 text-[10px] font-extrabold text-[#4A121A]">
+                <span className="rounded-full bg-[#DFBA73] px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[9px] sm:text-[10px] font-extrabold text-[#4A121A]">
                   AI 2.0
                 </span>
               </div>
-              <p className="text-[11px] text-[#E2D2BC]">
+              <p className="text-[10px] sm:text-[11px] text-[#E2D2BC]">
                 Smart Scrutiny & Compatibility Assistant
               </p>
             </div>
@@ -149,7 +149,7 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-8 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
           {/* 1. Questionnaire Flow */}
           {!results && !loading && (
             <div>
