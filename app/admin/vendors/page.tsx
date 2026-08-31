@@ -1,24 +1,23 @@
+import { prisma } from "@/lib/prisma";
 import VendorFilter from "./VendorFilter";
 import VendorTable from "./VendorTable";
 
 async function getVendors() {
   try {
-    const res = await fetch(
-      "http://localhost:3000/api/admin/vendors",
-      {
-        cache: "no-store",
-      }
-    );
+    const vendors = await prisma.vendor.findMany({
+      include: {
+        user: true,
+        galleries: true,
+        reviews: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-    if (!res.ok) {
-      return [];
-    }
-
-    const data = await res.json();
-
-    return data.vendors || [];
+    return vendors;
   } catch (error) {
-    console.error(error);
+    console.error("Failed to fetch vendors:", error);
     return [];
   }
 }
@@ -28,25 +27,18 @@ export default async function VendorsPage() {
 
   return (
     <div className="space-y-6">
-
       <div>
-
-        <h1 className="text-4xl font-bold">
+        <h1 className="text-4xl font-bold text-gray-900">
           Vendors
         </h1>
-
         <p className="mt-2 text-gray-500">
-          Manage all registered vendors.
+          Manage all registered wedding vendors and services.
         </p>
-
       </div>
 
       <VendorFilter />
 
-      <VendorTable
-        vendors={vendors}
-      />
-
+      <VendorTable vendors={vendors} />
     </div>
   );
 }

@@ -69,7 +69,7 @@ async function main() {
 
         dateOfBirth: new Date("1990-03-04"),
 
-        height: 175,
+        height: "5'9\"",
 
         maritalStatus: "Divorced",
 

@@ -4,116 +4,115 @@ const steps = [
   {
     icon: "🔎",
     title: "Find Your Match",
-    description: "Browse suitable profiles and discover your perfect match.",
+    description: "Browse suitable profiles and discover your perfect match with smart filters.",
     href: "/profiles",
     button: "Browse Profiles",
   },
   {
     icon: "📝",
     title: "Create Profile",
-    description: "Register and create your matrimonial profile with your details.",
+    description: "Register and create your matrimonial biodata with complete family details.",
     href: "/register",
     button: "Register Now",
   },
   {
     icon: "💌",
-    title: "Connect",
-    description: "Explore suitable profiles and connect with families.",
+    title: "Connect & Converse",
+    description: "Explore suitable profiles and connect with families with complete dignity.",
     href: "/contact",
     button: "Contact Us",
   },
   {
     icon: "🤝",
     title: "Begin Your Journey",
-    description: "Take the next step towards finding your life partner.",
+    description: "Take the auspicious next step towards finding your life partner and happiness.",
     href: "/register",
-    button: "Start Your Journey",
+    button: "Start Journey",
   },
 ];
 
 export default function HowItWorks() {
   return (
-    <section className="bg-gradient-to-b from-white to-rose-50 px-6 py-20">
+    <section id="stories" className="bg-[#FAF6EF] px-4 sm:px-6 lg:px-10 py-20 border-t border-[#E8DCC8]">
       <div className="mx-auto max-w-7xl">
-
         {/* Heading */}
         <div className="mb-14 text-center">
-          <p className="mb-3 text-sm font-bold uppercase tracking-[0.25em] text-red-800">
-            Simple & Trusted
+          <p className="mb-2 font-serif-luxury text-xs font-bold uppercase tracking-[0.2em] text-[#C5A059]">
+            SIMPLE & SACRED JOURNEY
           </p>
 
-          <h2 className="text-4xl font-extrabold text-red-900 sm:text-5xl">
+          <h2 className="font-serif-luxury text-2xl sm:text-3xl md:text-4xl font-bold text-[#2D221E]">
             How It Works
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-            A simple journey from creating your profile to finding
-            a suitable life partner.
+          <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base text-[#5A4E48]">
+            A simple, transparent path from creating your profile to meeting suitable prospective families.
           </p>
         </div>
 
         {/* Steps */}
-        <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-4">
-
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (
-            <Link
+            <div
               key={step.title}
-              href={step.href}
-              className="group relative rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-md transition duration-300 hover:-translate-y-2 hover:shadow-2xl"
+              className="relative rounded-2xl border border-[#DACBB4] bg-[#FAF5EB] p-6 text-center shadow-xs transition-all duration-300 hover:shadow-md hover:border-[#C5A059] flex flex-col justify-between"
             >
-
               {/* Step Number */}
-              <div className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-red-900 text-sm font-bold text-white">
+              <div className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-[#C5A059] text-xs font-bold text-white shadow-xs">
                 {index + 1}
               </div>
 
-              {/* Icon */}
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-red-50 text-5xl shadow-inner transition duration-300 group-hover:scale-110 group-hover:bg-red-100">
-                {step.icon}
+              <div>
+                {/* Icon */}
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#FAF0DC] text-3xl shadow-inner border border-[#E2D4BE]">
+                  {step.icon}
+                </div>
+
+                {/* Title */}
+                <h3 className="mt-5 font-serif-luxury text-lg font-bold text-[#2D221E]">
+                  {step.title}
+                </h3>
+
+                {/* Description */}
+                <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
+                  {step.description}
+                </p>
               </div>
 
-              {/* Title */}
-              <h3 className="mt-7 text-2xl font-bold text-red-900">
-                {step.title}
-              </h3>
-
-              {/* Description */}
-              <p className="mt-4 min-h-[72px] text-base leading-7 text-gray-600">
-                {step.description}
-              </p>
-
               {/* Button */}
-              <span className="mt-7 inline-flex rounded-full bg-red-900 px-6 py-3 text-sm font-bold text-white transition group-hover:bg-red-700">
-                {step.button}
-                <span className="ml-2 transition-transform group-hover:translate-x-1">
-                  →
-                </span>
-              </span>
-
-            </Link>
+              <div className="mt-6 pt-4 border-t border-[#E8DCC8]">
+                <Link
+                  href={step.href}
+                  className="inline-flex items-center justify-center rounded-lg bg-[#4A121A] px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#3A0C13]"
+                >
+                  <span>{step.button}</span>
+                  <span className="ml-1.5">→</span>
+                </Link>
+              </div>
+            </div>
           ))}
-
         </div>
 
-        {/* Bottom CTA */}
-        <div className="mt-14 rounded-3xl bg-red-900 px-6 py-10 text-center shadow-xl">
-          <h3 className="text-2xl font-bold text-white sm:text-3xl">
+        {/* Auspicious Banner CTA */}
+        <div className="mt-14 rounded-2xl bg-[#4A121A] px-6 py-10 text-center shadow-lg border border-[#6B1F2D]">
+          <h3 className="font-serif-luxury text-xl sm:text-2xl md:text-3xl font-bold text-white">
             Ready to Find Your Life Partner?
           </h3>
 
-          <p className="mx-auto mt-3 max-w-2xl text-red-100">
-            Create your NNVS Matrimony profile and take the first
-            step towards a meaningful relationship.
+          <p className="mx-auto mt-2 max-w-xl text-xs sm:text-sm text-[#E2D2BC]">
+            Register with NNVS Matrimony today and take the first step towards a blessed lifelong partnership.
           </p>
 
-          <Link
-            href="/register"
-            className="mt-6 inline-flex rounded-xl bg-white px-8 py-4 font-bold text-red-900 shadow-lg transition hover:scale-105"
-          >
-            Register Now →
-          </Link>
+          <div className="mt-6">
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#C5A059] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#B88E4C] hover:scale-105"
+            >
+              <span>Register Now</span>
+              <span>→</span>
+            </Link>
+          </div>
         </div>
-
       </div>
     </section>
   );

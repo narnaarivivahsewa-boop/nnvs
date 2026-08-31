@@ -1,7 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { searchParams } = new URL(req.url);
 
@@ -87,7 +94,6 @@ export async function GET(req: NextRequest) {
       count: profiles.length,
       profiles,
     });
-
   } catch (error) {
     console.error("ADMIN PROFILES API ERROR =>", error);
 

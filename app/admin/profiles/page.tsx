@@ -38,107 +38,79 @@ export default function AdminProfilesPage() {
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
-
   const [status, setStatus] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    loadProfiles();
-  }, [search, status]);
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        const params = new URLSearchParams();
+        if (search) params.append("search", search);
+        if (status) params.append("status", status);
+
+        const res = await fetch(`/api/admin/profiles?${params.toString()}`);
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          setProfiles(data.profiles);
+        }
+      } catch (error) {
+        console.error("Error loading profiles:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [search, status, refreshTrigger]);
+
+  const refreshList = () => setRefreshTrigger((prev) => prev + 1);
+
   async function approveProfile(profileId: string) {
-  const ok = confirm("Approve this profile?");
+    const ok = confirm("Approve this profile?");
+    if (!ok) return;
 
-  if (!ok) return;
-
-  try {
-    const res = await fetch("/api/admin/profiles/approve", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        profileId,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message);
-    }
-
-    alert(data.message);
-
-    loadProfiles();
-
-  } catch (error: any) {
-    alert(error.message);
-  }
-}
-
-async function rejectProfile(profileId: string) {
-  const ok = confirm("Reject this profile?");
-
-  if (!ok) return;
-
-  try {
-    const res = await fetch("/api/admin/profiles/reject", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        profileId,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message);
-    }
-
-    alert(data.message);
-
-    loadProfiles();
-
-  } catch (error: any) {
-    alert(error.message);
-  }
-}
-
-  async function loadProfiles() {
     try {
-      setLoading(true);
-
-      const params = new URLSearchParams();
-
-      if (search) {
-        params.append("search", search);
-      }
-
-      if (status) {
-        params.append("status", status);
-      }
-
-      const res = await fetch(
-        `/api/admin/profiles?${params.toString()}`
-      );
+      const res = await fetch("/api/admin/profiles/approve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ profileId }),
+      });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-      if (!res.ok) {
-        throw new Error(data.message);
-      }
+      alert(data.message);
+      refreshList();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  }
 
-      setProfiles(data.profiles);
+  async function rejectProfile(profileId: string) {
+    const ok = confirm("Reject this profile?");
+    if (!ok) return;
 
-    } catch (error) {
-      console.error(error);
+    try {
+      const res = await fetch("/api/admin/profiles/reject", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ profileId }),
+      });
 
-      alert("Unable to load profiles.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-    } finally {
-      setLoading(false);
+      alert(data.message);
+      refreshList();
+    } catch (error: any) {
+      alert(error.message);
     }
   }
 

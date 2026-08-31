@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 interface RouteParams {
   params: Promise<{
@@ -11,6 +12,12 @@ export async function PATCH(
   req: NextRequest,
   { params }: RouteParams
 ) {
+  const auth = await requireAdmin(req);
+
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { id } = await params;
 
@@ -81,7 +88,6 @@ export async function PATCH(
     });
 
   } catch (error: any) {
-
     console.error(
       "APPROVAL UPDATE ERROR:",
       error
@@ -98,6 +104,5 @@ export async function PATCH(
         status: 500,
       }
     );
-
   }
 }

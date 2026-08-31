@@ -1,10 +1,17 @@
-console.log("🚀 NEW IMPORT ROUTE LOADED");
+﻿console.log("ðŸš€ NEW IMPORT ROUTE LOADED");
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin(req);
+
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     // =====================================
     // Read Uploaded File
@@ -445,7 +452,7 @@ function convertHeight(
   // Already in feet/inches format:
   // 5'6", 6'0", 5'10"
   const feetInchesMatch = value.match(
-    /^(\d+)\s*['’]\s*(\d+)\s*["”]?$/
+    /^(\d+)\s*['â€™]\s*(\d+)\s*["â€]?$/
   );
 
   if (feetInchesMatch) {
@@ -523,3 +530,7 @@ function extractCaste(
 
   return parts[parts.length - 1];
 }
+
+
+
+

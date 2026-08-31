@@ -7,7 +7,6 @@ import {
   UserCheck,
   Clock3,
   XCircle,
-  FileSpreadsheet,
   Heart,
   IndianRupee,
   Store,
@@ -43,28 +42,26 @@ export default function AdminDashboard() {
 });
 
   useEffect(() => {
+    async function loadDashboard() {
+      try {
+        const res = await fetch("/api/admin/dashboard");
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message);
+        }
+
+        setDashboard(data.dashboard);
+      } catch (error) {
+        console.error(error);
+        alert("Unable to load dashboard.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadDashboard();
   }, []);
-
-  async function loadDashboard() {
-    try {
-      const res = await fetch("/api/admin/dashboard");
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message);
-      }
-
-      setDashboard(data.dashboard);
-
-    } catch (error) {
-      console.error(error);
-      alert("Unable to load dashboard.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const cards = [
     {

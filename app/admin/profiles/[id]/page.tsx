@@ -93,38 +93,26 @@ export default function AdminProfileViewPage() {
     useState<Profile | null>(null);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    async function loadProfile() {
+      try {
+        const res = await fetch(`/api/admin/profiles/${id}`);
+        const data = await res.json();
 
-  async function loadProfile() {
+        if (!res.ok) {
+          throw new Error(data.message);
+        }
 
-    try {
-
-      const res = await fetch(
-        `/api/admin/profiles/${id}`
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message);
+        setProfile(data.profile);
+      } catch (error) {
+        console.error(error);
+        alert("Unable to load profile.");
+      } finally {
+        setLoading(false);
       }
-
-      setProfile(data.profile);
-
-    } catch (error) {
-
-      console.error(error);
-
-      alert("Unable to load profile.");
-
-    } finally {
-
-      setLoading(false);
-
     }
 
-  }
+    loadProfile();
+  }, [id]);
 
   if (loading) {
 

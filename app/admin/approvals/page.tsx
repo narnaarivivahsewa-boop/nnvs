@@ -5,55 +5,56 @@ import ApprovalFilter from "./ApprovalFilter";
 import ApprovalTable from "./ApprovalTable";
 
 export default function ApprovalsPage() {
-  const [profiles, setProfiles] = useState([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfiles = async () => {
+  useEffect(() => {
+    async function loadApprovals() {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/admin/approvals");
+        const data = await res.json();
+
+        if (data.success && Array.isArray(data.profiles)) {
+          setProfiles(data.profiles);
+        }
+      } catch (error) {
+        console.error("Error loading approvals:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadApprovals();
+  }, []);
+
+  const refresh = async () => {
     try {
       const res = await fetch("/api/admin/approvals");
-
       const data = await res.json();
 
-      if (data.success) {
+      if (data.success && Array.isArray(data.profiles)) {
         setProfiles(data.profiles);
       }
     } catch (error) {
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchProfiles();
-  }, []);
-
   return (
-  <div className="space-y-6">
-
-    <div>
-      <h1 className="text-4xl font-bold">
-        Profile Approvals
-      </h1>
-
-      <p className="mt-2 text-gray-500">
-        Approve or Reject Pending Profiles
-      </p>
-    </div>
-
-    <ApprovalFilter />
-
-    {loading ? (
-      <div className="text-lg">
-        Loading...
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-4xl font-bold">Profile Approvals</h1>
+        <p className="mt-2 text-gray-500">Approve or Reject Pending Profiles</p>
       </div>
-    ) : (
-      <ApprovalTable
-        profiles={profiles}
-        refresh={fetchProfiles}
-      />
-    )}
 
-  </div>
-);
+      <ApprovalFilter />
+
+      {loading ? (
+        <div className="text-lg">Loading...</div>
+      ) : (
+        <ApprovalTable profiles={profiles} refresh={refresh} />
+      )}
+    </div>
+  );
 }

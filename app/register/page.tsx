@@ -1,183 +1,403 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-const GST_RATE = 0.18;
+import ProgressBar from "./components/ProgressBar";
+import NavigationButtons from "./components/NavigationButtons";
 
-const FEES = {
-  MALE: 799,
-  FEMALE: 399,
-};
+import Step1Account from "./components/steps/Step1Account";
+import Step2Personal from "./components/steps/Step2Personal";
+import Step3Education from "./components/steps/Step3Education";
+import Step4Preference from "./components/steps/Step4Preference";
+import Step5Family from "./components/steps/Step5Family";
 
-export default function ReviewPage() {
-  const searchParams = useSearchParams();
+import { registerSchema } from "./schema";
+import { RegisterFormData } from "@/types/register";
+
+export default function RegisterPage() {
   const router = useRouter();
+  const totalSteps = 5;
 
-  const profileId = searchParams.get("profileId");
-  const gender = searchParams.get("gender")?.toUpperCase();
+  const [step, setStep] = useState(1);
 
-  const isFemale = gender === "FEMALE";
+  // OTP
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otp, setOtp] = useState("");
 
-  const registrationType = isFemale ? "Female" : "Male";
-  const baseFee = isFemale ? FEES.FEMALE : FEES.MALE;
+  // Photos
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
 
-  const gstAmount = Number(
-    (baseFee * GST_RATE).toFixed(2)
-  );
+  const {
+    register,
+    handleSubmit,
+    trigger,
+    getValues,
+    control,
+    formState: { errors },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
 
-  const totalAmount = Number(
-    (baseFee + gstAmount).toFixed(2)
-  );
+    mode: "onTouched",
 
-  function proceedToPayment() {
-    if (!profileId) {
-      alert("Profile ID is missing.");
+    defaultValues: {
+      fullName: "",
+      mobile: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      profileType: "Male",
+
+      gender: "",
+      lookingFor: "",
+      dateOfBirth: "",
+      height: "",
+      weight: "",
+      maritalStatus: "",
+      religion: "Hindu",
+      caste: "",
+      motherTongue: "",
+      country: "India",
+      state: "",
+      city: "",
+      postalCode: "",
+
+      highestQualification: "",
+      college: "",
+      occupationField: "",
+      profession: "",
+      company: "",
+      annualIncome: "",
+
+      minAge: "",
+      maxAge: "",
+      minHeight: "",
+      maxHeight: "",
+      preferredReligion: "Open to All",
+      preferredCaste: "",
+
+      fatherName: "",
+      motherName: "",
+      brothers: "",
+      sisters: "",
+      familyType: "",
+      familyStatus: "",
+
+      about: "",
+      photos: [],
+    },
+  });
+
+  const changeMobile = () => {
+    setOtp("");
+    setOtpSent(false);
+    setOtpVerified(false);
+  };
+
+  const sendOTP = async () => {
+  const mobile = getValues("mobile");
+  const email = getValues("email");
+
+  if (!/^[6-9]\d{9}$/.test(mobile)) {
+    alert("Enter valid mobile number.");
+    return;
+  }
+
+  if (!email) {
+    alert("Enter your email address.");
+    return;
+  }
+
+  try {
+    setOtpLoading(true);
+
+    // -------------------------
+    // Check Email First
+    // -------------------------
+
+    const emailRes = await fetch("/api/auth/check-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+      }),
+    });
+
+    const emailResult = await emailRes.json();
+
+    if (!emailRes.ok) {
+      alert(emailResult.message);
       return;
     }
 
-    router.push(
-      `/payment?profileId=${encodeURIComponent(
-        profileId
-      )}&gender=${encodeURIComponent(
-        registrationType
-      )}`
-    );
+    // -------------------------
+    // Send OTP
+    // -------------------------
+
+    const res = await fetch("/api/auth/send-otp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mobile,
+        type: "REGISTRATION",
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      alert(result.message);
+      return;
+    }
+
+    setOtpSent(true);
+
+    alert("OTP Sent Successfully");
+
+  } catch (err) {
+    console.error(err);
+
+    alert("Unable to Send OTP");
+
+  } finally {
+    setOtpLoading(false);
   }
+};
 
-  if (!profileId) {
-    return (
-      <main className="min-h-screen bg-gray-100 px-4 py-12">
+  const verifyOTP = async () => {
+    const mobile = getValues("mobile");
 
-        <div className="mx-auto max-w-lg rounded-3xl bg-white p-8 text-center shadow-xl">
+    if (otp.length !== 6) {
+      alert("Enter 6 Digit OTP");
+      return;
+    }
 
-          <h1 className="text-2xl font-bold text-red-700">
-            Registration Error
-          </h1>
+    try {
+      setOtpLoading(true);
 
-          <p className="mt-4 text-gray-600">
-            Profile ID is missing. Please complete the
-            registration process again.
-          </p>
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mobile,
+          otp,
+          type: "REGISTRATION",
+        }),
+      });
 
-        </div>
+      const result = await res.json();
 
-      </main>
-    );
-  }
+      if (!res.ok) {
+        alert(result.message);
+        return;
+      }
+
+      setOtpVerified(true);
+
+      alert("Mobile Verified");
+    } catch (err) {
+      console.error(err);
+      alert("OTP Verification Failed");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleNext = async () => {
+    let valid = true;
+
+    switch (step) {
+      case 1:
+        valid = await trigger([
+          "fullName",
+          "mobile",
+          "email",
+          "password",
+          "confirmPassword",
+          "profileType",
+        ]);
+
+        if (!valid) return;
+
+        if (!otpVerified) {
+          alert("Please verify your mobile number first.");
+          return;
+        }
+
+        break;
+
+      case 2:
+        valid = await trigger([
+          "gender",
+          "lookingFor",
+          "dateOfBirth",
+          "height",
+          "maritalStatus",
+          "country",
+          "state",
+          "city",
+        ]);
+
+        if (!valid) return;
+
+        break;
+
+      case 3:
+        valid = await trigger([
+          "highestQualification",
+          "profession",
+        ]);
+
+        if (!valid) return;
+
+        break;
+
+      case 5:
+        if (photos.length < 1) {
+          alert("Please upload at least one profile photo.");
+          return;
+        }
+
+        break;
+
+      default:
+        break;
+    }
+
+    if (step < totalSteps) {
+      setStep((prev) => prev + 1);
+    }
+  };
+    const handlePrevious = () => {
+    if (step > 1) {
+      setStep((prev) => prev - 1);
+    }
+  };
+
+  const onSubmit = async (data: RegisterFormData) => {
+    try {
+      const payload = {
+        ...data,
+        photos,
+      };
+
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        alert(result.message);
+        return;
+      }
+
+      alert("Registration Successful ✅");
+
+      router.push(
+        `/register/review?profileId=${encodeURIComponent(
+          result.profileId
+        )}&gender=${encodeURIComponent(data.gender)}`
+      );
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong.");
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
+      <div className="w-full max-w-4xl rounded-3xl bg-white p-8 shadow-xl md:p-10">
 
-      <div className="mx-auto max-w-lg">
+        <h1 className="text-center text-4xl font-bold text-red-800">
+          Complete Your Biodata
+        </h1>
 
-        <div className="rounded-3xl bg-white p-8 shadow-xl">
+        <p className="mb-8 mt-3 text-center text-gray-500">
+          Let&apos;s create your matrimonial profile
+        </p>
 
-          <div className="mb-8 text-center">
+        <ProgressBar
+          step={step}
+          totalSteps={totalSteps}
+        />
 
-            <h1 className="text-3xl font-bold text-red-700">
-              NNVS MATRIMONY
-            </h1>
+        <form onSubmit={handleSubmit(onSubmit)}>
 
-            <p className="mt-2 text-gray-600">
-              Registration Summary
-            </p>
+          {step === 1 && (
+            <Step1Account
+              register={register}
+              errors={errors}
+              otp={otp}
+              setOtp={setOtp}
+              otpSent={otpSent}
+              otpVerified={otpVerified}
+              otpLoading={otpLoading}
+              onSendOTP={sendOTP}
+              onVerifyOTP={verifyOTP}
+              onChangeMobile={changeMobile}
+            />
+          )}
 
-          </div>
+          {step === 2 && (
+            <Step2Personal
+              register={register}
+              errors={errors}
+              control={control}
+            />
+          )}
 
-          <div className="mb-6 rounded-2xl bg-gray-50 p-5">
+          {step === 3 && (
+            <Step3Education
+              register={register}
+              errors={errors}
+            />
+          )}
 
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-600">
-                Profile ID
-              </span>
+          {step === 4 && (
+            <Step4Preference
+              register={register}
+              errors={errors}
+              control={control}
+            />
+          )}
 
-              <span className="font-semibold text-gray-900">
-                {profileId}
-              </span>
-            </div>
+          {step === 5 && (
+            <Step5Family
+              register={register}
+              errors={errors}
+              photos={photos}
+              setPhotos={setPhotos}
+              uploading={uploading}
+              setUploading={setUploading}
+            />
+          )}
 
-            <div className="mt-3 flex justify-between">
-              <span className="text-gray-600">
-                Profile Type
-              </span>
+          <NavigationButtons
+            step={step}
+            totalSteps={totalSteps}
+            onNext={handleNext}
+            onPrevious={handlePrevious}
+          />
 
-              <span className="font-semibold text-gray-900">
-                {registrationType}
-              </span>
-            </div>
-
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 p-6">
-
-            <h2 className="mb-5 text-xl font-semibold text-gray-800">
-              Registration Fee
-            </h2>
-
-            <div className="space-y-4 text-gray-700">
-
-              <div className="flex justify-between">
-                <span>
-                  One-Time Registration Fee
-                </span>
-
-                <span className="font-semibold">
-                  ₹{baseFee.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>
-                  GST @ 18%
-                </span>
-
-                <span className="font-semibold">
-                  ₹{gstAmount.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="my-4 border-t" />
-
-              <div className="flex justify-between text-lg font-bold text-gray-900">
-                <span>
-                  Total Payable
-                </span>
-
-                <span>
-                  ₹{totalAmount.toFixed(2)}
-                </span>
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="mt-6 rounded-2xl bg-red-50 p-5 text-sm leading-6 text-gray-700">
-
-            <p className="font-semibold text-red-800">
-              One-Time Registration Fee
-            </p>
-
-            <p className="mt-2">
-              This is a one-time registration fee for
-              registration with NNVS MATRIMONY. It is not
-              a monthly, quarterly or annual subscription fee.
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            onClick={proceedToPayment}
-            className="mt-8 w-full rounded-xl bg-red-700 px-8 py-4 font-semibold text-white transition hover:bg-red-800"
-          >
-            Proceed To Payment
-          </button>
-
-        </div>
+        </form>
 
       </div>
-
-    </main>
+    </div>
   );
 }

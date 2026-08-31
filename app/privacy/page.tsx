@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
               </h2>
 
               <p className="mt-3">
-                NNVS Matrimony ("NNVS", "we", "us" or "our") respects
+                NNVS Matrimony (&quot;NNVS&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;) respects
                 the privacy of its members and is committed to protecting
                 the personal information shared with us through our
                 website and services.

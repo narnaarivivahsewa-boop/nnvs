@@ -1,39 +1,47 @@
-import { NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const [
-  totalMembers,
-  maleMembers,
-  femaleMembers,
-  approvedProfiles,
-  pendingProfiles,
-  rejectedProfiles,
-  totalPayments,
-  totalVendors,
-  totalInterests,
-  todayRegistrations,
-] = await Promise.all([
+      totalMembers,
+      maleMembers,
+      femaleMembers,
+      approvedProfiles,
+      pendingProfiles,
+      rejectedProfiles,
+      totalPayments,
+      totalVendors,
+      totalInterests,
+      todayRegistrations,
+    ] = await Promise.all([
 
       prisma.user.count({
         where: {
           role: "MEMBER",
         },
       }),
-      prisma.user.count({
-  where: {
-    role: "MEMBER",
-    gender: "MALE",
-  },
-}),
 
-prisma.user.count({
-  where: {
-    role: "MEMBER",
-    gender: "FEMALE",
-  },
-}),
+      prisma.user.count({
+        where: {
+          role: "MEMBER",
+          gender: "MALE",
+        },
+      }),
+
+      prisma.user.count({
+        where: {
+          role: "MEMBER",
+          gender: "FEMALE",
+        },
+      }),
 
       prisma.profile.count({
         where: {
@@ -80,26 +88,22 @@ prisma.user.count({
 
     return NextResponse.json({
       success: true,
-
       dashboard: {
-  totalMembers,
-  maleMembers,
-  femaleMembers,
-  approvedProfiles,
-  pendingProfiles,
-  rejectedProfiles,
-  totalPayments,
-  totalVendors,
-  totalInterests,
-  todayRegistrations,
-},
+        totalMembers,
+        maleMembers,
+        femaleMembers,
+        approvedProfiles,
+        pendingProfiles,
+        rejectedProfiles,
+        totalPayments,
+        totalVendors,
+        totalInterests,
+        todayRegistrations,
+      },
     });
 
   } catch (error) {
-    console.error(
-      "ADMIN DASHBOARD API ERROR =>",
-      error
-    );
+    console.error("ADMIN DASHBOARD API ERROR =>", error);
 
     return NextResponse.json(
       {

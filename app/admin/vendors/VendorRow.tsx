@@ -1,5 +1,16 @@
+export interface VendorItem {
+  id: string;
+  businessName: string;
+  category?: string | null;
+  phone: string;
+  city?: string | null;
+  status: string;
+  isVerified: boolean;
+  reviews?: { id: string }[];
+}
+
 interface VendorRowProps {
-  vendor: any;
+  vendor: VendorItem;
 }
 
 export default function VendorRow({
@@ -7,7 +18,6 @@ export default function VendorRow({
 }: VendorRowProps) {
   return (
     <tr className="border-b hover:bg-gray-50">
-
       <td className="px-4 py-3 font-medium">
         {vendor.businessName}
       </td>
@@ -53,7 +63,6 @@ export default function VendorRow({
       <td className="px-4 py-3">
         {vendor.reviews?.length || 0}
       </td>
-
     </tr>
   );
 }

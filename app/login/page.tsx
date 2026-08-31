@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ShieldCheck, Phone, KeyRound, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,50 +18,39 @@ export default function LoginPage() {
     setMessage("");
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
-      setMessage(
-        "Please enter a valid 10 digit mobile number."
-      );
+      setMessage("Please enter a valid 10 digit mobile number.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const res = await fetch(
-        "/api/auth/send-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            mobile,
-            type: "LOGIN",
-          }),
-        }
-      );
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mobile,
+          type: "LOGIN",
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage(
-          data.message ||
-            "Failed to send OTP."
-        );
+        setMessage(data.message || "Failed to send OTP.");
         return;
       }
 
       setOtpSent(true);
-
       setMessage(
         data.development
-          ? "OTP sent. Check the terminal for the development OTP."
-          : "OTP sent successfully."
+          ? "OTP sent. (In dev mode, check terminal or enter 123456/received OTP)"
+          : "OTP sent successfully to your mobile number."
       );
     } catch {
-      setMessage(
-        "Something went wrong while sending OTP."
-      );
+      setMessage("Something went wrong while sending OTP.");
     } finally {
       setLoading(false);
     }
@@ -69,140 +60,136 @@ export default function LoginPage() {
     setMessage("");
 
     if (!/^\d{6}$/.test(otp)) {
-      setMessage(
-        "Please enter a valid 6 digit OTP."
-      );
+      setMessage("Please enter a valid 6 digit OTP.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const res = await fetch(
-        "/api/auth/verify-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            mobile,
-            otp,
-            type: "LOGIN",
-          }),
-        }
-      );
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mobile,
+          otp,
+          type: "LOGIN",
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage(
-          data.message ||
-            "OTP verification failed."
-        );
+        setMessage(data.message || "OTP verification failed.");
         return;
       }
 
-      setMessage(
-        "Login Successful ✅"
-      );
+      setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
-        router.push("/dashboard");
+        if (data.role === "ADMIN") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
       }, 500);
     } catch {
-      setMessage(
-        "Something went wrong while verifying OTP."
-      );
+      setMessage("Something went wrong while verifying OTP.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-red-50 via-white to-rose-50 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl border border-gray-100">
-
+    <main className="min-h-screen bg-[#FAF6EF] flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md rounded-3xl bg-[#FAF5EB] p-8 sm:p-10 shadow-xl border border-[#DACBB4]">
         <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-red-900">
-            NNVS MATRIMONY
+          <Link href="/" className="inline-block mb-3">
+            <img
+              src="/nnvs-logo.png"
+              alt="NNVS Matrimony"
+              className="h-16 w-auto mx-auto object-contain"
+            />
+          </Link>
+
+          <h1 className="font-serif-luxury text-2xl font-bold text-[#2D221E]">
+            Secure OTP Login
           </h1>
 
-          <p className="mt-2 text-gray-500">
-            Login with Mobile OTP
+          <p className="mt-1 text-xs text-[#5A4E48]">
+            Enter your registered mobile number for Two-Factor OTP authentication.
           </p>
         </div>
 
         <div className="mt-8 space-y-5">
-
           {/* Mobile */}
           <div>
-            <label className="mb-2 block font-semibold text-gray-700">
+            <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
               Mobile Number
             </label>
 
-            <input
-              type="tel"
-              inputMode="numeric"
-              value={mobile}
-              maxLength={10}
-              disabled={otpSent || loading}
-              onChange={(e) =>
-                setMobile(
-                  e.target.value.replace(/\D/g, "")
-                )
-              }
-              placeholder="Enter 10 digit mobile number"
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-100 disabled:bg-gray-100"
-            />
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#8A7972]">
+                +91
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={mobile}
+                maxLength={10}
+                disabled={otpSent || loading}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 10 digit mobile"
+                className="w-full rounded-xl border border-[#DACBB4] bg-white pl-12 pr-4 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] disabled:bg-gray-100"
+              />
+            </div>
           </div>
 
-          {/* Send OTP */}
+          {/* Send OTP Button */}
           {!otpSent && (
             <button
               type="button"
               onClick={sendOTP}
               disabled={loading}
-              className="w-full rounded-xl bg-red-800 py-3 font-semibold text-white transition hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-[#4A121A] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {loading
-                ? "Sending OTP..."
-                : "Send OTP"}
+              <Phone className="h-4 w-4 text-[#DFBA73]" />
+              <span>{loading ? "Sending Secure OTP..." : "Send OTP"}</span>
             </button>
           )}
 
-          {/* OTP */}
+          {/* OTP Input & Verify */}
           {otpSent && (
             <>
               <div>
-                <label className="mb-2 block font-semibold text-gray-700">
-                  Enter OTP
+                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
+                  Enter 6-Digit OTP
                 </label>
 
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={otp}
-                  maxLength={6}
-                  onChange={(e) =>
-                    setOtp(
-                      e.target.value.replace(/\D/g, "")
-                    )
-                  }
-                  placeholder="Enter 6 digit OTP"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-xl tracking-[0.4em] outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-100"
-                />
+                <div className="relative">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={otp}
+                    maxLength={6}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="• • • • • •"
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-4 py-3 text-center text-lg font-bold tracking-[0.3em] text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
+                  />
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={verifyOTP}
                 disabled={loading}
-                className="w-full rounded-xl bg-green-700 py-3 font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl bg-[#C5A059] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#B88E4C] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {loading
-                  ? "Verifying..."
-                  : "Verify OTP & Login"}
+                <ShieldCheck className="h-4 w-4 text-white" />
+                <span>{loading ? "Verifying..." : "Verify OTP & Sign In"}</span>
               </button>
 
               <button
@@ -213,34 +200,38 @@ export default function LoginPage() {
                   setOtpSent(false);
                   setMessage("");
                 }}
-                className="w-full text-sm font-medium text-red-700 hover:underline"
+                className="w-full text-center text-xs font-semibold text-[#4A121A] hover:underline"
               >
-                Change Mobile Number
+                ← Change Mobile Number
               </button>
             </>
           )}
 
-          {/* Message */}
+          {/* Feedback Message */}
           {message && (
             <div
-              className={`rounded-xl px-4 py-3 text-center text-sm font-medium ${
+              className={`rounded-xl px-4 py-3 text-center text-xs font-semibold ${
                 message.includes("Successful")
-                  ? "bg-green-50 text-green-700"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                   : message.includes("sent")
-                  ? "bg-blue-50 text-blue-700"
-                  : "bg-red-50 text-red-700"
+                  ? "bg-amber-50 text-amber-900 border border-amber-200"
+                  : "bg-rose-50 text-rose-800 border border-rose-200"
               }`}
             >
               {message}
             </div>
           )}
 
+          {/* Footer note */}
+          <div className="pt-4 border-t border-[#E8DCC8] text-center space-y-2">
+            <p className="text-xs text-[#5A4E48]">
+              Don&apos;t have an account yet?{" "}
+              <Link href="/register" className="font-bold text-[#4A121A] hover:underline">
+                Register Now
+              </Link>
+            </p>
+          </div>
         </div>
-
-        <p className="mt-8 text-center text-xs text-gray-400">
-          Your mobile number will be used for secure OTP login.
-        </p>
-
       </div>
     </main>
   );

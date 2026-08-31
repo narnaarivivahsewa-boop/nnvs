@@ -10,7 +10,6 @@ import {
   CreditCard,
   Store,
   Settings,
-  LogOut,
   Ticket,
 } from "lucide-react";
 

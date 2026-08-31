@@ -1,21 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Playfair_Display, Cinzel, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800", "900"],
+});
+
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "NNVS Matrimony",
-  description: "NNVS Matrimony - समाज के प्रति एक सेवा",
+  title: "NNVS Matrimony - Your Journey to a Perfect Match Begins Here",
+  description: "NNVS Matrimony - Premium Matchmaking for Discerning Individuals. समाज के प्रति एक सेवा.",
 };
 
 export default function RootLayout({
@@ -26,11 +34,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-gray-50">
+      <body className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans">
         <Navbar />
-
         {children}
       </body>
     </html>
