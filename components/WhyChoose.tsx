@@ -4,8 +4,8 @@ export default function WhyChoose() {
   const features = [
     {
       icon: ShieldCheck,
-      title: "100% Verified Profiles",
-      desc: "Every profile undergoes verification before appearing in search to ensure genuine alliances.",
+      title: "Verified Matrimonial Profiles",
+      desc: "Profiles are reviewed before listing to facilitate genuine and respectful family alliances.",
     },
     {
       icon: Lock,
@@ -14,13 +14,13 @@ export default function WhyChoose() {
     },
     {
       icon: HeartHandshake,
-      title: "Community First Service",
-      desc: "NNVS is a non-commercial, service-driven platform dedicated to supporting families wholeheartedly.",
+      title: "Community Focused Platform",
+      desc: "RishteClub is dedicated to assisting families in discovering life partners with transparency.",
     },
     {
       icon: Users,
-      title: "Trusted Family Network",
-      desc: "Direct communication with prospective families for transparent, respectful, and reliable conversations.",
+      title: "Direct Family Network",
+      desc: "Facilitates transparent, respectful, and reliable conversations between prospective families.",
     },
   ];
 
@@ -29,11 +29,11 @@ export default function WhyChoose() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-block font-serif-luxury tracking-[0.18em] uppercase text-xs font-bold text-[#C5A059] mb-2">
-            WHY FAMILIES TRUST US
+            WHY FAMILIES CHOOSE US
           </div>
 
           <h2 className="font-serif-luxury text-2xl sm:text-3xl md:text-4xl font-bold text-[#2D221E] tracking-tight">
-            Why Choose NNVS Matrimony
+            Why Choose RishteClub
           </h2>
 
           <p className="mt-3 text-sm sm:text-base text-[#5A4E48]">

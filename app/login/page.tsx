@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Phone, KeyRound, ArrowRight } from "lucide-react";
+import { ShieldCheck, Phone, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -109,17 +109,17 @@ export default function LoginPage() {
           <Link href="/" className="inline-block mb-3">
             <img
               src="/nnvs-logo.png"
-              alt="NNVS Matrimony"
-              className="h-16 w-auto mx-auto object-contain"
+              alt="RishteClub Matrimony"
+              className="h-14 w-auto mx-auto object-contain"
             />
           </Link>
 
-          <h1 className="font-serif-luxury text-2xl font-bold text-[#2D221E]">
-            Secure OTP Login
+          <h1 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
+            RishteClub Login
           </h1>
 
           <p className="mt-1 text-xs text-[#5A4E48]">
-            Enter your registered mobile number for Two-Factor OTP authentication.
+            Enter your registered mobile number for Secure OTP Login.
           </p>
         </div>
 

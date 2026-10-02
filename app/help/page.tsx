@@ -1,88 +1,87 @@
+import { BUSINESS_INFO } from "@/lib/gst";
+import { UserCheck, HelpCircle, ShieldCheck, Mail, Phone, Clock } from "lucide-react";
+
 export default function HelpPage() {
   return (
-    <main className="bg-gray-50 min-h-screen py-16">
-      <div className="mx-auto max-w-5xl px-6">
-
-        <div className="rounded-3xl bg-white p-8 shadow-lg md:p-12">
+    <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl bg-[#FAF5EB] p-6 sm:p-10 md:p-12 shadow-md border border-[#DACBB4]">
 
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-red-900">
+            <span className="font-serif-luxury text-xs font-bold uppercase tracking-[0.2em] text-[#C5A059]">
+              SUPPORT & ASSISTANCE
+            </span>
+            <h1 className="font-serif-luxury text-3xl sm:text-5xl font-extrabold text-[#4A121A] mt-2">
               Help Center
             </h1>
-
-            <p className="mt-4 text-gray-600">
-              Need help with NNVS Matrimony? We are here to assist you.
+            <p className="mt-2 text-sm sm:text-base text-[#5A4E48]">
+              Need help navigating RishteClub? Our team is here to assist you.
             </p>
           </div>
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
 
-            <div className="rounded-2xl bg-gray-50 p-6">
-              <h2 className="text-xl font-bold text-red-900">
-                Registration Help
-              </h2>
-
-              <p className="mt-3 leading-7 text-gray-600">
-                If you are facing any difficulty while registering or
-                creating your matrimonial profile, please contact our
-                support team.
+            <div className="rounded-2xl bg-white p-6 border border-[#E8DCC8]">
+              <div className="flex items-center gap-2 mb-3">
+                <HelpCircle className="h-5 w-5 text-[#C5A059]" />
+                <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                  Registration Support
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
+                If you encounter any issues while completing registration, submitting your biodata, or receiving the OTP, please contact our support team.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-gray-50 p-6">
-              <h2 className="text-xl font-bold text-red-900">
-                Profile Help
-              </h2>
-
-              <p className="mt-3 leading-7 text-gray-600">
-                For assistance with profile information, photographs,
-                profile updates or other profile-related issues, contact
-                NNVS support.
+            <div className="rounded-2xl bg-white p-6 border border-[#E8DCC8]">
+              <div className="flex items-center gap-2 mb-3">
+                <UserCheck className="h-5 w-5 text-[#C5A059]" />
+                <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                  Profile & Photo Assistance
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
+                For assistance with updating profile information, uploading photos, privacy preferences, or member verification, reach out to our team.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-gray-50 p-6">
-              <h2 className="text-xl font-bold text-red-900">
-                Payment Help
-              </h2>
-
-              <p className="mt-3 leading-7 text-gray-600">
-                If you experience an issue with registration payment,
-                please keep your payment details or transaction reference
-                available when contacting us.
+            <div className="rounded-2xl bg-white p-6 border border-[#E8DCC8]">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="h-5 w-5 text-[#C5A059]" />
+                <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                  Payment & Invoicing
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
+                Registration fees (Female: ₹{BUSINESS_INFO.fees.female} + GST, Male: ₹{BUSINESS_INFO.fees.male} + GST) are handled under business entity {BUSINESS_INFO.tradeName} (GSTIN: {BUSINESS_INFO.gstin}).
               </p>
             </div>
 
-            <div className="rounded-2xl bg-gray-50 p-6">
-              <h2 className="text-xl font-bold text-red-900">
-                Contact Support
+            <div className="rounded-2xl bg-white p-6 border border-[#E8DCC8]">
+              <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A] mb-3">
+                Direct Contact Helpline
               </h2>
-
-              <p className="mt-3 leading-7 text-gray-600">
-                Email:
-                <br />
-                <strong>
-                  narnaarivivahsewa@gmail.com
-                </strong>
-              </p>
-
-              <p className="mt-3 leading-7 text-gray-600">
-                Phone:
-                <br />
-                +91 9871592002
-                <br />
-                +91 7015812359
-              </p>
-
-              <p className="mt-3 text-gray-600">
-                Calling Time: 5:30 PM – 7:30 PM
-              </p>
+              <div className="space-y-2 text-xs sm:text-sm text-[#5A4E48]">
+                <p className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-[#C5A059]" />
+                  <a href={`mailto:${BUSINESS_INFO.email}`} className="font-semibold hover:text-[#4A121A]">
+                    {BUSINESS_INFO.email}
+                  </a>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-[#C5A059]" />
+                  <span>{BUSINESS_INFO.helplineNumbers.join(" / ")}</span>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-[#C5A059]" />
+                  <span>{BUSINESS_INFO.callingHours}</span>
+                </p>
+              </div>
             </div>
 
           </div>
 
         </div>
-
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Mail, Phone, Clock, Heart } from "lucide-react";
+import { Mail, Phone, Clock, Heart, ShieldCheck } from "lucide-react";
+import { BUSINESS_INFO } from "@/lib/gst";
 
 export default function Footer() {
   return (
@@ -12,22 +13,22 @@ export default function Footer() {
           {/* Brand & Purpose */}
           <div className="space-y-3">
             <Link href="/" className="inline-block">
-              <div className="flex flex-col items-start leading-none">
-                <span className="font-serif-luxury text-2xl font-extrabold italic text-white tracking-tight">
-                  <span className="text-[#DFBA73] text-3xl inline-block -mr-0.5">N</span>NVS
+              <div className="flex flex-col items-start leading-tight">
+                <span className="font-serif-luxury text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  Rishte<span className="text-[#DFBA73]">Club</span>
                 </span>
-                <span className="text-[10px] tracking-[0.25em] uppercase font-serif-luxury text-[#DFBA73] -mt-1 font-semibold pl-0.5">
-                  Matrimony
+                <span className="text-[10px] tracking-[0.18em] uppercase font-medium text-[#DFBA73] font-sans">
+                  by NNVS Matrimony
                 </span>
               </div>
             </Link>
 
-            <p className="text-xs font-semibold text-[#DFBA73] uppercase tracking-widest pt-1">
-              समाज के प्रति एक सेवा
+            <p className="text-xs font-semibold text-[#DFBA73] tracking-wide pt-1">
+              &ldquo;{BUSINESS_INFO.tagline}&rdquo;
             </p>
 
             <p className="text-xs leading-relaxed text-[#D6C4BD]">
-              A trusted, community-focused matrimonial platform dedicated to helping families discover genuine, verified life partners with simplicity and dignity.
+              A trusted matrimonial matchmaking platform dedicated to helping families discover suitable life partners with simplicity, transparency, and dignity.
             </p>
 
             <div className="pt-1 text-xs text-[#E8D8C0] font-medium">
@@ -63,8 +64,8 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/#stories" className="transition hover:text-[#DFBA73]">
-                  How It Works
+                <Link href="/about" className="transition hover:text-[#DFBA73]">
+                  About Us
                 </Link>
               </li>
             </ul>
@@ -110,21 +111,21 @@ export default function Footer() {
               <div className="flex items-start gap-2.5">
                 <Mail className="h-3.5 w-3.5 text-[#DFBA73] mt-0.5 flex-shrink-0" />
                 <a
-                  href="mailto:narnaarivivahsewa@gmail.com"
+                  href={`mailto:${BUSINESS_INFO.email}`}
                   className="hover:text-white transition break-all"
                 >
-                  narnaarivivahsewa@gmail.com
+                  {BUSINESS_INFO.email}
                 </a>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <Phone className="h-3.5 w-3.5 text-[#DFBA73] flex-shrink-0" />
                 <div className="space-y-0.5">
-                  <a href="tel:+919871592002" className="block hover:text-white transition">
-                    +91 9871592002
+                  <a href={`tel:${BUSINESS_INFO.helplineNumbers[0]}`} className="block hover:text-white transition">
+                    {BUSINESS_INFO.helplineNumbers[0]}
                   </a>
-                  <a href="tel:+917015812359" className="block hover:text-white transition">
-                    +91 7015812359
+                  <a href={`tel:${BUSINESS_INFO.helplineNumbers[1]}`} className="block hover:text-white transition">
+                    {BUSINESS_INFO.helplineNumbers[1]}
                   </a>
                 </div>
               </div>
@@ -133,20 +134,33 @@ export default function Footer() {
                 <Clock className="h-3.5 w-3.5 text-[#DFBA73] mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-semibold text-white">Calling Hours</p>
-                  <p className="text-[11px] text-[#A6938D]">5:30 PM – 7:30 PM IST</p>
+                  <p className="text-[11px] text-[#A6938D]">{BUSINESS_INFO.callingHours}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Business & Legal Entity Details */}
+        <div className="mt-10 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-1.5">
+          <div className="flex items-center gap-2 text-[#DFBA73] font-semibold text-xs uppercase tracking-wider">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Business & Regulatory Information</span>
+          </div>
+          <p className="leading-relaxed">
+            <strong className="text-white">RishteClub</strong> is a matrimonial platform operated by <strong className="text-white">{BUSINESS_INFO.proprietor} (Proprietor)</strong>, Trade Name: <strong className="text-white">{BUSINESS_INFO.tradeName}</strong>, GSTIN: <strong className="text-white">{BUSINESS_INFO.gstin}</strong>.
+          </p>
+          <p className="text-[11px] text-[#A6938D]">
+            An initiative associated with {BUSINESS_INFO.associatedBrand}.
+          </p>
+        </div>
+
         {/* Bottom Bar */}
-        <div className="mt-12 border-t border-[#521822] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#A6938D]">
-          <p>© {new Date().getFullYear()} NNVS MATRIMONY. All Rights Reserved.</p>
+        <div className="mt-8 border-t border-[#521822] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#A6938D]">
+          <p>© {new Date().getFullYear()} RishteClub. Associated with NNVS Matrimony. All Rights Reserved.</p>
           <p className="flex items-center gap-1.5 text-[#A6938D]">
-            <span>Built with devotion</span>
+            <span>Dedicated to bringing families together</span>
             <Heart className="h-3 w-3 text-[#DFBA73] fill-[#DFBA73] inline" />
-            <span>for community welfare</span>
           </p>
         </div>
       </div>

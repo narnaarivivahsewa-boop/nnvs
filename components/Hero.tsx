@@ -36,12 +36,12 @@ export default function Hero() {
 
             {/* Main Brand Title */}
             <h1 className="font-serif-luxury text-3xl sm:text-5xl md:text-6xl font-extrabold leading-[1.15] tracking-tight text-white drop-shadow-md">
-              NNVS MATRIMONY
+              RishteClub
             </h1>
 
-            {/* Hindi Main Tagline */}
+            {/* Tagline */}
             <h2 className="mt-2 sm:mt-3 text-lg sm:text-2xl md:text-3xl font-serif-luxury font-semibold text-[#DFBA73] leading-snug drop-shadow-sm">
-              समाज के प्रति एक सेवा
+              &ldquo;Apno Ke Liye Sahi Rishta&rdquo;
             </h2>
 
             {/* Emotional Tagline */}
@@ -51,7 +51,7 @@ export default function Hero() {
 
             {/* Description Paragraph */}
             <p className="mt-2.5 sm:mt-3 text-xs sm:text-sm md:text-base text-[#E2D2BC] leading-relaxed max-w-2xl drop-shadow-sm">
-              Nar Naari Vivah Sewa के माध्यम से उपयुक्त जीवनसाथी की तलाश को सरल, विश्वसनीय और परिवार-केंद्रित बनाने का हमारा प्रयास।
+              A trusted matrimonial matchmaking platform. An initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa for genuine and verified matches.
             </p>
 
             {/* Original Action Buttons */}

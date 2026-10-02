@@ -147,7 +147,7 @@ export default function AdminDashboard() {
           </h1>
 
           <p className="mt-2 text-gray-500">
-            Welcome to NNVS Matrimony Admin Panel
+            Welcome to RishteClub Admin Panel (Associated with NNVS Matrimony)
           </p>
         </div>
 

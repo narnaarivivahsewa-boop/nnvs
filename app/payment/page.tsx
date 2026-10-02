@@ -156,12 +156,16 @@ function PaymentContent() {
     <div className="mx-auto max-w-lg">
       <div className="rounded-3xl bg-white p-8 shadow-xl">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-red-700">
-            NNVS MATRIMONY
+          <h1 className="text-3xl font-bold text-[#4A121A] font-serif-luxury">
+            RishteClub
           </h1>
 
-          <p className="mt-2 text-gray-600">
-            Registration Payment
+          <p className="mt-1 text-xs text-[#8C6239] font-medium uppercase tracking-wider">
+            by NNVS Matrimony
+          </p>
+
+          <p className="mt-2 text-sm text-gray-600">
+            Registration Payment Summary
           </p>
         </div>
 
@@ -305,29 +309,32 @@ function PaymentContent() {
           )}
         </div>
 
-        <div className="mt-6 rounded-2xl bg-red-50 p-5 text-sm leading-6 text-gray-700">
-          <p className="font-semibold text-red-800">
+        <div className="mt-6 rounded-2xl bg-[#FAF5EB] p-5 text-xs sm:text-sm leading-6 text-gray-700 border border-[#DACBB4]">
+          <p className="font-semibold text-[#4A121A]">
             One-Time Registration Fee
           </p>
 
-          <p className="mt-2">
-            This is a one-time registration fee for
-            registration with NNVS MATRIMONY. It is not
-            a monthly, quarterly or annual subscription fee.
+          <p className="mt-1.5 text-xs text-[#5A4E48]">
+            This is a one-time registration fee for listing and accessing matches on <strong>RishteClub</strong> (associated with NNVS Matrimony). It is not a recurring subscription fee.
           </p>
+
+          <div className="mt-3 pt-3 border-t border-[#E8DCC8] text-[11px] text-[#7A6B63] space-y-0.5">
+            <p><strong>Billed By:</strong> Rahul Dhamija (Proprietor)</p>
+            <p><strong>Trade Name:</strong> Trendy Traders</p>
+            <p><strong>GSTIN:</strong> 06APYPD6931J1ZE</p>
+          </div>
         </div>
 
         <button
           type="button"
           disabled
-          className="mt-8 w-full cursor-not-allowed rounded-xl bg-gray-400 px-8 py-4 font-semibold text-white"
+          className="mt-6 w-full cursor-not-allowed rounded-xl bg-gray-400 px-8 py-4 font-semibold text-white"
         >
           Payment Gateway Coming Soon
         </button>
 
-        <p className="mt-4 text-center text-xs text-gray-500">
-          Online payment will be enabled after the
-          payment gateway is activated.
+        <p className="mt-3 text-center text-xs text-gray-500">
+          Online payment will be enabled after the payment gateway is activated.
         </p>
       </div>
     </div>

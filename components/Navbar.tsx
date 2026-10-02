@@ -80,15 +80,15 @@ export default function Navbar() {
           <Link href="/" className="flex items-center gap-3 group">
             <img
               src="/nnvs-logo.png"
-              alt="NNVS Matrimony"
-              className="h-14 sm:h-16 w-auto object-contain transition-transform group-hover:scale-[1.02]"
+              alt="RishteClub Matrimony"
+              className="h-12 sm:h-14 w-auto object-contain transition-transform group-hover:scale-[1.02]"
             />
-            <div className="hidden sm:flex flex-col">
+            <div className="flex flex-col">
               <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[#4A121A]">
-                NNVS MATRIMONY
+                RishteClub
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-[#7A5835] -mt-1">
-                समाज के प्रति एक सेवा
+              <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-[#7A5835] -mt-1">
+                by NNVS Matrimony
               </span>
             </div>
           </Link>

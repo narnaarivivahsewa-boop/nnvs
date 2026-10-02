@@ -1,6 +1,8 @@
+import { BUSINESS_INFO } from "@/lib/gst";
+
 export default function TermsPage() {
   return (
-    <main className="bg-[#FAF6EF] min-h-screen py-16">
+    <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-3xl bg-[#FAF5EB] p-6 sm:p-10 md:p-12 shadow-md border border-[#DACBB4]">
           {/* Header */}
@@ -12,7 +14,7 @@ export default function TermsPage() {
               Terms & Conditions
             </h1>
             <p className="mt-2 text-xs text-[#5A4E48]">
-              Last Updated: 31 August 2026
+              Last Updated: October 2026
             </p>
           </div>
 
@@ -23,10 +25,10 @@ export default function TermsPage() {
               <span>महत्वपूर्ण कानूनी सूचना (Important Legal Notice & Disclaimer)</span>
             </h3>
             <p className="text-xs sm:text-sm font-semibold text-[#4A121A] leading-relaxed">
-              NNVS Matrimony किसी भी उम्मीदवार की शादी करवाने का कोई वादा (Promise) या गैरंटी (Guarantee) नहीं देता है।
+              RishteClub किसी भी उम्मीदवार की शादी करवाने का कोई वादा (Promise) या गैरंटी (Guarantee) नहीं देता है।
             </p>
             <p className="text-xs sm:text-sm text-[#5A4E48] leading-relaxed">
-              यह केवल उपयुक्त, इच्छुक एवं वेरिफाइड मैट्रिमोनियल प्रोफाइल्स को एक मंच पर लाने, सर्च करने और परिवारों को आपस में संपर्क करने का एक सुविधा-माध्यम (Introductory Platform) है। रिश्ते को आगे बढ़ाने या अंतिम निर्णय लेने से पूर्व, सामने वाले व्यक्ति व परिवार की पृष्ठभूमि की स्वतंत्र जाँच-पड़ताल (Independent Verification) करना पूरी तरह उम्मीदवार व उनके परिवार की जिम्मेदारी है।
+              यह केवल उपयुक्त, इच्छुक एवं वेरिफाइड मैट्रिमोनियल प्रोफाइल्स को एक मंच पर लाने, सर्च करने और परिवारों को आपस में संपर्क करने का एक सुविधा-माध्यम (Introductory Matchmaking Platform) है। रिश्ते को आगे बढ़ाने या अंतिम निर्णय लेने से पूर्व, सामने वाले व्यक्ति व परिवार की पृष्ठभूमि की स्वतंत्र जाँच-पड़ताल (Independent Verification & Background Scrutiny) करना पूरी तरह उम्मीदवार व उनके परिवार की जिम्मेदारी है।
             </p>
           </div>
 
@@ -36,7 +38,7 @@ export default function TermsPage() {
                 1. Acceptance of Terms
               </h2>
               <p className="mt-2">
-                By accessing or using NNVS Matrimony, you agree to comply with these Terms & Conditions. If you do not agree with these terms, please do not use the platform.
+                By accessing or using RishteClub (an initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa), you agree to comply with and be bound by these Terms & Conditions. If you do not agree with these terms, please do not access or use the platform.
               </p>
             </section>
 
@@ -45,13 +47,13 @@ export default function TermsPage() {
                 2. Nature of Platform & No Guarantee of Marriage (प्लेटफॉर्म का स्वरूप व गैरंटी का अभाव)
               </h2>
               <p className="mt-2">
-                <strong>(a) Introductory Platform Only:</strong> NNVS Matrimony is an introductory community matchmaking facilitation portal designed solely to help eligible candidates and their families search, discover, and initiate communication with matching profiles.
+                <strong>(a) Introductory Platform Only:</strong> RishteClub is an introductory matchmaking facilitation portal designed solely to help eligible candidates and their families search, discover, and initiate communication with matching profiles.
               </p>
               <p className="mt-2">
-                <strong>(b) No Guarantee or Promise of Marriage:</strong> NNVS Matrimony does NOT guarantee, warrant, or promise that any member will find a life partner, receive proposals, or successfully solemnize a marriage through this platform. Matchmaking depends entirely on mutual compatibility, individual preferences, and family consensus.
+                <strong>(b) No Guarantee or Promise of Marriage:</strong> RishteClub and its operators do NOT guarantee, warrant, or promise that any member will find a life partner, receive proposals, or successfully solemnize a marriage through this platform. Matchmaking depends entirely on mutual compatibility, individual preferences, and family consensus.
               </p>
               <p className="mt-2">
-                <strong>(c) Member Due Diligence:</strong> It is the sole responsibility of the member and their guardians/family to conduct comprehensive, independent background checks, character verification, employment and educational credential checks, and health/family scrutiny before solemnizing any alliance or engaging in financial transactions. NNVS shall not be held liable for any dispute, misrepresentation, or dissatisfaction arising between parties.
+                <strong>(c) Member Due Diligence:</strong> It is the sole responsibility of the member and their guardians/family to conduct comprehensive, independent background checks, character verification, employment and educational credential checks, and health/family scrutiny before solemnizing any alliance or engaging in financial transactions. The platform shall not be held liable for any dispute, misrepresentation, or dissatisfaction arising between parties.
               </p>
             </section>
 
@@ -66,13 +68,13 @@ export default function TermsPage() {
 
             <section>
               <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
-                4. Registration & Paid Registration Fee
+                4. Registration & Registration Fee
               </h2>
               <p className="mt-2">
-                Registration with NNVS Matrimony is a paid service subject to the completion of profile verification and payment of the applicable one-time non-refundable registration fee (Female: ₹399 + GST, Male: ₹799 + GST, or as updated from time to time).
+                Registration with RishteClub is a paid service subject to the completion of profile verification and payment of the applicable one-time non-refundable registration fee (Female: ₹{BUSINESS_INFO.fees.female} + GST, Male: ₹{BUSINESS_INFO.fees.male} + GST, or as updated from time to time).
               </p>
               <p className="mt-2">
-                Payment of registration fees covers profile listing, verification, and platform access services. It does not constitute a guarantee of marriage or alliance fulfillment.
+                Payment of registration fees covers profile listing, review, and platform access services. It does not constitute a guarantee of marriage or alliance fulfillment.
               </p>
             </section>
 
@@ -90,7 +92,7 @@ export default function TermsPage() {
                 6. Profile Verification & Admin Discretion
               </h2>
               <p className="mt-2">
-                NNVS reserves the right to review, verify, approve, edit, suspend, or reject any matrimonial profile or photograph submitted by members to maintain high community safety standards.
+                RishteClub reserves the right to review, verify, approve, edit, suspend, or reject any matrimonial profile or photograph submitted by members to maintain high community safety standards.
               </p>
             </section>
 
@@ -99,21 +101,25 @@ export default function TermsPage() {
                 7. Limitation of Liability
               </h2>
               <p className="mt-2">
-                To the fullest extent permitted by law, NNVS Matrimony, its trustees, operators, and staff shall not be liable for any direct, indirect, incidental, or consequential damages resulting from interactions, matrimonial alliances, communication, or agreements between members.
+                To the fullest extent permitted by law, RishteClub, Rahul Dhamija (Proprietor), associated entities, operators, and staff shall not be liable for any direct, indirect, incidental, or consequential damages resulting from interactions, matrimonial alliances, communication, or agreements between members.
               </p>
             </section>
 
             <section>
               <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
-                8. Contact & Grievance
+                8. Legal, Business & Grievance Information
               </h2>
               <p className="mt-2">
                 For questions, clarifications, or reporting grievances regarding these terms:
               </p>
-              <div className="mt-3 p-4 rounded-xl bg-white border border-[#DACBB4] space-y-1">
-                <p><strong>Email:</strong> narnaarivivahsewa@gmail.com</p>
-                <p><strong>Helpline:</strong> +91 9871592002 / +91 7015812359 (Calling hours: 5:30 PM – 7:30 PM IST)</p>
-                <p><strong>Community Trust:</strong> Nar Naari Vivah Sewa (NNVS)</p>
+              <div className="mt-3 p-5 rounded-2xl bg-white border border-[#DACBB4] space-y-2 text-xs sm:text-sm">
+                <p><strong>Brand:</strong> {BUSINESS_INFO.brandName}</p>
+                <p><strong>Associated Brand:</strong> {BUSINESS_INFO.associatedBrand}</p>
+                <p><strong>Proprietor:</strong> {BUSINESS_INFO.proprietor}</p>
+                <p><strong>Trade Name:</strong> {BUSINESS_INFO.tradeName}</p>
+                <p><strong>GSTIN:</strong> {BUSINESS_INFO.gstin}</p>
+                <p><strong>Email:</strong> {BUSINESS_INFO.email}</p>
+                <p><strong>Helpline:</strong> {BUSINESS_INFO.helplineNumbers.join(" / ")} (Calling hours: {BUSINESS_INFO.callingHours})</p>
               </div>
             </section>
           </div>

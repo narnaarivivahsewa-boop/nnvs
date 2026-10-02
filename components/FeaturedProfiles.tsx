@@ -196,7 +196,7 @@ export default function FeaturedProfiles() {
               Verified Profiles Showcase
             </h3>
             <p className="mt-2 text-xs sm:text-sm text-[#5A4E48] leading-relaxed">
-              New verified bride and groom profiles will appear here as members register. Register today to be among the first verified profiles on NNVS Matrimony!
+              New verified bride and groom profiles will appear here as members register. Register today to explore verified matches on RishteClub!
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link

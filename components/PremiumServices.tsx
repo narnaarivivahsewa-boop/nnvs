@@ -1,4 +1,4 @@
-import { ShieldCheck, HeartHandshake, Lock, Sparkles, UserCheck } from "lucide-react";
+import { ShieldCheck, HeartHandshake, Lock, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function PremiumServices() {

@@ -100,7 +100,7 @@ export default function HowItWorks() {
           </h3>
 
           <p className="mx-auto mt-2 max-w-xl text-xs sm:text-sm text-[#E2D2BC]">
-            Register with NNVS Matrimony today and take the first step towards a blessed lifelong partnership.
+            Register with RishteClub today and take the first step towards finding your life partner.
           </p>
 
           <div className="mt-6">

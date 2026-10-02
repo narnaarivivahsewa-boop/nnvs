@@ -1,73 +1,75 @@
+import { BUSINESS_INFO } from "@/lib/gst";
+
 const faqs = [
   {
-    question: "What is NNVS Matrimony?",
+    question: "What is RishteClub?",
     answer:
-      "NNVS Matrimony is a matrimonial platform created to help families and individuals find suitable matrimonial matches.",
+      "RishteClub is a matrimonial platform created to help families and individuals find suitable life partners. It is an initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa.",
   },
   {
     question: "How can I register?",
     answer:
-      "You can register through the Register option available on the website and complete the required profile information.",
+      "You can register easily through the 'Register Now' button on the website and complete your matrimonial biodata with educational, professional, and family details.",
   },
   {
-    question: "Is registration free?",
+    question: "What is the registration fee?",
     answer:
-      "Registration on the website is subject to the applicable registration fee. The current fee structure will be displayed during the registration process.",
+      `Registration on RishteClub is a one-time fee of ₹${BUSINESS_INFO.fees.female} + GST for Female profiles and ₹${BUSINESS_INFO.fees.male} + GST for Male profiles. This covers profile review, listing, and direct matrimonial access.`,
   },
   {
-    question: "Are profiles verified?",
+    question: "How are profiles verified?",
     answer:
-      "Profiles may be reviewed and verified by NNVS before being made available on the platform.",
+      "Profiles are reviewed and verified by our team before being displayed on the platform to maintain a safe and respectful community.",
   },
   {
-    question: "Can I update my profile?",
+    question: "Can I update my profile details?",
     answer:
-      "Yes. Registered members can update their profile information through the available profile management options.",
+      "Yes. Registered members can log in using their registered mobile number and update their photos and personal details anytime from their Dashboard.",
   },
   {
-    question: "How can I contact NNVS?",
+    question: "How can I contact support?",
     answer:
-      "You can contact NNVS at narnaarivivahsewa@gmail.com or call +91 9871592002 / +91 7015812359 between 5:30 PM and 7:30 PM.",
+      `You can contact our support team at ${BUSINESS_INFO.email} or call ${BUSINESS_INFO.helplineNumbers.join(" / ")} between ${BUSINESS_INFO.callingHours}.`,
   },
   {
-    question: "Can I delete my profile?",
+    question: "What happened to my existing NNVS Matrimony profile?",
     answer:
-      "Members may contact NNVS for assistance regarding profile removal or account-related requests.",
+      "All existing NNVS Matrimony profiles, profile IDs, and member data remain fully active and safely preserved on RishteClub. You can continue logging in seamlessly with your registered mobile number.",
   },
 ];
 
 export default function FAQsPage() {
   return (
-    <main className="bg-gray-50 min-h-screen py-16">
-      <div className="mx-auto max-w-5xl px-6">
+    <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
 
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-red-900">
-            Frequently Asked Questions
+          <span className="font-serif-luxury text-xs font-bold uppercase tracking-[0.2em] text-[#C5A059]">
+            FREQUENTLY ASKED QUESTIONS
+          </span>
+          <h1 className="font-serif-luxury text-3xl sm:text-5xl font-extrabold text-[#4A121A] mt-2">
+            Questions & Answers
           </h1>
-
-          <p className="mt-4 text-gray-600">
-            Frequently asked questions about NNVS Matrimony.
+          <p className="mt-2 text-sm sm:text-base text-[#5A4E48]">
+            Everything you need to know about matchmaking on RishteClub.
           </p>
         </div>
 
-        <div className="mt-10 space-y-5">
-
+        <div className="mt-10 space-y-4">
           {faqs.map((faq, index) => (
             <div
               key={index}
-              className="rounded-2xl bg-white p-6 shadow"
+              className="rounded-2xl bg-[#FAF5EB] p-6 shadow-xs border border-[#DACBB4]"
             >
-              <h2 className="text-xl font-bold text-red-900">
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#4A121A]">
                 {faq.question}
               </h2>
 
-              <p className="mt-3 leading-7 text-gray-600">
+              <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
                 {faq.answer}
               </p>
             </div>
           ))}
-
         </div>
 
       </div>

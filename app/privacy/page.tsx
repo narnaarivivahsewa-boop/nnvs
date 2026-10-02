@@ -1,118 +1,93 @@
+import { BUSINESS_INFO } from "@/lib/gst";
+
 export default function PrivacyPolicyPage() {
   return (
-    <main className="bg-gray-50 min-h-screen py-16">
-      <div className="mx-auto max-w-5xl px-6">
-
-        <div className="rounded-3xl bg-white p-8 shadow-lg md:p-12">
-
-          <h1 className="text-4xl font-bold text-red-900">
-            Privacy Policy
-          </h1>
-
-          <p className="mt-4 text-gray-500">
-            Last Updated: 08 August 2026
-          </p>
-
-          <div className="mt-10 space-y-8 text-gray-700 leading-8">
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                1. Introduction
-              </h2>
-
-              <p className="mt-3">
-                NNVS Matrimony (&quot;NNVS&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;) respects
-                the privacy of its members and is committed to protecting
-                the personal information shared with us through our
-                website and services.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                2. Information We Collect
-              </h2>
-
-              <p className="mt-3">
-                We may collect information provided by members during
-                registration and profile creation, including name, age,
-                gender, contact details, education, occupation, location,
-                matrimonial preferences, photographs and other information
-                voluntarily submitted by the member.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                3. Use of Information
-              </h2>
-
-              <p className="mt-3">
-                The information collected may be used for creating and
-                managing matrimonial profiles, providing matching services,
-                communicating with members, verification purposes and
-                improving our services.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                4. Profile Information
-              </h2>
-
-              <p className="mt-3">
-                Members understand that information submitted for a
-                matrimonial profile may be displayed to other registered
-                users in accordance with the features and settings of
-                the platform.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                5. Data Security
-              </h2>
-
-              <p className="mt-3">
-                We take reasonable measures to protect member information
-                against unauthorized access, misuse, alteration or
-                disclosure. However, no internet-based service can
-                guarantee complete security.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                6. Third-Party Services
-              </h2>
-
-              <p className="mt-3">
-                Certain services such as payment processing, hosting,
-                authentication or other technical services may involve
-                third-party service providers. Their services may be
-                governed by their respective privacy policies.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-red-900">
-                7. Contact
-              </h2>
-
-              <p className="mt-3">
-                For privacy-related questions or requests, please contact
-                us at:
-              </p>
-
-              <p className="mt-3 font-semibold">
-                narnaarivivahsewa@gmail.com
-              </p>
-            </section>
-
+    <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl bg-[#FAF5EB] p-6 sm:p-10 md:p-12 shadow-md border border-[#DACBB4]">
+          {/* Header */}
+          <div className="border-b border-[#E8DCC8] pb-6">
+            <span className="font-serif-luxury text-xs font-bold uppercase tracking-[0.2em] text-[#C5A059]">
+              PRIVACY & SECURITY
+            </span>
+            <h1 className="font-serif-luxury text-3xl sm:text-4xl font-extrabold text-[#2D221E] mt-1">
+              Privacy Policy
+            </h1>
+            <p className="mt-2 text-xs text-[#5A4E48]">
+              Last Updated: October 2026
+            </p>
           </div>
 
-        </div>
+          <div className="mt-8 space-y-8 text-[#5A4E48] text-xs sm:text-sm leading-relaxed">
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                1. Introduction
+              </h2>
+              <p className="mt-2">
+                <strong>{BUSINESS_INFO.brandName}</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), an initiative associated with {BUSINESS_INFO.associatedBrand}, respects the privacy of its members and is committed to safeguarding personal information shared with us through our website and matrimonial matchmaking services.
+              </p>
+            </section>
 
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                2. Information We Collect
+              </h2>
+              <p className="mt-2">
+                We may collect information provided voluntarily by members during registration and profile creation, including full name, age, gender, contact phone number, email address, educational background, occupation, residence location, matrimonial preferences, and photographs.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                3. Use of Information
+              </h2>
+              <p className="mt-2">
+                The information collected is used exclusively for creating and managing matrimonial profiles, facilitating match discovery between genuine families, verifying member authenticity, communicating account updates, and maintaining community standards.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                4. Profile Visibility & Access Control
+              </h2>
+              <p className="mt-2">
+                Members acknowledge that information submitted for their matrimonial profile is shared with other registered members to enable matchmaking. Sensitive contact numbers are protected and only shared in accordance with member permissions and verified inquiries.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                5. Data Security
+              </h2>
+              <p className="mt-2">
+                We implement industry-standard encryption, tokenized authentication, and secure database practices to protect member information against unauthorized access, misuse, or alteration.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                6. Third-Party Services
+              </h2>
+              <p className="mt-2">
+                Technical infrastructure such as secure hosting, SMS/OTP gateways, and authorized payment gateways operate under strict confidentiality and standard data protection protocols.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
+                7. Contact & Privacy Inquiries
+              </h2>
+              <p className="mt-2">
+                For privacy-related questions, corrections, or profile removal assistance, please write to:
+              </p>
+              <div className="mt-3 p-4 rounded-xl bg-white border border-[#DACBB4] space-y-1">
+                <p><strong>Email:</strong> {BUSINESS_INFO.email}</p>
+                <p><strong>Platform:</strong> {BUSINESS_INFO.brandName} (Associated with {BUSINESS_INFO.associatedBrand})</p>
+                <p><strong>Proprietor:</strong> {BUSINESS_INFO.proprietor} (Trade Name: {BUSINESS_INFO.tradeName})</p>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </main>
   );

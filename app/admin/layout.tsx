@@ -69,12 +69,12 @@ export default function AdminLayout({
       <aside className="hidden w-72 bg-red-700 text-white lg:block">
 
         <div className="border-b border-red-600 p-6">
-          <h1 className="text-3xl font-bold">
-            NNVS Admin
+          <h1 className="text-2xl font-bold">
+            RishteClub Admin
           </h1>
 
-          <p className="mt-1 text-sm text-red-100">
-            Matrimony Management
+          <p className="mt-1 text-xs text-red-100">
+            by NNVS Matrimony
           </p>
         </div>
 

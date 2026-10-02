@@ -8,11 +8,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Bot,
-  Heart,
   CheckCircle2,
   User,
   RotateCcw,
-  ShieldCheck,
 } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
 
@@ -127,7 +125,7 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-serif-luxury text-sm sm:text-lg font-bold text-white tracking-wide">
-                  NNVS AI Matchmaker Bot
+                  RishteClub AI Matchmaker Bot
                 </h3>
                 <span className="rounded-full bg-[#DFBA73] px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[9px] sm:text-[10px] font-extrabold text-[#4A121A]">
                   AI 2.0

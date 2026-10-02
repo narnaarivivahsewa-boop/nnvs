@@ -10,7 +10,7 @@ import WhyChoose from "@/components/WhyChoose";
 import HowItWorks from "@/components/HowItWorks";
 import Footer from "@/components/Footer";
 import AIMatchmakerModal from "@/components/AIMatchmakerModal";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot } from "lucide-react";
 
 export default function Home() {
   const [aiModalOpen, setAiModalOpen] = useState(false);

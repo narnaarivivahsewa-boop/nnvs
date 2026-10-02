@@ -194,7 +194,7 @@ export default function ProfileDetailsPage() {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: `${profile?.user.fullName} | NNVS Matrimony Profile`,
+        title: `${profile?.user.fullName} | RishteClub Matrimony Profile`,
         url: window.location.href,
       });
     } else {
