@@ -10,7 +10,6 @@ export async function POST(req: Request) {
       maxAge = 35,
       diet,
       lifestyle,
-      _dressing,
       educationLevel,
       religionPreference,
       communityPreference,
