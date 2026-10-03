@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BUSINESS_INFO } from "@/lib/gst";
-import { Mail, Phone, Clock, ArrowLeft, MessageSquare } from "lucide-react";
+import { Mail, Phone, ArrowLeft, MessageSquare } from "lucide-react";
 
 export default function ContactPage() {
   return (
@@ -44,33 +44,33 @@ export default function ContactPage() {
 
               <div className="p-4 bg-white rounded-2xl border border-[#E8DCC8]">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#8C6239] flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-[#C5A059]" />
-                  <span>Helpline Numbers</span>
+                  <MessageSquare className="h-4 w-4 text-[#25D366]" />
+                  <span>WhatsApp Support</span>
                 </p>
-                <div className="mt-1 space-y-1">
-                  <a
-                    href={`tel:${BUSINESS_INFO.helplineNumbers[0]}`}
-                    className="block text-sm font-semibold text-[#2D221E] hover:text-[#4A121A] transition"
-                  >
-                    {BUSINESS_INFO.helplineNumbers[0]}
-                  </a>
-                  <a
-                    href={`tel:${BUSINESS_INFO.helplineNumbers[1]}`}
-                    className="block text-sm font-semibold text-[#2D221E] hover:text-[#4A121A] transition"
-                  >
-                    {BUSINESS_INFO.helplineNumbers[1]}
-                  </a>
-                </div>
+                <a
+                  href={BUSINESS_INFO.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-2 text-sm font-bold text-[#1E562A] hover:underline"
+                >
+                  <span>+91 {BUSINESS_INFO.primaryWhatsApp}</span>
+                </a>
+                <p className="text-[11px] text-red-700 font-semibold mt-1">
+                  WhatsApp Only – Do Not Call
+                </p>
               </div>
 
               <div className="p-4 bg-white rounded-2xl border border-[#E8DCC8]">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#8C6239] flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#C5A059]" />
-                  <span>Calling Hours</span>
+                  <Mail className="h-4 w-4 text-[#C5A059]" />
+                  <span>Email Support</span>
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[#2D221E]">
-                  {BUSINESS_INFO.callingHours}
-                </p>
+                <a
+                  href={`mailto:${BUSINESS_INFO.email}`}
+                  className="mt-1 block text-sm font-semibold text-[#2D221E] hover:text-[#4A121A] transition"
+                >
+                  {BUSINESS_INFO.email}
+                </a>
               </div>
             </div>
           </div>
@@ -84,8 +84,12 @@ export default function ContactPage() {
               </h2>
 
               <p className="mt-5 text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
-                If you need assistance with registration, profile creation, profile verification, payment or matchmaking services on <strong>RishteClub</strong>, please reach out during our calling hours.
+                If you need assistance with registration, profile creation, profile verification, payment confirmation or matchmaking services on <strong>RishteClub</strong>, please message us on WhatsApp.
               </p>
+
+              <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-medium">
+                <strong>WhatsApp Only:</strong> Please send all queries, payment receipts, and profile details directly to WhatsApp (+91 {BUSINESS_INFO.primaryWhatsApp}).
+              </div>
 
               <p className="mt-4 text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
                 You can also email us anytime with your member ID or query, and our team will get back to you promptly.

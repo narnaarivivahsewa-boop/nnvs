@@ -1,5 +1,5 @@
 import { BUSINESS_INFO } from "@/lib/gst";
-import { UserCheck, HelpCircle, ShieldCheck, Mail, Phone, Clock } from "lucide-react";
+import { UserCheck, HelpCircle, ShieldCheck, Mail, Phone } from "lucide-react";
 
 export default function HelpPage() {
   return (
@@ -59,9 +59,9 @@ export default function HelpPage() {
 
             <div className="rounded-2xl bg-white p-6 border border-[#E8DCC8]">
               <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A] mb-3">
-                Direct Contact Helpline
+                WhatsApp Support
               </h2>
-              <div className="space-y-2 text-xs sm:text-sm text-[#5A4E48]">
+              <div className="space-y-2.5 text-xs sm:text-sm text-[#5A4E48]">
                 <p className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-[#C5A059]" />
                   <a href={`mailto:${BUSINESS_INFO.email}`} className="font-semibold hover:text-[#4A121A]">
@@ -69,12 +69,18 @@ export default function HelpPage() {
                   </a>
                 </p>
                 <p className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-[#C5A059]" />
-                  <span>{BUSINESS_INFO.helplineNumbers.join(" / ")}</span>
+                  <Phone className="h-4 w-4 text-[#25D366]" />
+                  <a
+                    href={BUSINESS_INFO.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-[#1E562A] hover:underline"
+                  >
+                    +91 {BUSINESS_INFO.primaryWhatsApp}
+                  </a>
                 </p>
-                <p className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#C5A059]" />
-                  <span>{BUSINESS_INFO.callingHours}</span>
+                <p className="text-xs text-red-700 font-semibold">
+                  WhatsApp Only – Do Not Call
                 </p>
               </div>
             </div>

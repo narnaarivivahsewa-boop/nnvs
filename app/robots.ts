@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin", "/admin/*", "/api/*", "/dashboard", "/dashboard/*"],
       },
     ],
-    sitemap: "https://rishteclub.com/sitemap.xml",
+    sitemap: "https://www.rishteclub.com/sitemap.xml",
   };
 }

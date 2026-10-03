@@ -19,8 +19,10 @@ type InvoiceData = {
     stateCode: string;
     country: string;
     email: string;
-    helplineNumbers: readonly string[];
-    callingHours: string;
+    primaryWhatsApp?: string;
+    contactInstruction?: string;
+    helplineNumbers?: readonly string[];
+    callingHours?: string;
     brandName: string;
     managedBy: string;
     managedByFull: string;
@@ -201,7 +203,7 @@ export default function InvoicePage({
                 <strong>Email:</strong> {invoice.seller.email}
               </p>
               <p className="text-xs text-gray-600">
-                <strong>Helpline:</strong> {invoice.seller.helplineNumbers.join(", ")}
+                <strong>WhatsApp Support:</strong> +91 {invoice.seller.primaryWhatsApp || "9871592002"} (WhatsApp Only – Do Not Call)
               </p>
             </div>
 

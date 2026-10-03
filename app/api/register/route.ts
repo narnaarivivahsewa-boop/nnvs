@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { checkDuplicateRegistration } from "@/lib/duplicate-detector";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,49 +47,33 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // ===========================
-    // Check Existing Mobile
+    // Multi-Signal Duplicate Check
     // ===========================
-
-    const existingMobile = await prisma.user.findUnique({
-      where: {
-        mobile,
-      },
+    const duplicateCheck = await checkDuplicateRegistration({
+      mobile,
+      email,
+      fullName,
+      gender,
+      dateOfBirth,
+      fatherName,
+      motherName,
     });
 
-    if (existingMobile) {
+    if (duplicateCheck.isDuplicate) {
       return NextResponse.json(
         {
           success: false,
-          message: "Mobile number already registered.",
+          isDuplicate: true,
+          maskedMobile: duplicateCheck.matchedMobileMasked,
+          matchedProfileId: duplicateCheck.matchedProfileId,
+          message:
+            duplicateCheck.message ||
+            `You have already registered with RishteClub using mobile number ${duplicateCheck.matchedMobileMasked}. Please login using your existing registered mobile number.`,
         },
         {
-          status: 400,
+          status: 409,
         }
       );
-    }
-
-    // ===========================
-    // Check Existing Email
-    // ===========================
-
-    if (email) {
-      const existingEmail = await prisma.user.findUnique({
-        where: {
-          email,
-        },
-      });
-
-      if (existingEmail) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Email already registered.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
     }
 
     // ===========================
@@ -157,6 +142,12 @@ export async function POST(req: NextRequest) {
           paymentCompleted: false,
 
           isVisible: false,
+
+          isDuplicateFlagged: duplicateCheck.flagForAdminReview || false,
+          duplicateMatchedProfileId: duplicateCheck.matchedProfileId || null,
+          duplicateNotes: duplicateCheck.flagForAdminReview
+            ? `Potential duplicate name match with profile ID: ${duplicateCheck.matchedProfileId}`
+            : null,
         },
       });
             // -------------------------

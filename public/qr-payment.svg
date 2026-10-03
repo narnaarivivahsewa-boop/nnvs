@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <rect width="300" height="300" fill="#ffffff" rx="16"/>
+  <!-- UPI & RishteClub Header -->
+  <text x="150" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#4A121A" text-anchor="middle">Trendy Traders (RishteClub)</text>
+  <text x="150" y="48" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#7A5835" text-anchor="middle">UPI ID: narnaarivivahsewa@okicici</text>
+  
+  <!-- Outer Finder 1 (Top Left) -->
+  <rect x="35" y="65" width="55" height="55" fill="#4A121A" rx="6"/>
+  <rect x="43" y="73" width="39" height="39" fill="#ffffff" rx="3"/>
+  <rect x="51" y="81" width="23" height="23" fill="#4A121A" rx="2"/>
+
+  <!-- Outer Finder 2 (Top Right) -->
+  <rect x="210" y="65" width="55" height="55" fill="#4A121A" rx="6"/>
+  <rect x="218" y="73" width="39" height="39" fill="#ffffff" rx="3"/>
+  <rect x="226" y="81" width="23" height="23" fill="#4A121A" rx="2"/>
+
+  <!-- Outer Finder 3 (Bottom Left) -->
+  <rect x="35" y="195" width="55" height="55" fill="#4A121A" rx="6"/>
+  <rect x="43" y="203" width="39" height="39" fill="#ffffff" rx="3"/>
+  <rect x="51" y="211" width="23" height="23" fill="#4A121A" rx="2"/>
+
+  <!-- Simulated QR Data Pattern Grid -->
+  <g fill="#2D221E">
+    <!-- Row 1 -->
+    <rect x="105" y="68" width="10" height="10"/>
+    <rect x="125" y="68" width="10" height="10"/>
+    <rect x="145" y="68" width="10" height="10"/>
+    <rect x="175" y="68" width="10" height="10"/>
+    <rect x="190" y="68" width="10" height="10"/>
+
+    <!-- Row 2 -->
+    <rect x="105" y="85" width="10" height="10"/>
+    <rect x="135" y="85" width="10" height="10"/>
+    <rect x="160" y="85" width="10" height="10"/>
+    <rect x="180" y="85" width="10" height="10"/>
+
+    <!-- Row 3 -->
+    <rect x="115" y="105" width="10" height="10"/>
+    <rect x="135" y="105" width="10" height="10"/>
+    <rect x="155" y="105" width="10" height="10"/>
+    <rect x="170" y="105" width="10" height="10"/>
+
+    <!-- Center Section -->
+    <rect x="35" y="135" width="10" height="10"/>
+    <rect x="55" y="135" width="10" height="10"/>
+    <rect x="75" y="135" width="10" height="10"/>
+    <rect x="95" y="135" width="10" height="10"/>
+    <rect x="115" y="135" width="10" height="10"/>
+    <rect x="135" y="135" width="30" height="30" fill="#4A121A" rx="4"/>
+    <rect x="185" y="135" width="10" height="10"/>
+    <rect x="205" y="135" width="10" height="10"/>
+    <rect x="225" y="135" width="10" height="10"/>
+    <rect x="245" y="135" width="10" height="10"/>
+
+    <!-- Row 5 -->
+    <rect x="45" y="155" width="10" height="10"/>
+    <rect x="65" y="155" width="10" height="10"/>
+    <rect x="85" y="155" width="10" height="10"/>
+    <rect x="105" y="155" width="10" height="10"/>
+    <rect x="175" y="155" width="10" height="10"/>
+    <rect x="195" y="155" width="10" height="10"/>
+    <rect x="215" y="155" width="10" height="10"/>
+    <rect x="235" y="155" width="10" height="10"/>
+
+    <!-- Row 6 -->
+    <rect x="35" y="175" width="10" height="10"/>
+    <rect x="65" y="175" width="10" height="10"/>
+    <rect x="95" y="175" width="10" height="10"/>
+    <rect x="115" y="175" width="10" height="10"/>
+    <rect x="135" y="175" width="10" height="10"/>
+    <rect x="155" y="175" width="10" height="10"/>
+    <rect x="185" y="175" width="10" height="10"/>
+    <rect x="215" y="175" width="10" height="10"/>
+    <rect x="245" y="175" width="10" height="10"/>
+
+    <!-- Bottom Right Area -->
+    <rect x="105" y="195" width="10" height="10"/>
+    <rect x="125" y="195" width="10" height="10"/>
+    <rect x="145" y="195" width="10" height="10"/>
+    <rect x="165" y="195" width="10" height="10"/>
+    <rect x="185" y="195" width="10" height="10"/>
+    <rect x="215" y="195" width="10" height="10"/>
+    <rect x="235" y="195" width="10" height="10"/>
+    <rect x="255" y="195" width="10" height="10"/>
+
+    <rect x="105" y="215" width="10" height="10"/>
+    <rect x="135" y="215" width="10" height="10"/>
+    <rect x="155" y="215" width="10" height="10"/>
+    <rect x="175" y="215" width="10" height="10"/>
+    <rect x="205" y="215" width="10" height="10"/>
+    <rect x="225" y="215" width="10" height="10"/>
+    <rect x="245" y="215" width="10" height="10"/>
+
+    <rect x="115" y="235" width="10" height="10"/>
+    <rect x="145" y="235" width="10" height="10"/>
+    <rect x="165" y="235" width="10" height="10"/>
+    <rect x="185" y="235" width="10" height="10"/>
+    <rect x="215" y="235" width="10" height="10"/>
+    <rect x="235" y="235" width="10" height="10"/>
+    <rect x="255" y="235" width="10" height="10"/>
+  </g>
+
+  <!-- Center Logo Badge -->
+  <circle cx="150" cy="150" r="10" fill="#DFBA73"/>
+  <text x="150" y="154" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="900" fill="#4A121A" text-anchor="middle">₹</text>
+
+  <!-- Bottom Scan Text -->
+  <text x="150" y="278" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#5A4E48" text-anchor="middle">Scan with GPay / PhonePe / Paytm / Any UPI</text>
+</svg>

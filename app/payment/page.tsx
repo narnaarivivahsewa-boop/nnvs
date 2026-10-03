@@ -1,157 +1,99 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
-import { ShieldCheck, ArrowRight, Sparkles, CreditCard, Lock } from "lucide-react";
+import {
+  ShieldCheck,
+  Sparkles,
+  QrCode,
+  Copy,
+  Check,
+  MessageCircle,
+  Clock,
+  ArrowLeft,
+} from "lucide-react";
 
 function PaymentContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-
-  const profileId = searchParams.get("profileId");
+  const profileId = searchParams.get("profileId") || "";
+  const nameParam = searchParams.get("name") || "";
   const genderParam = searchParams.get("gender")?.toUpperCase();
 
   const isFemale = genderParam === "FEMALE";
-  const registrationType = isFemale ? "Female" : "Male";
-  const baseFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+  const defaultFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
 
-  const [promoCode, setPromoCode] = useState("");
-  const [promoLoading, setPromoLoading] = useState(false);
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [promoMessage, setPromoMessage] = useState("");
+  const [settings, setSettings] = useState<{
+    registrationFee: number;
+    gstPercentage: number;
+    qrCodeUrl: string;
+    qrUpiId: string;
+    whatsappNumber: string;
+    tradeName: string;
+    gstin: string;
+  }>({
+    registrationFee: defaultFee,
+    gstPercentage: 18,
+    qrCodeUrl: BUSINESS_INFO.qrCodeUrl,
+    qrUpiId: BUSINESS_INFO.upiId,
+    whatsappNumber: BUSINESS_INFO.primaryWhatsApp,
+    tradeName: BUSINESS_INFO.tradeName,
+    gstin: BUSINESS_INFO.gstin,
+  });
 
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [discountedFee, setDiscountedFee] = useState<number>(baseFee);
+  const [copied, setCopied] = useState(false);
 
-  const initialTaxes = calculateGstBreakdown(baseFee);
-  const [gstAmount, setGstAmount] = useState(initialTaxes.totalTax);
-  const [totalAmount, setTotalAmount] = useState(initialTaxes.totalAmount);
-
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState("");
-
-  const applyPromoCode = async () => {
-    const code = promoCode.trim();
-
-    if (!code) {
-      setPromoMessage("Please enter a promo code.");
-      return;
-    }
-
-    if (!profileId) {
-      setPromoMessage("Profile ID is missing. Please return to registration.");
-      return;
-    }
-
-    try {
-      setPromoLoading(true);
-      setPromoMessage("");
-
-      const res = await fetch("/api/payment/promo", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code,
-          profileId,
-          baseFee,
-        }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        setPromoApplied(false);
-        setDiscountPercent(0);
-        setDiscountAmount(0);
-        setDiscountedFee(baseFee);
-
-        const normalTaxes = calculateGstBreakdown(baseFee);
-        setGstAmount(normalTaxes.totalTax);
-        setTotalAmount(normalTaxes.totalAmount);
-        setPromoMessage(result.message || "Invalid promo code.");
-        return;
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (data.success && data.settings) {
+          setSettings({
+            registrationFee: Number(data.settings.registrationFee || defaultFee),
+            gstPercentage: Number(data.settings.gstPercentage || 18),
+            qrCodeUrl: data.settings.qrCodeUrl || BUSINESS_INFO.qrCodeUrl,
+            qrUpiId: data.settings.qrUpiId || BUSINESS_INFO.upiId,
+            whatsappNumber: data.settings.whatsappNumber || BUSINESS_INFO.primaryWhatsApp,
+            tradeName: data.settings.tradeName || BUSINESS_INFO.tradeName,
+            gstin: data.settings.gstin || BUSINESS_INFO.gstin,
+          });
+        }
+      } catch (err) {
+        console.error("Error loading payment settings:", err);
       }
-
-      const calculation = result.calculation;
-
-      setPromoApplied(true);
-      setDiscountPercent(Number(calculation.discountPercent ?? 0));
-      setDiscountAmount(Number(calculation.discountAmount ?? 0));
-      setDiscountedFee(Number(calculation.discountedFee ?? baseFee));
-      setGstAmount(Number(calculation.gstAmount ?? 0));
-      setTotalAmount(Number(calculation.totalAmount ?? 0));
-      setPromoMessage("Promo code applied successfully.");
-    } catch (error) {
-      console.error("PROMO CODE APPLY ERROR =>", error);
-      setPromoApplied(false);
-      setPromoMessage("Unable to validate promo code. Please try again.");
-    } finally {
-      setPromoLoading(false);
     }
+    loadSettings();
+  }, [defaultFee]);
+
+  const taxes = calculateGstBreakdown(settings.registrationFee);
+  const totalAmount = taxes.totalAmount;
+
+  const handleCopyUPI = () => {
+    navigator.clipboard.writeText(settings.qrUpiId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const removePromoCode = () => {
-    setPromoCode("");
-    setPromoApplied(false);
-    setPromoMessage("");
-    setDiscountPercent(0);
-    setDiscountAmount(0);
-    setDiscountedFee(baseFee);
+  const whatsappMessage = encodeURIComponent(
+    `Hello RishteClub team, I have completed the registration payment of ₹${totalAmount.toFixed(
+      2
+    )} for Profile Name: ${nameParam || "Registered Candidate"}${
+      profileId ? ` (Profile ID: ${profileId})` : ""
+    }. Please find my payment screenshot attached.`
+  );
 
-    const normalTaxes = calculateGstBreakdown(baseFee);
-    setGstAmount(normalTaxes.totalTax);
-    setTotalAmount(normalTaxes.totalAmount);
-  };
-
-  const handleProcessPayment = async () => {
-    if (!profileId) {
-      setPaymentError("Profile ID is missing. Please return to registration.");
-      return;
-    }
-
-    try {
-      setPaymentProcessing(true);
-      setPaymentError("");
-
-      const res = await fetch("/api/payment/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profileId,
-          promoCode: promoApplied ? promoCode : undefined,
-          paymentMethod: "UPI_ONLINE",
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setPaymentError(data.message || "Payment could not be completed.");
-        return;
-      }
-
-      // Redirect to newly generated GST Tax Invoice
-      router.push(data.invoiceUrl || `/invoice/${data.paymentId}`);
-    } catch (err: any) {
-      console.error("PAYMENT PROCESS ERROR =>", err);
-      setPaymentError("Payment transaction failed. Please try again.");
-    } finally {
-      setPaymentProcessing(false);
-    }
-  };
+  const whatsappLink = `https://wa.me/91${settings.whatsappNumber}?text=${whatsappMessage}`;
 
   return (
     <div className="mx-auto max-w-xl">
       <div className="rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100">
         {/* Brand Header */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF5EB] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[#7A5835] mb-3 border border-[#E8DCC8]">
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF5EB] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[#7A5835] mb-2.5 border border-[#E8DCC8]">
             <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
-            <span>Official Matrimonial Membership</span>
+            <span>Matrimonial Membership Payment</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black text-[#4A121A] font-serif-luxury tracking-tight">
@@ -161,179 +103,166 @@ function PaymentContent() {
           <p className="mt-1 text-xs text-[#7A5835] font-semibold uppercase tracking-[0.16em]">
             Managed by NNVS Matrimony
           </p>
-
-          <p className="mt-2 text-sm text-gray-600">
-            Registration Summary & GST Tax Invoice
-          </p>
         </div>
 
-        {!profileId && (
-          <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-700 border border-red-200">
-            Profile ID is missing. Please complete the registration process first.
+        {/* Profile Details Tag */}
+        {profileId && (
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-[#FAF6EF] px-5 py-3 border border-[#E8DCC8] text-xs">
+            <span className="text-gray-600">Registered Profile ID:</span>
+            <span className="font-mono font-bold text-[#4A121A] text-sm">{profileId}</span>
           </div>
         )}
 
-        {/* Pricing Summary Box */}
-        <div className="rounded-2xl border border-[#E8DCC8] bg-[#FAF8F5] p-6 shadow-sm">
-          <div className="flex items-center justify-between pb-4 border-b border-[#E8DCC8]">
-            <h2 className="text-lg font-bold text-gray-900">
-              {registrationType} Matrimonial Registration
+        {/* Amount & GST Card */}
+        <div className="rounded-2xl border border-[#E8DCC8] bg-[#FAF8F5] p-5 shadow-sm">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E8DCC8]">
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+              Applicable Registration Fee
             </h2>
-            <span className="text-xs font-mono font-bold bg-[#4A121A] text-[#DFBA73] px-2.5 py-1 rounded-md">
+            <span className="text-xs font-mono font-bold bg-[#4A121A] text-[#DFBA73] px-2.5 py-0.5 rounded-md">
               SAC: {BUSINESS_INFO.sacCode}
             </span>
           </div>
 
-          <div className="space-y-3.5 pt-4 text-sm text-gray-700">
-            <div className="flex justify-between gap-4">
-              <span>One-Time Membership Fee</span>
+          <div className="space-y-2.5 pt-3 text-sm text-gray-700">
+            <div className="flex justify-between">
+              <span>Service Base Fee</span>
               <span className="font-semibold text-gray-900">
-                ₹{baseFee.toFixed(2)}
+                ₹{settings.registrationFee.toFixed(2)}
               </span>
             </div>
 
-            {promoApplied && (
-              <>
-                <div className="flex justify-between gap-4 text-emerald-700 font-medium">
-                  <span>Promo Discount ({discountPercent}%)</span>
-                  <span>-₹{discountAmount.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span>Net Taxable Base</span>
-                  <span className="font-semibold">
-                    ₹{discountedFee.toFixed(2)}
-                  </span>
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-between gap-4 text-gray-600 text-xs">
+            <div className="flex justify-between text-xs text-gray-600">
               <span>CGST (9%)</span>
-              <span>₹{(gstAmount / 2).toFixed(2)}</span>
+              <span>₹{taxes.cgstAmount.toFixed(2)}</span>
             </div>
 
-            <div className="flex justify-between gap-4 text-gray-600 text-xs">
+            <div className="flex justify-between text-xs text-gray-600">
               <span>SGST (9%)</span>
-              <span>₹{(gstAmount / 2).toFixed(2)}</span>
+              <span>₹{taxes.sgstAmount.toFixed(2)}</span>
             </div>
 
-            <div className="my-2 border-t border-[#E8DCC8]" />
-
-            <div className="flex justify-between gap-4 text-xl font-black text-[#4A121A]">
+            <div className="border-t border-[#E8DCC8] pt-2 flex justify-between text-lg font-black text-[#4A121A]">
               <span>Total Payable (incl. GST)</span>
               <span>₹{totalAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Promo Code Box */}
-        <div className="mt-6 rounded-2xl border border-gray-200 p-5 bg-white">
-          <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">
-            Have a Promo Code?
+        {/* Authoritative Original QR Code Section */}
+        <div className="mt-6 rounded-2xl border-2 border-dashed border-[#DFBA73] bg-[#FAF8F5] p-6 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#7A5835] mb-3">
+            <QrCode className="h-4 w-4 text-[#C5A059]" />
+            <span>Scan to Pay Using Any UPI App</span>
+          </div>
+
+          <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-2xl bg-white p-2 shadow-md border border-gray-200 overflow-hidden">
+            <img
+              src="/payment-qr.jpeg"
+              alt="RishteClub Official Payment QR"
+              className="h-full w-full object-contain rounded-xl"
+            />
+          </div>
+
+          {/* UPI ID Box */}
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 border border-[#DACBB4] shadow-xs">
+              <span className="text-xs text-gray-500 font-medium">UPI ID:</span>
+              <span className="font-mono text-sm font-bold text-gray-900">{settings.qrUpiId}</span>
+              <button
+                type="button"
+                onClick={handleCopyUPI}
+                className="ml-1 rounded-lg p-1 text-gray-500 hover:text-gray-900 transition"
+                title="Copy UPI ID"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Clear Hindi Instruction directly under QR */}
+          <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 font-bold text-xs sm:text-sm">
+            Payment karne ke baad screenshot aur apna Profile Name WhatsApp par {settings.whatsappNumber} par bheje.
+          </div>
+        </div>
+
+        {/* Step-by-Step Instructions */}
+        <div className="mt-6 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700">
+            Next Steps After Payment:
           </h3>
 
-          {!promoApplied ? (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                placeholder="Enter Promo Code"
-                disabled={promoLoading}
-                className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm uppercase outline-none focus:border-[#4A121A] focus:ring-1 focus:ring-[#4A121A]"
-              />
-
-              <button
-                type="button"
-                onClick={applyPromoCode}
-                disabled={promoLoading || !promoCode}
-                className="rounded-xl bg-[#4A121A] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#380C13] disabled:cursor-not-allowed disabled:bg-gray-300"
-              >
-                {promoLoading ? "..." : "Apply"}
-              </button>
+          <div className="space-y-2.5 rounded-2xl bg-white p-4 border border-gray-200 text-xs text-gray-700">
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#4A121A] text-[10px] font-bold text-white">
+                1
+              </span>
+              <p>
+                Scan the QR code above or send <strong>₹{totalAmount.toFixed(2)}</strong> to UPI ID <strong>{settings.qrUpiId}</strong> using GPay, PhonePe, Paytm, or BHIM.
+              </p>
             </div>
-          ) : (
-            <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-2.5 border border-emerald-200">
-              <div>
-                <p className="font-bold text-emerald-800 text-sm">
-                  {promoCode} Applied
-                </p>
-                <p className="text-xs text-emerald-700">
-                  {discountPercent}% discount applied to base fee
-                </p>
-              </div>
 
-              <button
-                type="button"
-                onClick={removePromoCode}
-                className="text-xs font-bold text-red-700 hover:underline"
-              >
-                Remove
-              </button>
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#4A121A] text-[10px] font-bold text-white">
+                2
+              </span>
+              <p>
+                Save the payment screenshot showing the UTR / Transaction Reference Number.
+              </p>
             </div>
-          )}
 
-          {promoMessage && (
-            <p
-              className={`mt-2.5 text-xs font-medium ${
-                promoApplied ? "text-emerald-700" : "text-red-600"
-              }`}
-            >
-              {promoMessage}
-            </p>
-          )}
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#4A121A] text-[10px] font-bold text-white">
+                3
+              </span>
+              <p>
+                Send the screenshot along with your <strong>Profile Name</strong> to our official WhatsApp number: <strong>+91 {settings.whatsappNumber}</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-amber-50 p-3 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-700 flex-shrink-0" />
+            <span>
+              <strong>Note:</strong> WhatsApp Only – Do Not Call. Your profile will be reviewed and activated by our team upon manual payment confirmation.
+            </span>
+          </div>
         </div>
 
-        {/* Official GST Legal Entity Notice */}
-        <div className="mt-6 rounded-2xl bg-[#FAF5EB] p-5 text-xs text-gray-700 border border-[#DACBB4] space-y-2">
-          <div className="flex items-center gap-1.5 text-[#7A5835] font-bold text-xs uppercase tracking-wider">
+        {/* Send to WhatsApp CTA Button */}
+        <div className="mt-6 space-y-3">
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-[#25D366] hover:bg-[#1EBE5D] py-4 text-white font-bold shadow-lg transition text-base"
+          >
+            <MessageCircle className="h-5 w-5" />
+            <span>Send Screenshot on WhatsApp (+91 {settings.whatsappNumber})</span>
+          </a>
+
+          <Link
+            href="/dashboard"
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Return to Dashboard</span>
+          </Link>
+        </div>
+
+        {/* GST Billing Entity Notice */}
+        <div className="mt-6 rounded-2xl bg-[#FAF5EB] p-4 text-[11px] text-gray-600 border border-[#DACBB4] space-y-1">
+          <div className="flex items-center gap-1.5 text-[#7A5835] font-bold">
             <ShieldCheck className="h-4 w-4 text-[#C5A059]" />
-            <span>Tax Invoice & Regulatory Details</span>
+            <span>GST Compliance & Official Billing</span>
           </div>
-
-          <p className="text-gray-700 leading-relaxed">
-            Upon successful payment, an official <strong>GST Tax Invoice</strong> will be generated immediately under our registered legal entity name:
+          <p>
+            Official GST Tax Invoice will be issued under trade name <strong>{settings.tradeName}</strong> (GSTIN: <span className="font-mono">{settings.gstin}</span>) upon admin payment confirmation.
           </p>
-
-          <div className="pt-2 border-t border-[#E8DCC8] text-[11px] text-gray-600 space-y-0.5">
-            <p><strong>Legal Entity / Trade Name:</strong> {BUSINESS_INFO.tradeName}</p>
-            <p><strong>Proprietor:</strong> {BUSINESS_INFO.proprietor}</p>
-            <p><strong>GSTIN:</strong> <span className="font-mono font-bold text-gray-900">{BUSINESS_INFO.gstin}</span></p>
-            <p><strong>Platform:</strong> {BUSINESS_INFO.brandName} (Managed by {BUSINESS_INFO.managedBy})</p>
-          </div>
-        </div>
-
-        {paymentError && (
-          <div className="mt-4 rounded-xl bg-red-50 p-3.5 text-xs font-semibold text-red-700 border border-red-200">
-            {paymentError}
-          </div>
-        )}
-
-        {/* Payment Confirmation & Invoice Generation Button */}
-        <button
-          type="button"
-          onClick={handleProcessPayment}
-          disabled={paymentProcessing || !profileId}
-          className="mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#4A121A] to-[#681925] px-8 py-4 font-bold text-white shadow-lg transition hover:from-[#3D0E15] hover:to-[#55141E] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 text-base"
-        >
-          {paymentProcessing ? (
-            <>
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              <span>Processing Payment & Generating Invoice...</span>
-            </>
-          ) : (
-            <>
-              <CreditCard className="h-5 w-5 text-[#DFBA73]" />
-              <span>Complete Payment (₹{totalAmount.toFixed(2)}) & Get GST Invoice</span>
-              <ArrowRight className="h-5 w-5" />
-            </>
-          )}
-        </button>
-
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">
-          <Lock className="h-3.5 w-3.5 text-emerald-600" />
-          <span>256-Bit SSL Encrypted &bull; 100% Secure & Compliant</span>
         </div>
       </div>
     </div>
@@ -346,7 +275,7 @@ export default function PaymentPage() {
       <Suspense
         fallback={
           <div className="text-center py-20 text-gray-500 font-semibold">
-            Loading payment details...
+            Loading payment instructions...
           </div>
         }
       >

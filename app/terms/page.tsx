@@ -119,7 +119,7 @@ export default function TermsPage() {
                 <p><strong>Trade Name:</strong> {BUSINESS_INFO.tradeName}</p>
                 <p><strong>GSTIN:</strong> {BUSINESS_INFO.gstin}</p>
                 <p><strong>Email:</strong> {BUSINESS_INFO.email}</p>
-                <p><strong>Helpline:</strong> {BUSINESS_INFO.helplineNumbers.join(" / ")} (Calling hours: {BUSINESS_INFO.callingHours})</p>
+                <p><strong>WhatsApp Support:</strong> +91 {BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call)</p>
               </div>
             </section>
           </div>

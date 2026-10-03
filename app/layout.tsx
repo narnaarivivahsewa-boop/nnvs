@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Cinzel, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import PwaRegister from "@/components/PwaRegister";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -22,7 +23,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://rishteclub.com"),
+  metadataBase: new URL("https://www.rishteclub.com"),
   title: {
     default: "RishteClub – Matrimony & Marriage Profiles | Apno Ke Liye Sahi Rishta",
     template: "%s | RishteClub",
@@ -42,13 +43,13 @@ export const metadata: Metadata = {
     "Shaadi",
   ],
   alternates: {
-    canonical: "https://rishteclub.com",
+    canonical: "https://www.rishteclub.com",
   },
   openGraph: {
     title: "RishteClub – Apno Ke Liye Sahi Rishta",
     description:
       "Find suitable matrimonial matches with dignity and ease on RishteClub. Associated with NNVS Matrimony.",
-    url: "https://rishteclub.com",
+    url: "https://www.rishteclub.com",
     siteName: "RishteClub",
     locale: "en_IN",
     type: "website",
@@ -58,6 +59,16 @@ export const metadata: Metadata = {
     title: "RishteClub – Apno Ke Liye Sahi Rishta",
     description:
       "Find suitable matrimonial matches with dignity and ease on RishteClub. Associated with NNVS Matrimony.",
+  },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "RishteClub",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/nnvs-logo.png",
   },
 };
 
@@ -79,6 +90,7 @@ export default function RootLayout({
       className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased overflow-x-hidden`}
     >
       <body className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden">
+        <PwaRegister />
         <Navbar />
         {children}
       </body>

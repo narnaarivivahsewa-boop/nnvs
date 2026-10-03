@@ -29,7 +29,7 @@ const faqs = [
   {
     question: "How can I contact support?",
     answer:
-      `You can contact our support team at ${BUSINESS_INFO.email} or call ${BUSINESS_INFO.helplineNumbers.join(" / ")} between ${BUSINESS_INFO.callingHours}.`,
+      `You can contact our support team at ${BUSINESS_INFO.email} or message us on WhatsApp at +91 ${BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call).`,
   },
   {
     question: "What happened to my existing NNVS Matrimony profile?",

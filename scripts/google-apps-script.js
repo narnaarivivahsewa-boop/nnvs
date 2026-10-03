@@ -1,33 +1,27 @@
 /* eslint-disable */
 /**
  * =========================================================================================
- * RISHTECLUB MATRIMONY – GOOGLE FORM & RESPONSE SHEET INTEGRATION SCRIPT
+ * RISHTECLUB MATRIMONY – RESUMABLE GOOGLE FORM & RESPONSE SHEET INTEGRATION SCRIPT
  * =========================================================================================
  * 
- * Setup Instructions:
- * 1. Open your Google Response Spreadsheet in Google Sheets.
- * 2. Click on "Extensions" -> "Apps Script".
- * 3. Delete any existing code and paste this entire script.
- * 4. Go to "Project Settings" (gear icon) -> "Script Properties".
- * 5. Add the required Script Properties:
- *      INTEGRATION_URL  : https://rishteclub.com/api/integrations/google-form
- *      INTEGRATION_KEY  : <YOUR_SECRET_KEY> (Must match GOOGLE_FORM_INTEGRATION_KEY on server)
- *      SHEET_NAME       : Form Responses 1 (Optional: name of the responses tab)
- *      BATCH_SIZE       : 25 (Optional: defaults to 25)
- * 6. Save properties.
- * 7. Run `testConnection()` to verify connectivity.
- * 8. Run `runDryRunSync()` to simulate without writing database changes.
- * 9. Set up the trigger for `onFormSubmit` (Triggers -> Add Trigger -> onFormSubmit).
+ * Features:
+ * 1. Resumable Batch Processing: Processes 20 rows per batch to avoid Google 6-min execution limits.
+ * 2. Persisted Cursor: Automatically stores progress in Script Properties (SYNC_NEXT_ROW).
+ * 3. Automatic Continuation: Automatically schedules the next batch after 30 seconds using time-based triggers.
+ * 4. Photo Extraction & Idempotency: Column AC is parsed (1st = primary, 2nd+ = additional).
+ * 5. Safe Duplicate Handling: Existing profiles are safely updated with missing photos.
+ * 6. Future Submissions: Real-time `onFormSubmit(e)` trigger runs concurrently without interference.
  * =========================================================================================
  */
 
 function getScriptConfig() {
   const props = PropertiesService.getScriptProperties();
-  const apiUrl = props.getProperty('INTEGRATION_URL') || 'https://rishteclub.com/api/integrations/google-form';
+  const apiUrl = props.getProperty('INTEGRATION_URL') || 'https://www.rishteclub.com/api/integrations/google-form';
   const integrationKey = props.getProperty('INTEGRATION_KEY');
   const sheetName = props.getProperty('SHEET_NAME');
   const sheetId = props.getProperty('SHEET_ID');
-  const batchSize = parseInt(props.getProperty('BATCH_SIZE') || '25', 10);
+  const batchSize = parseInt(props.getProperty('BATCH_SIZE') || '20', 10);
+  const syncNextRow = parseInt(props.getProperty('SYNC_NEXT_ROW') || '2', 10);
 
   if (!integrationKey || integrationKey.trim() === '') {
     const errorMsg = 'INTEGRATION_KEY is not set in Script Properties. Please configure it under Project Settings > Script Properties.';
@@ -44,12 +38,13 @@ function getScriptConfig() {
     integrationKey: integrationKey.trim(),
     sheetName: sheetName ? sheetName.trim() : null,
     sheetId: sheetId ? sheetId.trim() : null,
-    batchSize: batchSize > 0 ? batchSize : 25,
+    batchSize: batchSize > 0 ? batchSize : 20,
+    syncNextRow: syncNextRow >= 2 ? syncNextRow : 2,
   };
 }
 
 /**
- * Gets the designated responses sheet safely without relying blindly on active tab
+ * Gets the designated responses sheet safely
  */
 function getTargetSheet(config) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -69,7 +64,6 @@ function getTargetSheet(config) {
     }
   }
 
-  // Check common default names
   const defaultSheet = ss.getSheetByName('Form Responses 1') || 
                        ss.getSheetByName('Form responses 1') || 
                        ss.getSheets()[0];
@@ -80,14 +74,16 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('RishteClub Sync')
     .addItem('1. Test Connection', 'testConnection')
-    .addItem('2. Run Dry Run (Simulate 10 Rows)', 'runDryRunSync')
+    .addItem('2. Resume / Start Batch Sync', 'startOrResumeSync')
+    .addItem('3. Check Sync Progress & Status', 'checkSyncStatus')
     .addSeparator()
-    .addItem('3. Run Full Existing Data Sync', 'runFullExistingSync')
+    .addItem('4. Reset Sync Cursor to Row 2', 'resetSyncCursor')
+    .addItem('5. Cancel Ongoing Continuation Triggers', 'cancelContinuation')
     .addToUi();
 }
 
 /**
- * Diagnostic function to test connectivity and authentication
+ * Test connectivity and API authentication
  */
 function testConnection() {
   const config = getScriptConfig();
@@ -121,73 +117,89 @@ function testConnection() {
 }
 
 /**
- * Runs dry-run simulation on first 10 rows
+ * Removes any existing continuation triggers to prevent duplicate executions
  */
-function runDryRunSync() {
-  syncExistingResponses(true, 10);
-}
-
-/**
- * Runs full synchronization across all sheet rows
- */
-function runFullExistingSync() {
-  const ui = SpreadsheetApp.getUi();
-  const confirm = ui.alert(
-    'Confirm Full Sync',
-    'Are you sure you want to synchronize all existing Google Sheet rows to RishteClub?',
-    ui.ButtonSet.YES_NO
-  );
-  if (confirm === ui.Button.YES) {
-    syncExistingResponses(false, null);
+function deleteContinuationTriggers() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'processNextBatch') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
   }
 }
 
 /**
- * Synchronizes existing responses in batches
- * @param {boolean} isDryRun - If true, validates and previews without modifying database
- * @param {number|null} maxRows - Maximum rows to process (null for all)
+ * User action to start or resume batch syncing
  */
-function syncExistingResponses(isDryRun, maxRows) {
+function startOrResumeSync() {
+  const config = getScriptConfig();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getTargetSheet(config);
+  const lastRow = sheet.getLastRow();
+
+  if (config.syncNextRow > lastRow) {
+    SpreadsheetApp.getUi().alert(
+      'Sync Already Complete',
+      `All ${lastRow} rows in the sheet have already been scanned (Cursor is at row ${config.syncNextRow}).\n\nTo re-scan, select '4. Reset Sync Cursor to Row 2'.`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'Starting Resumable Sync',
+    `Starting sync from row ${config.syncNextRow} of ${lastRow} in batches of ${config.batchSize} rows.\n\nThe script will automatically chain batches in the background until all rows are processed.`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+
+  processNextBatch();
+}
+
+/**
+ * Main batch processor - processes 1 batch and schedules the next if rows remain
+ */
+function processNextBatch() {
+  deleteContinuationTriggers(); // Clean up existing triggers
+
+  const props = PropertiesService.getScriptProperties();
   const config = getScriptConfig();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getTargetSheet(config);
   const spreadsheetId = ss.getId();
   const sheetId = sheet.getSheetId().toString();
+  const lastRow = sheet.getLastRow();
 
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
-    SpreadsheetApp.getUi().alert('No data rows found in sheet: ' + sheet.getName());
+  const startRow = config.syncNextRow;
+  if (startRow > lastRow) {
+    props.setProperty('SYNC_STATUS', 'COMPLETE');
+    Logger.log('Sync complete! All rows scanned.');
     return;
   }
 
-  // Add/verify Sync Status column header (Column AI / index 34 -> column 35)
+  const endRow = Math.min(startRow + config.batchSize - 1, lastRow);
+  const numRowsToFetch = endRow - startRow + 1;
+
+  Logger.log(`Processing batch: rows ${startRow} to ${endRow} (total ${numRowsToFetch} rows) of ${lastRow}...`);
+
+  // Column AI / index 34 -> column 35 is Sync Status
   const statusColIndex = 35;
   sheet.getRange(1, statusColIndex).setValue('RishteClub Sync Status');
 
-  const rowsToProcess = [];
-  const limit = maxRows ? Math.min(data.length, maxRows + 1) : data.length;
+  const rangeValues = sheet.getRange(startRow, 1, numRowsToFetch, Math.max(34, sheet.getLastColumn())).getValues();
+  const batchPayload = [];
 
-  for (let i = 1; i < limit; i++) {
-    const rowValues = data[i];
-    const rowNumber = i + 1;
-    const mapped = mapRowToPayload(rowValues, spreadsheetId, sheetId, rowNumber);
+  for (let i = 0; i < rangeValues.length; i++) {
+    const rowValues = rangeValues[i];
+    const currentRowNumber = startRow + i;
+    const mapped = mapRowToPayload(rowValues, spreadsheetId, sheetId, currentRowNumber);
     if (mapped) {
-      rowsToProcess.push(mapped);
+      batchPayload.push(mapped);
+    } else {
+      sheet.getRange(currentRowNumber, statusColIndex).setValue('SKIPPED (Missing name/mobile)');
     }
   }
 
-  let totalCreated = 0;
-  let totalUpdated = 0;
-  let totalSkipped = 0;
-  let totalErrors = 0;
-
-  for (let b = 0; b < rowsToProcess.length; b += config.batchSize) {
-    const chunk = rowsToProcess.slice(b, b + config.batchSize);
-    const payload = {
-      dryRun: Boolean(isDryRun),
-      batch: chunk,
-    };
-
+  if (batchPayload.length > 0) {
     const options = {
       method: 'POST',
       contentType: 'application/json',
@@ -195,7 +207,7 @@ function syncExistingResponses(isDryRun, maxRows) {
         'x-integration-key': config.integrationKey,
         'Authorization': 'Bearer ' + config.integrationKey,
       },
-      payload: JSON.stringify(payload),
+      payload: JSON.stringify({ dryRun: false, batch: batchPayload }),
       muteHttpExceptions: true,
     };
 
@@ -203,38 +215,115 @@ function syncExistingResponses(isDryRun, maxRows) {
       const res = UrlFetchApp.fetch(config.apiUrl, options);
       const json = JSON.parse(res.getContentText());
 
-      if (json.summary) {
-        totalCreated += json.summary.created || 0;
-        totalUpdated += json.summary.updated || 0;
-        totalSkipped += json.summary.skipped || 0;
-      }
-
       if (json.results && Array.isArray(json.results)) {
         for (let k = 0; k < json.results.length; k++) {
           const item = json.results[k];
           const targetRow = item.row;
           let statusText = item.status;
           if (item.profileId) statusText += ' (' + item.profileId + ')';
+          if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
           if (item.reason) statusText += ' - ' + item.reason;
           if (item.error) statusText += ' - ' + item.error;
           sheet.getRange(targetRow, statusColIndex).setValue(statusText);
         }
       }
+      Logger.log(`Batch [${startRow}-${endRow}] complete: ${res.getContentText()}`);
     } catch (err) {
-      Logger.log('Batch error: ' + err.toString());
-      totalErrors++;
+      Logger.log(`Batch [${startRow}-${endRow}] API error: ` + err.toString());
+      for (let r = startRow; r <= endRow; r++) {
+        sheet.getRange(r, statusColIndex).setValue('ERROR: ' + err.toString());
+      }
     }
-
-    Utilities.sleep(1000); // 1-second pacing between batches
   }
 
-  const mode = isDryRun ? 'DRY-RUN (No DB changes)' : 'LIVE SYNC';
-  const msg = `${mode} Complete!\n\nCreated: ${totalCreated}\nUpdated: ${totalUpdated}\nSkipped: ${totalSkipped}\nErrors: ${totalErrors}`;
-  SpreadsheetApp.getUi().alert(msg);
+  // Advance cursor
+  const nextStartRow = endRow + 1;
+  props.setProperty('SYNC_NEXT_ROW', nextStartRow.toString());
+
+  if (nextStartRow <= lastRow) {
+    props.setProperty('SYNC_STATUS', 'IN_PROGRESS');
+    Logger.log(`Scheduling continuation trigger for next batch starting at row ${nextStartRow}...`);
+    // Schedule continuation in 30 seconds
+    ScriptApp.newTrigger('processNextBatch')
+      .timeBased()
+      .after(30 * 1000)
+      .create();
+  } else {
+    props.setProperty('SYNC_STATUS', 'COMPLETE');
+    Logger.log('ALL ROWS PROCESSED! SYNC COMPLETE.');
+  }
 }
 
 /**
- * Installable Trigger for real-time future form submissions
+ * Checks current cursor position, sheet row totals, and progress status
+ */
+function checkSyncStatus() {
+  const config = getScriptConfig();
+  const props = PropertiesService.getScriptProperties();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getTargetSheet(config);
+  const lastRow = sheet.getLastRow();
+  const nextRow = config.syncNextRow;
+  const syncStatus = props.getProperty('SYNC_STATUS') || 'IDLE';
+
+  const processedCount = Math.max(0, Math.min(nextRow - 2, lastRow - 1));
+  const remainingCount = Math.max(0, lastRow - nextRow + 1);
+
+  const triggers = ScriptApp.getProjectTriggers();
+  let hasActiveTrigger = false;
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'processNextBatch') {
+      hasActiveTrigger = true;
+      break;
+    }
+  }
+
+  const msg = [
+    `📊 RishteClub Sync Progress:`,
+    `----------------------------------------`,
+    `• Total Sheet Rows : ${lastRow} (Header + ${lastRow - 1} Responses)`,
+    `• Next Row to Sync : Row ${nextRow}`,
+    `• Rows Processed   : ${processedCount}`,
+    `• Rows Remaining   : ${remainingCount}`,
+    `• Sync Status      : ${syncStatus}`,
+    `• Active Trigger   : ${hasActiveTrigger ? 'Running in Background (Chained)' : 'Idle'}`,
+    `----------------------------------------`,
+    nextRow > lastRow ? '✅ All existing rows have been scanned.' : '👉 Select "2. Resume / Start Batch Sync" to continue.'
+  ].join('\n');
+
+  SpreadsheetApp.getUi().alert('Sync Progress & Status', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/**
+ * Resets the sync cursor back to Row 2
+ */
+function resetSyncCursor() {
+  const ui = SpreadsheetApp.getUi();
+  const confirm = ui.alert(
+    'Reset Sync Cursor',
+    'Are you sure you want to reset the sync cursor back to Row 2?\n\nThis will re-scan the sheet from the beginning. (Idempotency ensures existing profiles/photos are safely updated without duplication).',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirm === ui.Button.YES) {
+    deleteContinuationTriggers();
+    PropertiesService.getScriptProperties().setProperty('SYNC_NEXT_ROW', '2');
+    PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'RESET');
+    ui.alert('Sync cursor reset to Row 2.');
+  }
+}
+
+/**
+ * Cancels any active background continuation triggers
+ */
+function cancelContinuation() {
+  deleteContinuationTriggers();
+  PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'PAUSED');
+  SpreadsheetApp.getUi().alert('Background sync paused. Active triggers removed.');
+}
+
+/**
+ * Real-time trigger for future form submissions
  */
 function onFormSubmit(e) {
   const config = getScriptConfig();
@@ -244,15 +333,10 @@ function onFormSubmit(e) {
   const sheetId = sheet.getSheetId().toString();
 
   let rowNumber = e && e.range ? e.range.getRow() : sheet.getLastRow();
-  let rowValues = sheet.getRange(rowNumber, 1, 1, 34).getValues()[0];
+  let rowValues = sheet.getRange(rowNumber, 1, 1, Math.max(34, sheet.getLastColumn())).getValues()[0];
 
   const mapped = mapRowToPayload(rowValues, spreadsheetId, sheetId, rowNumber);
   if (!mapped) return;
-
-  const payload = {
-    dryRun: false,
-    batch: [mapped],
-  };
 
   const statusColIndex = 35;
 
@@ -264,7 +348,7 @@ function onFormSubmit(e) {
         'x-integration-key': config.integrationKey,
         'Authorization': 'Bearer ' + config.integrationKey,
       },
-      payload: JSON.stringify(payload),
+      payload: JSON.stringify({ dryRun: false, batch: [mapped] }),
       muteHttpExceptions: true,
     });
 
@@ -273,6 +357,7 @@ function onFormSubmit(e) {
       const res = json.results[0];
       let statusText = res.status;
       if (res.profileId) statusText += ' (' + res.profileId + ')';
+      if (res.legacyProfileId) statusText += ' [Old: ' + res.legacyProfileId + ']';
       sheet.getRange(rowNumber, statusColIndex).setValue(statusText);
     }
   } catch (err) {
@@ -309,7 +394,7 @@ function getDriveFileBase64(urlOrText) {
 }
 
 /**
- * Splits comma/semicolon/newline separated string into clean array
+ * Splits comma/semicolon/newline separated string into clean array of Drive URLs
  */
 function splitPhotoUrls(rawText) {
   if (!rawText || typeof rawText !== 'string') return [];
@@ -321,42 +406,7 @@ function splitPhotoUrls(rawText) {
 }
 
 /**
- * EXACT GOOGLE SHEET COLUMN MAPPING:
- * 
- * A  -> 0  : Profile ID (legacyProfileId)
- * B  -> 1  : Timestamp
- * C  -> 2  : Email address
- * D  -> 3  : Name
- * E  -> 4  : Gender
- * F  -> 5  : Marital Status
- * G  -> 6  : Date of Birth
- * H  -> 7  : Birth Place
- * I  -> 8  : Birth Time
- * J  -> 9  : Height
- * K  -> 10 : Qualification
- * L  -> 11 : Occupation
- * M  -> 12 : Income (self)
- * N  -> 13 : Address
- * O  -> 14 : Diet
- * P  -> 15 : Manglik
- * Q  -> 16 : Father's Name
- * R  -> 17 : Fathers occupation
- * S  -> 18 : Mother's Name
- * T  -> 19 : Mother's Occupation
- * U  -> 20 : Siblings Details
- * V  -> 21 : House Status
- * W  -> 22 : Family Type
- * X  -> 23 : Family's Property Details
- * Y  -> 24 : Contact Person Name & Relationship
- * Z  -> 25 : Contact No. (Registered Mobile)
- * AA -> 26 : Partner Preferences
- * AB -> 27 : Is it ok to post your Profile on Social Media
- * AC -> 28 : Profile Photo (SOLE photo column: 1st photo = primary, remaining = additional)
- * AD -> 29 : Consent
- * AE -> 30 : Other Matrimony Platform information (Text field, NOT photos)
- * AF -> 31 : Column 30 (Notes / Remarks)
- * AG -> 32 : Payment (Payment Remark - NOT paymentCompleted)
- * AH -> 33 : Additional Remarks
+ * Maps single spreadsheet row to backend API payload
  */
 function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
   const getCol = function(idx) {
@@ -366,7 +416,7 @@ function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
   const name = getCol(3);       // Col D
   const mobile = getCol(25);    // Col Z (Primary registered mobile)
   
-  // Skip completely empty spacer rows
+  // Skip empty spacer rows
   if (!name && !mobile) {
     return null;
   }

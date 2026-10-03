@@ -3,12 +3,13 @@
 import { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, Sparkles, ArrowRight, UserCheck, Heart, RotateCcw } from "lucide-react";
+import { Search, Sparkles, ArrowRight, UserCheck, Heart, RotateCcw, Lock, LogIn, UserPlus } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
 
 type Profile = {
   id: string;
   profileId: string;
+  legacyProfileId?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   religion?: string | null;
@@ -53,6 +54,8 @@ function ProfilesContent() {
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [userGender, setUserGender] = useState<string | null>(null);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,14 +78,26 @@ function ProfilesContent() {
   useEffect(() => {
     async function loadProfiles() {
       try {
-        const res = await fetch("/api/public/profiles");
+        setLoading(true);
+        const res = await fetch("/api/profiles");
         const data = await res.json();
 
+        if (res.status === 401 || data.authenticated === false) {
+          setIsAuthenticated(false);
+          setProfiles([]);
+          return;
+        }
+
+        setIsAuthenticated(true);
+        if (data.userGender) {
+          setUserGender(data.userGender);
+        }
         if (data.success && Array.isArray(data.profiles)) {
           setProfiles(data.profiles);
         }
       } catch (error) {
         console.error("Failed to load profiles:", error);
+        setIsAuthenticated(false);
       } finally {
         setLoading(false);
       }
@@ -94,7 +109,7 @@ function ProfilesContent() {
   // Filtered Profiles Logic
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
-      // 1. Gender Filter
+      // 1. Gender Filter (if manually selected)
       if (selectedGender) {
         if (p.user.gender?.toUpperCase() !== selectedGender.toUpperCase()) {
           return false;
@@ -106,8 +121,9 @@ function ProfilesContent() {
         const q = searchQuery.toLowerCase().trim();
         const fullName = (p.user?.fullName || "").toLowerCase();
         const pId = (p.profileId || "").toLowerCase();
+        const legacyId = (p.legacyProfileId || "").toLowerCase();
         const caste = (p.caste || "").toLowerCase();
-        if (!fullName.includes(q) && !pId.includes(q) && !caste.includes(q)) {
+        if (!fullName.includes(q) && !pId.includes(q) && !legacyId.includes(q) && !caste.includes(q)) {
           return false;
         }
       }
@@ -166,6 +182,54 @@ function ProfilesContent() {
     setSelectedProfession("");
   };
 
+  // Unauthenticated Screen
+  if (!loading && isAuthenticated === false) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center bg-[#FAF6EF] px-4 py-16">
+        <div className="mx-auto max-w-xl text-center rounded-3xl bg-white p-8 sm:p-12 shadow-xl border border-[#DACBB4]">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FAF0DC] text-[#4A121A] mb-6 shadow-inner border border-[#E2D4BE]">
+            <Lock className="h-10 w-10 text-[#C5A059]" />
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#FAF0DC] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#4A121A] mb-4 border border-[#E2D4BE]">
+            <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
+            <span>Member Access Only</span>
+          </div>
+
+          <h1 className="font-serif-luxury text-2xl sm:text-3xl font-extrabold text-[#2D221E] tracking-tight">
+            Login Required to View Profiles
+          </h1>
+
+          <p className="mt-3 text-sm sm:text-base text-[#5A4E48] leading-relaxed">
+            Please login with your registered mobile number using OTP to view matrimonial profiles.
+          </p>
+
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/login?redirect=/profiles"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#4A121A] px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#380D13] transition"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>Login with Mobile OTP</span>
+            </Link>
+
+            <Link
+              href="/register"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#C5A059] px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#B88E4C] transition"
+            >
+              <UserPlus className="h-4 w-4" />
+              <span>Register Free Profile</span>
+            </Link>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-[#EFE4D2] text-xs text-[#8A7972]">
+            <span>Privacy Notice: Matrimonial biodatas are accessible exclusively to verified members.</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FAF6EF] py-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
@@ -174,13 +238,23 @@ function ProfilesContent() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-[#FAF0DC] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[#4A121A] mb-2 border border-[#E2D4BE]">
               <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
-              <span>Community Directory</span>
+              <span>
+                {userGender === "MALE"
+                  ? "Recommended Brides"
+                  : userGender === "FEMALE"
+                  ? "Recommended Grooms"
+                  : "Community Directory"}
+              </span>
             </div>
             <h1 className="font-serif-luxury text-3xl sm:text-4xl font-extrabold text-[#2D221E] tracking-tight">
               Browse Matrimonial Profiles
             </h1>
             <p className="mt-2 text-xs sm:text-sm text-[#5A4E48]">
-              Showing verified brides and grooms across communities looking for suitable life partners.
+              {userGender === "MALE"
+                ? "Showing verified brides matching your profile."
+                : userGender === "FEMALE"
+                ? "Showing verified grooms matching your profile."
+                : "Showing verified profiles looking for suitable life partners."}
             </p>
           </div>
 
@@ -205,46 +279,9 @@ function ProfilesContent() {
                 className="w-full rounded-2xl border border-[#DACBB4] bg-white py-3 pl-11 pr-4 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
               />
             </div>
-
-            {/* Gender Quick Tabs */}
-            <div className="flex rounded-2xl bg-[#EFE4D2] p-1.5 self-start lg:self-auto">
-              <button
-                type="button"
-                onClick={() => setSelectedGender("")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                  selectedGender === ""
-                    ? "bg-white text-[#4A121A] shadow-xs"
-                    : "text-[#5A4E48] hover:text-[#2D221E]"
-                }`}
-              >
-                All Profiles
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGender("FEMALE")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                  selectedGender === "FEMALE"
-                    ? "bg-[#C5A059] text-white shadow-xs"
-                    : "text-[#5A4E48] hover:text-[#2D221E]"
-                }`}
-              >
-                👰 Brides
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGender("MALE")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                  selectedGender === "MALE"
-                    ? "bg-[#4A121A] text-white shadow-xs"
-                    : "text-[#5A4E48] hover:text-[#2D221E]"
-                }`}
-              >
-                🤵 Grooms
-              </button>
-            </div>
           </div>
 
-          {/* Secondary Dropdown Filters with Dynamic Caste cascading */}
+          {/* Secondary Dropdown Filters */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-[#E8DCC8]">
             {/* Age Filter */}
             <select
@@ -261,7 +298,7 @@ function ProfilesContent() {
               <option value="51+">51+ Years</option>
             </select>
 
-            {/* Religion Filter (Triggers community update) */}
+            {/* Religion Filter */}
             <select
               value={selectedReligion}
               onChange={(e) => handleReligionChange(e.target.value)}
@@ -275,7 +312,7 @@ function ProfilesContent() {
               ))}
             </select>
 
-            {/* Community / Caste Filter (Filtered by chosen Religion) */}
+            {/* Community / Caste Filter */}
             <select
               value={selectedCommunity}
               onChange={(e) => setSelectedCommunity(e.target.value)}
@@ -370,8 +407,15 @@ function ProfilesContent() {
                     </div>
 
                     {/* ID Tag */}
-                    <div className="absolute top-4 left-4 rounded-full bg-black/40 backdrop-blur-md px-3 py-1 text-[11px] font-semibold text-[#DFBA73]">
-                      {profile.profileId}
+                    <div className="absolute top-3 left-3 flex flex-col gap-1 items-start">
+                      <div className="rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-semibold text-[#DFBA73]">
+                        {profile.profileId}
+                      </div>
+                      {profile.legacyProfileId && (
+                        <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-bold text-white border border-[#DFBA73]/30">
+                          Old: {profile.legacyProfileId}
+                        </div>
+                      )}
                     </div>
                   </div>
 

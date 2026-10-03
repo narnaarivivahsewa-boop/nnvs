@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(
   req: NextRequest,
@@ -9,17 +10,22 @@ export async function GET(
     }>;
   }
 ) {
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { id } = await context.params;
 
-    const profile = await prisma.profile.findUnique({
+    const profile = await prisma.profile.findFirst({
       where: {
-        id,
+        OR: [{ id }, { profileId: id }],
       },
-
       include: {
         user: {
           select: {
+            id: true,
             fullName: true,
             mobile: true,
             email: true,
@@ -28,21 +34,20 @@ export async function GET(
             mobileVerified: true,
             emailVerified: true,
             createdAt: true,
+            payments: {
+              where: { status: "SUCCESS" },
+              orderBy: { createdAt: "desc" },
+            },
           },
         },
-
         photos: {
           orderBy: {
             isPrimary: "desc",
           },
         },
-
         family: true,
-
         education: true,
-
         occupation: true,
-
         partnerPreference: true,
       },
     });
@@ -63,17 +68,12 @@ export async function GET(
       success: true,
       profile,
     });
-
-  } catch (error) {
-    console.error(
-      "ADMIN PROFILE DETAILS ERROR =>",
-      error
-    );
-
+  } catch (error: any) {
+    console.error("ADMIN PROFILE DETAILS ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error",
+        message: error?.message || "Internal Server Error",
       },
       {
         status: 500,

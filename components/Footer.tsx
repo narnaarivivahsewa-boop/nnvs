@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, Phone, Clock, Heart, ShieldCheck } from "lucide-react";
+import { Mail, Clock, Heart, ShieldCheck, MessageCircle } from "lucide-react";
 import { BUSINESS_INFO } from "@/lib/gst";
 
 export default function Footer() {
@@ -119,22 +119,22 @@ export default function Footer() {
               </div>
 
               <div className="flex items-center gap-2.5">
-                <Phone className="h-3.5 w-3.5 text-[#DFBA73] flex-shrink-0" />
-                <div className="space-y-0.5">
-                  <a href={`tel:${BUSINESS_INFO.helplineNumbers[0]}`} className="block hover:text-white transition">
-                    {BUSINESS_INFO.helplineNumbers[0]}
-                  </a>
-                  <a href={`tel:${BUSINESS_INFO.helplineNumbers[1]}`} className="block hover:text-white transition">
-                    {BUSINESS_INFO.helplineNumbers[1]}
-                  </a>
-                </div>
+                <MessageCircle className="h-3.5 w-3.5 text-[#25D366] flex-shrink-0" />
+                <a
+                  href={BUSINESS_INFO.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-sm text-white hover:text-[#25D366] transition font-bold"
+                >
+                  +91 {BUSINESS_INFO.primaryWhatsApp}
+                </a>
               </div>
 
               <div className="flex items-start gap-2.5 pt-1">
                 <Clock className="h-3.5 w-3.5 text-[#DFBA73] mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold text-white">Calling Hours</p>
-                  <p className="text-[11px] text-[#A6938D]">{BUSINESS_INFO.callingHours}</p>
+                  <p className="font-semibold text-white">Support Note</p>
+                  <p className="text-[11px] text-[#A6938D]">WhatsApp Only – Do Not Call</p>
                 </div>
               </div>
             </div>

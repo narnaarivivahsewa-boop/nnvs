@@ -14,22 +14,36 @@ import {
   User,
   ArrowLeft,
   Share2,
+  Phone,
+  Lock,
+  LogIn,
+  MessageCircle,
 } from "lucide-react";
 
 type Profile = {
   id: string;
   profileId: string;
+  legacyProfileId?: string | null;
   firstName: string;
+  lastName?: string | null;
   religion?: string;
   caste?: string;
   motherTongue?: string;
   maritalStatus?: string;
   height?: string;
   dateOfBirth?: string;
+  birthPlace?: string | null;
+  diet?: string | null;
+  manglik?: string | null;
+  contactPerson?: string | null;
+
+  isContactUnlocked?: boolean;
 
   user: {
     fullName: string;
     gender: string;
+    mobile?: string | null;
+    email?: string | null;
   };
 
   photos: {
@@ -39,11 +53,14 @@ type Profile = {
 
   family?: {
     fatherName?: string;
+    fatherOccupation?: string;
     motherName?: string;
+    motherOccupation?: string;
     brothers?: number;
     sisters?: number;
     familyType?: string;
     familyStatus?: string;
+    propertyDetails?: string;
   };
 
   education?: {
@@ -66,6 +83,11 @@ type Profile = {
     preferredReligion?: string;
     preferredCaste?: string;
   };
+
+  phoneNumbers?: {
+    phone: string;
+    isPrimary: boolean;
+  }[];
 };
 
 function calculateAge(dob?: string): number | null {
@@ -105,13 +127,13 @@ export default function ProfileDetailsPage() {
         }
 
         setProfile(data.profile);
-        const primary = data.profile.photos?.find((p: { isPrimary: boolean; imageUrl: string }) => p.isPrimary)?.imageUrl || data.profile.photos?.[0]?.imageUrl || "";
+        const primary =
+          data.profile.photos?.find((p: { isPrimary: boolean; imageUrl: string }) => p.isPrimary)?.imageUrl ||
+          data.profile.photos?.[0]?.imageUrl ||
+          "";
         setActivePhoto(primary);
 
-        const shortlistRes = await fetch(
-          `/api/shortlist?shortlistedProfileId=${data.profile.id}`
-        );
-
+        const shortlistRes = await fetch(`/api/shortlist?shortlistedProfileId=${data.profile.id}`);
         if (shortlistRes.ok) {
           const shortlistData = await shortlistRes.json();
           setIsShortlisted(shortlistData.shortlisted);
@@ -206,7 +228,7 @@ export default function ProfileDetailsPage() {
   if (loading) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center bg-gray-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-800 border-t-transparent mb-4" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#4A121A] border-t-transparent mb-4" />
         <h2 className="text-xl font-bold text-gray-800">Loading Profile...</h2>
       </div>
     );
@@ -222,7 +244,7 @@ export default function ProfileDetailsPage() {
         </p>
         <Link
           href="/profiles"
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-red-800 px-8 py-3 text-sm font-bold text-white shadow hover:bg-red-700 transition"
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#4A121A] px-8 py-3 text-sm font-bold text-white shadow hover:bg-[#380D13] transition"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Back to Profiles</span>
@@ -251,7 +273,7 @@ export default function ProfileDetailsPage() {
             onClick={handleShare}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
           >
-            <Share2 className="h-4 w-4 text-red-800" />
+            <Share2 className="h-4 w-4 text-[#4A121A]" />
             <span>Share Profile</span>
           </button>
         </div>
@@ -297,8 +319,17 @@ export default function ProfileDetailsPage() {
                   </div>
                 )}
 
-                <div className="absolute top-3 left-3 rounded-full bg-black/60 backdrop-blur-md px-3 py-1 text-xs font-semibold text-white">
-                  {profile.profileId}
+                <div className="absolute top-3 left-3 flex flex-col gap-1">
+                  <div className="rounded-full bg-black/70 backdrop-blur-md px-3 py-1 text-xs font-semibold text-[#DFBA73] shadow">
+                    <span>Profile ID: </span>
+                    <span className="font-mono font-bold text-white">{profile.profileId}</span>
+                  </div>
+                  {profile.legacyProfileId && (
+                    <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-3 py-0.5 text-[11px] font-semibold text-[#DFBA73] border border-[#C5A059]/40 shadow">
+                      <span>Old NNVS ID: </span>
+                      <span className="font-mono font-bold text-white">{profile.legacyProfileId}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow">
@@ -315,7 +346,7 @@ export default function ProfileDetailsPage() {
                       key={idx}
                       onClick={() => setActivePhoto(p.imageUrl)}
                       className={`relative h-18 w-18 rounded-xl overflow-hidden border-2 transition ${
-                        activePhoto === p.imageUrl ? "border-red-800 scale-105" : "border-gray-200 opacity-70"
+                        activePhoto === p.imageUrl ? "border-[#4A121A] scale-105" : "border-gray-200 opacity-70"
                       }`}
                     >
                       <img src={p.imageUrl} alt="Thumbnail" className="h-full w-full object-cover" />
@@ -328,7 +359,7 @@ export default function ProfileDetailsPage() {
             {/* Profile Overview Column */}
             <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
               <div>
-                <div className="flex flex-wrap items-center gap-3 mb-2">
+                <div className="flex flex-wrap items-center gap-2.5 mb-3">
                   <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-900">
                     {profile.user.gender}
                   </span>
@@ -340,6 +371,11 @@ export default function ProfileDetailsPage() {
                   {profile.religion && (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
                       {profile.religion}
+                    </span>
+                  )}
+                  {profile.legacyProfileId && (
+                    <span className="rounded-full bg-[#FAF5EB] px-3 py-1 text-xs font-bold text-[#7A5835] border border-[#DACBB4]">
+                      Old Profile ID: <strong className="font-mono text-[#4A121A]">{profile.legacyProfileId}</strong>
                     </span>
                   )}
                 </div>
@@ -354,7 +390,7 @@ export default function ProfileDetailsPage() {
 
                 {profile.occupation?.profession && (
                   <div className="mt-4 flex items-center gap-2 text-gray-700 font-medium">
-                    <Briefcase className="h-4 w-4 text-red-800" />
+                    <Briefcase className="h-4 w-4 text-[#4A121A]" />
                     <span>{profile.occupation.profession}</span>
                     {profile.occupation.company && <span className="text-gray-400">at {profile.occupation.company}</span>}
                   </div>
@@ -362,7 +398,7 @@ export default function ProfileDetailsPage() {
 
                 {profile.education?.highestQualification && (
                   <div className="mt-2 flex items-center gap-2 text-gray-700 font-medium">
-                    <GraduationCap className="h-4 w-4 text-red-800" />
+                    <GraduationCap className="h-4 w-4 text-[#4A121A]" />
                     <span>{profile.education.highestQualification}</span>
                   </div>
                 )}
@@ -374,7 +410,7 @@ export default function ProfileDetailsPage() {
                   type="button"
                   onClick={sendInterest}
                   disabled={sending}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-800 to-red-900 px-8 py-3.5 font-bold text-white shadow-lg transition duration-200 hover:from-red-700 hover:to-red-800 hover:shadow-xl disabled:opacity-60"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#4A121A] to-[#6A1A26] px-8 py-3.5 font-bold text-white shadow-lg transition duration-200 hover:from-[#380D13] hover:to-[#50131C] hover:shadow-xl disabled:opacity-60"
                 >
                   <Heart className="h-5 w-5 fill-white" />
                   <span>{sending ? "Sending Interest..." : "Send Interest"}</span>
@@ -399,10 +435,76 @@ export default function ProfileDetailsPage() {
 
           {/* Details Section Grids */}
           <div className="p-6 lg:p-10 space-y-10">
+            {/* Contact Information & Privacy Section */}
+            <div className="rounded-2xl border border-[#E2D4BE] bg-[#FAF5EB] p-6 shadow-xs">
+              <div className="flex items-center gap-2.5 text-lg font-bold text-[#4A121A] mb-3">
+                <Phone className="h-5 w-5 text-[#C5A059]" />
+                <span>Contact Details & Verification</span>
+              </div>
+
+              {profile.isContactUnlocked ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    {profile.user.mobile && (
+                      <div>
+                        <p className="text-xs text-[#8A7972] uppercase font-bold">Registered Mobile</p>
+                        <p className="font-semibold text-gray-900 mt-0.5">{profile.user.mobile}</p>
+                      </div>
+                    )}
+                    {profile.contactPerson && (
+                      <div>
+                        <p className="text-xs text-[#8A7972] uppercase font-bold">Contact Person</p>
+                        <p className="font-semibold text-gray-900 mt-0.5">{profile.contactPerson}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-[#E8DCC8] flex flex-wrap items-center justify-between gap-4">
+                    <div className="text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span>WhatsApp Only – Do Not Call</span>
+                    </div>
+
+                    {profile.user.mobile && (
+                      <a
+                        href={`https://wa.me/91${profile.user.mobile.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(
+                          `Namaste! I saw the matrimonial profile of ${profile.user.fullName} (${profile.profileId}) on RishteClub.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Chat on WhatsApp</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-white border border-[#DACBB4]">
+                  <div className="flex items-center gap-3 text-center sm:text-left">
+                    <Lock className="h-8 w-8 text-[#C5A059] shrink-0" />
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">Contact Information Protected</p>
+                      <p className="text-xs text-gray-500">Please login with your registered mobile number using OTP to view contact details.</p>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/login?redirect=/profile/${profile.profileId}`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#4A121A] px-6 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#380D13] transition shrink-0"
+                  >
+                    <LogIn className="h-3.5 w-3.5" />
+                    <span>Login with Mobile OTP</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+
             {/* Personal Details */}
             <div>
               <div className="flex items-center gap-2.5 text-xl font-bold text-gray-900 mb-5 border-b border-gray-100 pb-3">
-                <User className="h-5 w-5 text-red-800" />
+                <User className="h-5 w-5 text-[#4A121A]" />
                 <span>Personal & Social Information</span>
               </div>
 
@@ -414,7 +516,13 @@ export default function ProfileDetailsPage() {
                 <div>
                   <p className="text-gray-400">Date of Birth</p>
                   <p className="font-semibold text-gray-800 mt-1">
-                    {profile.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "-"}
+                    {profile.dateOfBirth
+                      ? new Date(profile.dateOfBirth).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "-"}
                   </p>
                 </div>
                 <div>
@@ -430,8 +538,16 @@ export default function ProfileDetailsPage() {
                   <p className="font-semibold text-gray-800 mt-1">{profile.religion || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Caste / Gotra</p>
+                  <p className="text-gray-400">Community / Caste</p>
                   <p className="font-semibold text-gray-800 mt-1">{profile.caste || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Diet</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.diet || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Manglik</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.manglik || "-"}</p>
                 </div>
                 <div>
                   <p className="text-gray-400">Mother Tongue</p>
@@ -443,7 +559,7 @@ export default function ProfileDetailsPage() {
             {/* Education & Career */}
             <div>
               <div className="flex items-center gap-2.5 text-xl font-bold text-gray-900 mb-5 border-b border-gray-100 pb-3">
-                <GraduationCap className="h-5 w-5 text-red-800" />
+                <GraduationCap className="h-5 w-5 text-[#4A121A]" />
                 <span>Education & Occupation</span>
               </div>
 
@@ -478,7 +594,7 @@ export default function ProfileDetailsPage() {
             {/* Family Background */}
             <div>
               <div className="flex items-center gap-2.5 text-xl font-bold text-gray-900 mb-5 border-b border-gray-100 pb-3">
-                <Users2 className="h-5 w-5 text-red-800" />
+                <Users2 className="h-5 w-5 text-[#4A121A]" />
                 <span>Family Background</span>
               </div>
 
@@ -488,8 +604,16 @@ export default function ProfileDetailsPage() {
                   <p className="font-semibold text-gray-800 mt-1">{profile.family?.fatherName || "-"}</p>
                 </div>
                 <div>
+                  <p className="text-gray-400">Father&apos;s Occupation</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.family?.fatherOccupation || "-"}</p>
+                </div>
+                <div>
                   <p className="text-gray-400">Mother&apos;s Name</p>
                   <p className="font-semibold text-gray-800 mt-1">{profile.family?.motherName || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Mother&apos;s Occupation</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.family?.motherOccupation || "-"}</p>
                 </div>
                 <div>
                   <p className="text-gray-400">Brothers</p>
@@ -513,7 +637,7 @@ export default function ProfileDetailsPage() {
             {/* Partner Preferences */}
             <div>
               <div className="flex items-center gap-2.5 text-xl font-bold text-gray-900 mb-5 border-b border-gray-100 pb-3">
-                <HeartHandshake className="h-5 w-5 text-red-800" />
+                <HeartHandshake className="h-5 w-5 text-[#4A121A]" />
                 <span>Partner Preference</span>
               </div>
 

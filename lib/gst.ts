@@ -1,8 +1,8 @@
 export const BUSINESS_INFO = {
   brandName: "RishteClub",
   tagline: "Apno Ke Liye Sahi Rishta",
-  domain: "https://rishteclub.com",
-  canonicalDomain: "https://rishteclub.com",
+  domain: "https://www.rishteclub.com",
+  canonicalDomain: "https://www.rishteclub.com",
   
   // Operational & Legacy Brand Association
   managedBy: "NNVS Matrimony",
@@ -21,13 +21,19 @@ export const BUSINESS_INFO = {
   sacCode: "998399",
   sacDescription: "Online Matrimonial Matchmaking & Database Services",
   
-  // Support Contacts
+  // Support Contacts & Payment (WhatsApp Only – Do Not Call)
   email: "narnaarivivahsewa@gmail.com",
-  helplineNumbers: ["+91 9871592002", "+91 7015812359"],
-  callingHours: "5:30 PM – 7:30 PM IST",
+  primaryWhatsApp: "9871592002",
+  whatsappUrl: "https://wa.me/919871592002",
+  contactInstruction: "WhatsApp Only – Do Not Call",
+  helplineNumbers: ["+91 9871592002"],
+  callingHours: "WhatsApp Only – Do Not Call",
+  upiId: "narnaarivivahsewa@okicici",
+  qrCodeUrl: "/payment-qr.jpeg",
   
   // Pricing Structure
   fees: {
+    defaultRegistrationFee: 1100,
     female: 399,
     male: 799,
     gstRate: 0.18,
@@ -35,7 +41,7 @@ export const BUSINESS_INFO = {
 } as const;
 
 export const LEGAL_DISCLAIMER_TEXT = 
-  "RishteClub (https://rishteclub.com) is a matrimonial matchmaking platform owned and operated by Trendy Traders (Proprietor: Rahul Dhamija, GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony – Nar Naari Vivah Sewa.";
+  "RishteClub (https://www.rishteclub.com) is a matrimonial matchmaking platform owned and operated by Trendy Traders (Proprietor: Rahul Dhamija, GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony – Nar Naari Vivah Sewa.";
 
 /**
  * Converts a numeric amount to Indian Rupee Words for GST Tax Invoices
@@ -133,3 +139,47 @@ export function calculateGstBreakdown(taxableAmount: number, isInterstate: boole
     };
   }
 }
+
+/**
+ * Reverse calculates taxable amount and GST breakdown from Gross Amount (inclusive of GST)
+ * using configurable GST rate percentage (e.g. 18).
+ */
+export function calculateGstFromGross(grossAmount: number, gstPercentage: number = 18, isInterstate: boolean = false) {
+  const roundedGross = Math.round(grossAmount * 100) / 100;
+  const rateDecimal = gstPercentage / 100;
+  const taxableAmount = Math.round((roundedGross / (1 + rateDecimal)) * 100) / 100;
+  const totalTax = Math.round((roundedGross - taxableAmount) * 100) / 100;
+
+  if (isInterstate) {
+    return {
+      grossAmount: roundedGross,
+      taxableAmount,
+      gstRate: gstPercentage,
+      cgstRate: 0,
+      cgstAmount: 0,
+      sgstRate: 0,
+      sgstAmount: 0,
+      igstRate: rateDecimal,
+      igstAmount: totalTax,
+      totalTax,
+      totalAmount: roundedGross,
+    };
+  } else {
+    const halfRate = rateDecimal / 2;
+    const halfTax = Math.round((totalTax / 2) * 100) / 100;
+    return {
+      grossAmount: roundedGross,
+      taxableAmount,
+      gstRate: gstPercentage,
+      cgstRate: halfRate,
+      cgstAmount: halfTax,
+      sgstRate: halfRate,
+      sgstAmount: totalTax - halfTax,
+      igstRate: 0,
+      igstAmount: 0,
+      totalTax,
+      totalAmount: roundedGross,
+    };
+  }
+}
+

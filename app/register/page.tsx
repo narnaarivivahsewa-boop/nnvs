@@ -33,6 +33,16 @@ export default function RegisterPage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  // Duplicate Modal
+  const [duplicateModal, setDuplicateModal] = useState<{
+    open: boolean;
+    maskedMobile?: string;
+    message: string;
+  }>({
+    open: false,
+    message: "",
+  });
+
   const {
     register,
     handleSubmit,
@@ -303,16 +313,27 @@ export default function RegisterPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        alert(result.message);
+        if (result.isDuplicate) {
+          setDuplicateModal({
+            open: true,
+            maskedMobile: result.maskedMobile,
+            message:
+              result.message ||
+              `You have already registered with RishteClub using mobile number ${result.maskedMobile}. Please login using your existing registered mobile number.`,
+          });
+          return;
+        }
+
+        alert(result.message || "Registration could not be completed.");
         return;
       }
 
       alert("Registration Successful ✅");
 
       router.push(
-        `/register/review?profileId=${encodeURIComponent(
+        `/payment?profileId=${encodeURIComponent(
           result.profileId
-        )}&gender=${encodeURIComponent(data.gender)}`
+        )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(data.gender)}`
       );
     } catch (error) {
       console.error(error);
@@ -398,6 +419,43 @@ export default function RegisterPage() {
         </form>
 
       </div>
+
+      {/* Duplicate Registration Warning Modal */}
+      {duplicateModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-800 mb-4">
+              <span className="text-2xl font-bold">!</span>
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-900">
+              Existing Account Found
+            </h2>
+
+            <p className="mt-3 text-sm text-gray-600 leading-relaxed">
+              {duplicateModal.message}
+            </p>
+
+            <div className="mt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380C13] transition"
+              >
+                Login with Registered Mobile
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDuplicateModal({ open: false, message: "" })}
+                className="w-full rounded-xl border border-gray-300 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
