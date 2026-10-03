@@ -24,9 +24,11 @@ export async function POST(req: Request) {
         : undefined;
 
     const whereClause: any = {
-      approvalStatus: "APPROVED",
       isVisible: true,
-      paymentCompleted: true,
+      OR: [
+        { paymentCompleted: true },
+        { approvalStatus: "APPROVED" },
+      ],
     };
 
     if (targetGender) {

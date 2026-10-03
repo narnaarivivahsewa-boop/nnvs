@@ -6,9 +6,11 @@ export async function GET() {
     const [girls, boys, total] = await Promise.all([
       prisma.profile.count({
         where: {
-          approvalStatus: "APPROVED",
           isVisible: true,
-          paymentCompleted: true,
+          OR: [
+            { paymentCompleted: true },
+            { approvalStatus: "APPROVED" },
+          ],
           user: {
             gender: "FEMALE",
           },
@@ -17,9 +19,11 @@ export async function GET() {
 
       prisma.profile.count({
         where: {
-          approvalStatus: "APPROVED",
           isVisible: true,
-          paymentCompleted: true,
+          OR: [
+            { paymentCompleted: true },
+            { approvalStatus: "APPROVED" },
+          ],
           user: {
             gender: "MALE",
           },
@@ -28,9 +32,11 @@ export async function GET() {
 
       prisma.profile.count({
         where: {
-          approvalStatus: "APPROVED",
           isVisible: true,
-          paymentCompleted: true,
+          OR: [
+            { paymentCompleted: true },
+            { approvalStatus: "APPROVED" },
+          ],
         },
       }),
     ]);

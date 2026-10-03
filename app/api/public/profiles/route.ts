@@ -5,9 +5,11 @@ export async function GET() {
   try {
     const profiles = await prisma.profile.findMany({
       where: {
-        approvalStatus: "APPROVED",
         isVisible: true,
-        paymentCompleted: true,
+        OR: [
+          { paymentCompleted: true },
+          { approvalStatus: "APPROVED" },
+        ],
       },
 
       orderBy: {

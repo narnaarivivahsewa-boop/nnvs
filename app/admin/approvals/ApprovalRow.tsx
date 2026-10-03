@@ -47,7 +47,17 @@ export default function ApprovalRow({
     <tr className="border-b hover:bg-gray-50">
 
       <td className="px-4 py-3">
-        {profile.profileId}
+        <div className="font-bold text-gray-900">{profile.profileId}</div>
+        {profile.legacyProfileId && (
+          <span className="inline-block mt-0.5 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-300">
+            Old ID: {profile.legacyProfileId}
+          </span>
+        )}
+        {profile.source === "GOOGLE_FORM" && (
+          <span className="block text-[10px] text-gray-500 font-medium mt-0.5">
+            Via Google Form
+          </span>
+        )}
       </td>
 
       <td className="px-4 py-3 font-medium">

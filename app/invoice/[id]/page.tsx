@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { Printer, ArrowLeft, CheckCircle2, ShieldCheck, Download, AlertCircle } from "lucide-react";
+import { Printer, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 
 type InvoiceData = {
   invoiceNumber: string;

@@ -92,6 +92,11 @@ model Profile {
   userId    String @unique
   profileId String @unique
 
+  // Legacy & Integration Identifiers
+  legacyProfileId String? @unique
+  source          String? @default("WEBSITE")
+  sourceId        String? @unique
+
   profileCompletion Int @default(0)
 
   firstName     String?
@@ -102,6 +107,18 @@ model Profile {
   religion      String?
   caste         String?
   motherTongue  String?
+
+  // Additional Biodata Fields from Google Form
+  birthPlace         String?
+  birthTime          String?
+  diet               String?
+  manglik            String?
+  contactPerson      String?
+  consentSocialMedia Boolean? @default(false)
+  consentGeneral     Boolean? @default(true)
+  otherMatrimonyInfo String?
+  notes              String?  @db.Text
+  paymentRemark      String?
 
   isVisible        Boolean @default(false)
   paymentCompleted Boolean @default(false)
@@ -126,6 +143,10 @@ model Profile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([legacyProfileId])
+  @@index([source])
+  @@index([sourceId])
 }
 
 model ProfilePhoto {
@@ -180,12 +201,16 @@ model Family {
 
   profileId String @unique
 
-  fatherName   String?
-  motherName   String?
-  brothers     Int?    @default(0)
-  sisters      Int?    @default(0)
-  familyType   String?
-  familyStatus String?
+  fatherName       String?
+  fatherOccupation String?
+  motherName       String?
+  motherOccupation String?
+  brothers         Int?    @default(0)
+  sisters          Int?    @default(0)
+  siblingsDetails  String?
+  familyType       String?
+  familyStatus     String?
+  propertyDetails  String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }

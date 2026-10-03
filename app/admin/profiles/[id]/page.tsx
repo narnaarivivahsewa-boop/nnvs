@@ -7,37 +7,45 @@ import Link from "next/link";
 type Profile = {
   id: string;
   profileId: string;
+  legacyProfileId?: string | null;
+  source?: string | null;
+  sourceId?: string | null;
 
   firstName: string | null;
   lastName: string | null;
 
   dateOfBirth: string | null;
-
-  height: number | null;
+  height: string | number | null;
 
   religion: string | null;
   caste: string | null;
   motherTongue: string | null;
   maritalStatus: string | null;
 
+  birthPlace?: string | null;
+  birthTime?: string | null;
+  diet?: string | null;
+  manglik?: string | null;
+  contactPerson?: string | null;
+  consentSocialMedia?: boolean | null;
+  consentGeneral?: boolean | null;
+  otherMatrimonyInfo?: string | null;
+  notes?: string | null;
+  paymentRemark?: string | null;
+
   isVisible: boolean;
   paymentCompleted: boolean;
 
   approvalStatus: string;
-
   approvedAt: string | null;
-
   createdAt: string;
 
   user: {
     fullName: string | null;
     mobile: string;
     email: string | null;
-
     gender: string | null;
-
     status: string;
-
     mobileVerified: boolean;
     emailVerified: boolean;
   };
@@ -50,11 +58,15 @@ type Profile = {
 
   family: {
     fatherName: string | null;
+    fatherOccupation?: string | null;
     motherName: string | null;
+    motherOccupation?: string | null;
     brothers: number | null;
     sisters: number | null;
+    siblingsDetails?: string | null;
     familyType: string | null;
     familyStatus: string | null;
+    propertyDetails?: string | null;
   } | null;
 
   education: {
@@ -72,10 +84,8 @@ type Profile = {
   partnerPreference: {
     minAge: number | null;
     maxAge: number | null;
-
     minHeight: number | null;
     maxHeight: number | null;
-
     preferredReligion: string | null;
     preferredCaste: string | null;
   } | null;
@@ -154,31 +164,40 @@ export default function AdminProfileViewPage() {
 
     <div className="space-y-8">
 
-      <div className="flex items-center justify-between">
-
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">
+              {profile.user.fullName}
+            </h1>
+            {profile.legacyProfileId && (
+              <span className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 border border-amber-300">
+                Old ID: {profile.legacyProfileId}
+              </span>
+            )}
+          </div>
 
-          <h1 className="text-4xl font-bold">
-
-            {profile.user.fullName}
-
-          </h1>
-
-          <p className="mt-2 text-gray-500">
-
-            {profile.profileId}
-
-          </p>
-
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+            <span className="font-mono font-semibold text-[#4A121A]">Website ID: {profile.profileId}</span>
+            {profile.source && (
+              <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                Source: {profile.source}
+              </span>
+            )}
+            {profile.consentSocialMedia && (
+              <span className="rounded-md bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-800">
+                Social Media Consent: Yes
+              </span>
+            )}
+          </div>
         </div>
 
         <Link
           href="/admin/profiles"
-          className="rounded-xl bg-gray-700 px-5 py-3 text-white hover:bg-black"
+          className="rounded-xl bg-gray-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-black transition shadow-sm"
         >
           Back
         </Link>
-
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
@@ -318,7 +337,7 @@ export default function AdminProfileViewPage() {
               <p>
                 <strong>Height</strong>
                 <br />
-                {profile.height || "-"} cm
+                {profile.height || "-"}
               </p>
 
               <p>

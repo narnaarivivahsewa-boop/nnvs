@@ -1,6 +1,5 @@
 import { BUSINESS_INFO } from "@/lib/gst";
-import Link from "next/link";
-import { ShieldCheck, ArrowLeft, Mail, Phone } from "lucide-react";
+
 
 export const metadata = {
   title: "Refund & Cancellation Policy - RishteClub (Managed by NNVS Matrimony)",

@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, Suspense } from "react";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
-import { ShieldCheck, CheckCircle2, FileText, ArrowRight, Sparkles, CreditCard, Lock } from "lucide-react";
+import { ShieldCheck, ArrowRight, Sparkles, CreditCard, Lock } from "lucide-react";
 
 function PaymentContent() {
   const router = useRouter();
