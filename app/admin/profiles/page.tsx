@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Filter,
 } from "lucide-react";
+import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
 type Profile = {
   id: string;
@@ -375,11 +376,16 @@ export default function AdminProfilesPage() {
               >
                 {/* Top Row: Avatar + Name + IDs */}
                 <div className="flex items-start gap-3">
-                  <img
-                    src={profile.photos[0]?.imageUrl || "/default-avatar.png"}
-                    alt=""
-                    className="h-14 w-14 rounded-full object-cover border border-gray-200 shrink-0"
-                  />
+                  <div className="h-14 w-14 shrink-0">
+                    <MatrimonyAvatar
+                      imageUrl={profile.photos?.[0]?.imageUrl}
+                      fullName={profile.user.fullName || profile.firstName}
+                      gender={profile.user.gender}
+                      size="sm"
+                      badge={false}
+                      className="h-14 w-14 rounded-xl"
+                    />
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">

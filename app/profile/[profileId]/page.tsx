@@ -19,6 +19,7 @@ import {
   LogIn,
   MessageCircle,
 } from "lucide-react";
+import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
 type Profile = {
   id: string;
@@ -253,7 +254,6 @@ export default function ProfileDetailsPage() {
     );
   }
 
-  const isFemale = profile.user.gender?.toUpperCase() === "FEMALE";
   const age = calculateAge(profile.dateOfBirth);
 
   return (
@@ -304,20 +304,14 @@ export default function ProfileDetailsPage() {
             {/* Photos Column */}
             <div className="lg:col-span-5 space-y-4">
               <div className="relative h-[380px] w-full rounded-2xl overflow-hidden bg-gray-100 border-2 border-white shadow-lg flex items-center justify-center">
-                {activePhoto ? (
-                  <img
-                    src={activePhoto}
-                    alt={profile.user.fullName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-6">
-                    <span className="text-7xl mb-2">{isFemale ? "👩" : "👨"}</span>
-                    <span className="text-sm font-bold uppercase tracking-wider text-red-900">
-                      {isFemale ? "Bride Profile" : "Groom Profile"}
-                    </span>
-                  </div>
-                )}
+                <MatrimonyAvatar
+                  imageUrl={activePhoto}
+                  fullName={profile.user.fullName}
+                  gender={profile.user.gender}
+                  size="hero"
+                  badge={true}
+                  className="h-full w-full rounded-2xl"
+                />
 
                 <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                   <div className="rounded-full bg-black/70 backdrop-blur-md px-3 py-1 text-xs font-semibold text-[#DFBA73] shadow">

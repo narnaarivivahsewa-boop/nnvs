@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Search, Sparkles, ArrowRight, UserCheck, Heart, RotateCcw, Lock, LogIn, UserPlus } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
+import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
 type Profile = {
   id: string;
@@ -424,7 +425,6 @@ function ProfilesContent() {
           <>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProfiles.map((profile) => {
-                const isFemale = profile.user.gender?.toUpperCase() === "FEMALE";
                 const age = calculateAge(profile.dateOfBirth);
 
                 return (
@@ -433,21 +433,15 @@ function ProfilesContent() {
                     className="group relative flex flex-col justify-between overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md hover:border-[#C5A059]"
                   >
                     {/* Card Header & Photo */}
-                    <div className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center">
-                      {profile.photos.length > 0 ? (
-                        <img
-                          src={profile.photos[0].imageUrl}
-                          alt={profile.user.fullName}
-                          className="h-40 w-40 rounded-full object-cover border-4 border-[#DFBA73] shadow-lg transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full border-4 border-[#DFBA73] bg-[#FAF5EB] shadow-lg">
-                          <span className="text-5xl">{isFemale ? "👩" : "👨"}</span>
-                          <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4A121A]">
-                            {isFemale ? "Bride Profile" : "Groom Profile"}
-                          </span>
-                        </div>
-                      )}
+                    <div className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center p-4">
+                      <MatrimonyAvatar
+                        imageUrl={profile.photos?.[0]?.imageUrl}
+                        fullName={profile.user.fullName}
+                        gender={profile.user.gender}
+                        size="lg"
+                        className="transition-transform duration-500 group-hover:scale-105"
+                        badge={true}
+                      />
 
                       {/* Verification Badge */}
                       <div className="absolute top-4 right-4 flex items-center gap-1 rounded-full bg-white/95 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-[#4A121A] shadow">

@@ -1,7 +1,7 @@
 /* eslint-disable */
 /**
  * =========================================================================================
- * RISHTECLUB MATRIMONY – GOOGLE FORM INTEGRATION & DEDICATED PHOTO REPAIR SCRIPT
+ * RISHTECLUB MATRIMONY – GOOGLE FORM INTEGRATION, PHOTO REPAIR & DRIVE DIAGNOSTICS SCRIPT
  * =========================================================================================
  * 
  * Features:
@@ -10,11 +10,15 @@
  *    - Does NOT reset, overwrite, or touch SYNC_NEXT_ROW.
  *    - Matches existing profiles by sourceId, legacyProfileId (Col A), or mobile (Col Z).
  *    - Reads Column AC Drive images, converts to base64, and uploads to Cloudinary.
+ *    - Uses per-row transmission to guarantee no HTTP body size / payload limit overruns.
  *    - Never creates new users, profiles, or invoices.
  *    - Never alters profile IDs, legacy IDs, visibility, or payment status.
- * 3. Independent Status Tracking: Track photo repair progress with full counters.
- * 4. Automatic Batch Continuation: Background triggers automatically chain execution.
- * 5. Real-Time Form Submissions: onFormSubmit(e) handles new submissions concurrently.
+ * 3. Drive Diagnostics & Troubleshooting:
+ *    - Menu 9: Test single Google Drive photo access with end-to-end report.
+ *    - Menu 10: Check and categorize all photo repair errors across the sheet.
+ * 4. Independent Status Tracking: Detailed counters & per-row status in Column AJ.
+ * 5. Automatic Batch Continuation: Background triggers automatically chain execution.
+ * 6. Real-Time Form Submissions: onFormSubmit(e) handles new submissions concurrently.
  * =========================================================================================
  */
 
@@ -100,6 +104,9 @@ function onOpen() {
     .addItem('7. Reset Photo Repair Cursor to Row 2', 'resetPhotoRepairCursor')
     .addSeparator()
     .addItem('8. Cancel All Ongoing Background Triggers', 'cancelAllTriggers')
+    .addSeparator()
+    .addItem('9. Test Google Drive Photo Access', 'testSinglePhotoAccess')
+    .addItem('10. Check Photo Repair Errors', 'checkPhotoRepairErrors')
     .addToUi();
 }
 
@@ -391,11 +398,16 @@ function processNextPhotoRepairBatch() {
 
   const maxCol = Math.max(30, sheet.getLastColumn());
   const rangeValues = sheet.getRange(startRow, 1, numRowsToFetch, maxCol).getValues();
-  const batchPayload = [];
 
-  let batchBlankCount = 0;
-  let batchDriveErrorCount = 0;
+  // Helper to increment persistent script stat counters
+  const incrementStat = function(key, val) {
+    const curr = parseInt(props.getProperty(key) || '0', 10);
+    props.setProperty(key, (curr + (val || 0)).toString());
+  };
 
+  incrementStat('PHOTO_STATS_PROCESSED', numRowsToFetch);
+
+  // Process rows one-by-one to avoid HTTP body payload size limits
   for (let i = 0; i < rangeValues.length; i++) {
     const rowValues = rangeValues[i];
     const currentRowNumber = startRow + i;
@@ -410,65 +422,48 @@ function processNextPhotoRepairBatch() {
     const sourceId = spreadsheetId + '_' + sheetId + '_row_' + currentRowNumber;
 
     if (!photoColRaw) {
-      batchBlankCount++;
-      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('SKIPPED (No Photo in Col AC)');
+      incrementStat('PHOTO_STATS_SKIPPED_BLANK', 1);
+      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('NO PHOTO IN COLUMN AC');
       continue;
     }
 
     const allPhotoUrls = splitPhotoUrls(photoColRaw);
     if (allPhotoUrls.length === 0) {
-      batchBlankCount++;
-      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('SKIPPED (Invalid Photo URL in Col AC)');
+      incrementStat('PHOTO_STATS_DRIVE_ERRORS', 1);
+      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('INVALID DRIVE URL');
       continue;
     }
 
-    let primaryPhotoBase64 = null;
-    const additionalPhotosBase64 = [];
-
-    try {
-      primaryPhotoBase64 = getDriveFileBase64(allPhotoUrls[0]);
-    } catch (dErr) {
-      Logger.log(`Row ${currentRowNumber} Drive Error (Primary): ` + dErr.toString());
+    // Attempt Drive file download
+    const driveResult = getDriveFileBase64WithDiag(allPhotoUrls[0]);
+    if (!driveResult.success) {
+      incrementStat('PHOTO_STATS_DRIVE_ERRORS', 1);
+      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue(driveResult.status);
+      continue;
     }
+
+    const primaryPhotoBase64 = driveResult.base64;
+    const additionalPhotosBase64 = [];
 
     if (allPhotoUrls.length > 1) {
       for (let p = 1; p < allPhotoUrls.length; p++) {
-        try {
-          const addB64 = getDriveFileBase64(allPhotoUrls[p]);
-          if (addB64) additionalPhotosBase64.push(addB64);
-        } catch (dErr2) {
-          Logger.log(`Row ${currentRowNumber} Drive Error (Add): ` + dErr2.toString());
+        const addResult = getDriveFileBase64WithDiag(allPhotoUrls[p]);
+        if (addResult.success && addResult.base64) {
+          additionalPhotosBase64.push(addResult.base64);
         }
       }
     }
 
-    if (!primaryPhotoBase64 && additionalPhotosBase64.length === 0) {
-      batchDriveErrorCount++;
-      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('ERROR (Drive Access/Download Failed)');
-      continue;
-    }
-
-    batchPayload.push({
+    // Send single row to backend API
+    const singlePayload = {
       sourceId: sourceId,
       rowNumber: currentRowNumber,
       legacyProfileId: legacyProfileId || null,
       mobile: mobile || null,
       primaryPhotoBase64: primaryPhotoBase64,
       additionalPhotosBase64: additionalPhotosBase64,
-    });
-  }
+    };
 
-  // Helper to increment persistent script stat counters
-  const incrementStat = function(key, val) {
-    const curr = parseInt(props.getProperty(key) || '0', 10);
-    props.setProperty(key, (curr + (val || 0)).toString());
-  };
-
-  incrementStat('PHOTO_STATS_PROCESSED', numRowsToFetch);
-  incrementStat('PHOTO_STATS_SKIPPED_BLANK', batchBlankCount);
-  incrementStat('PHOTO_STATS_DRIVE_ERRORS', batchDriveErrorCount);
-
-  if (batchPayload.length > 0) {
     const options = {
       method: 'POST',
       contentType: 'application/json',
@@ -478,7 +473,7 @@ function processNextPhotoRepairBatch() {
       },
       payload: JSON.stringify({
         action: 'repair_photos',
-        batch: batchPayload,
+        batch: [singlePayload],
       }),
       muteHttpExceptions: true,
     };
@@ -487,30 +482,26 @@ function processNextPhotoRepairBatch() {
       const res = UrlFetchApp.fetch(config.apiUrl, options);
       const json = JSON.parse(res.getContentText());
 
-      if (json.results && Array.isArray(json.results)) {
-        for (let k = 0; k < json.results.length; k++) {
-          const item = json.results[k];
-          const targetRow = item.row;
-          let statusText = item.status;
-          if (item.profileId) statusText += ' (' + item.profileId + ')';
-          if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
-          if (item.attachedCount) statusText += ` - ${item.attachedCount} photo(s) uploaded`;
-          if (item.reason) statusText += ' - ' + item.reason;
-          sheet.getRange(targetRow, photoStatusColIndex).setValue(statusText);
-        }
+      if (json.results && json.results.length > 0) {
+        const item = json.results[0];
+        let statusText = item.status;
+        if (item.profileId) statusText += ' (' + item.profileId + ')';
+        if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
+        if (item.attachedCount) statusText += ` - ${item.attachedCount} photo(s) uploaded`;
+        if (item.reason) statusText += ' - ' + item.reason;
+        sheet.getRange(currentRowNumber, photoStatusColIndex).setValue(statusText);
+
+        if (item.status === 'PHOTO_ATTACHED') incrementStat('PHOTO_STATS_ATTACHED', 1);
+        if (item.status === 'ALREADY_ATTACHED') incrementStat('PHOTO_STATS_SKIPPED_ALREADY', 1);
+        if (item.status === 'PROFILE_NOT_FOUND') incrementStat('PHOTO_STATS_SKIPPED_NOT_FOUND', 1);
+        if (item.status === 'CLOUDINARY_ERROR') incrementStat('PHOTO_STATS_CLOUDINARY_ERRORS', 1);
+      } else {
+        sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('API RESPONSE EMPTY');
       }
-
-      incrementStat('PHOTO_STATS_ATTACHED', json.photosAttached || 0);
-      incrementStat('PHOTO_STATS_SKIPPED_NOT_FOUND', json.skippedProfileNotFound || 0);
-      incrementStat('PHOTO_STATS_SKIPPED_ALREADY', json.skippedAlreadyAttached || 0);
-      incrementStat('PHOTO_STATS_CLOUDINARY_ERRORS', json.cloudinaryErrors || 0);
-
-      Logger.log(`Photo Repair Batch [${startRow}-${endRow}] complete: ${res.getContentText()}`);
     } catch (err) {
-      Logger.log(`Photo Repair Batch [${startRow}-${endRow}] API error: ` + err.toString());
-      for (let r = startRow; r <= endRow; r++) {
-        sheet.getRange(r, photoStatusColIndex).setValue('API ERROR: ' + err.toString());
-      }
+      Logger.log(`Photo Repair Row ${currentRowNumber} API error: ` + err.toString());
+      sheet.getRange(currentRowNumber, photoStatusColIndex).setValue('API ERROR: ' + err.toString());
+      incrementStat('PHOTO_STATS_CLOUDINARY_ERRORS', 1);
     }
   }
 
@@ -622,7 +613,226 @@ function resetPhotoRepairCursor() {
 
 /**
  * =========================================================================================
- * SECTION C: SHARED CONTROLS & UTILITIES
+ * SECTION C: DRIVE DIAGNOSTICS & ERROR SUMMARY
+ * =========================================================================================
+ */
+
+/**
+ * Menu 9: Tests a real Google Drive photo from Column AC and displays diagnostic report
+ */
+function testSinglePhotoAccess() {
+  const config = getScriptConfig();
+  const sheet = getTargetSheet(config);
+  const lastRow = sheet.getLastRow();
+  const ui = SpreadsheetApp.getUi();
+
+  // Find first row with non-empty Column AC (Col 29)
+  let testRow = 2;
+  let photoUrlRaw = '';
+  const colACRange = sheet.getRange(2, 29, Math.max(1, lastRow - 1), 1).getValues();
+
+  for (let i = 0; i < colACRange.length; i++) {
+    if (colACRange[i][0] && String(colACRange[i][0]).trim() !== '') {
+      testRow = i + 2;
+      photoUrlRaw = String(colACRange[i][0]).trim();
+      break;
+    }
+  }
+
+  if (!photoUrlRaw) {
+    ui.alert('No Photos Found', 'No rows in Column AC contain a photo URL to test.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const legacyProfileId = sheet.getRange(testRow, 1).getValue() || 'N/A';
+  const candidateName = sheet.getRange(testRow, 4).getValue() || 'N/A';
+  const mobile = sheet.getRange(testRow, 26).getValue() || 'N/A';
+
+  // 1. URL & File ID Extraction
+  const fileId = extractDriveFileId(photoUrlRaw);
+  if (!fileId) {
+    ui.alert(
+      'Invalid Drive URL',
+      `Row ${testRow} contains an unsupported URL format:\n\n${photoUrlRaw}`,
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  let fileName = 'N/A';
+  let mimeType = 'N/A';
+  let fileSizeKb = '0 KB';
+  let fileAccessible = 'NO';
+  let blobRetrieved = 'NO';
+  let apiResult = 'NOT ATTEMPTED';
+  let cloudinaryResult = 'NOT ATTEMPTED';
+  let base64Data = null;
+
+  // 2. Test Google DriveApp Access
+  try {
+    const file = DriveApp.getFileById(fileId);
+    fileName = file.getName();
+    mimeType = file.getMimeType();
+    const sizeBytes = file.getSize();
+    fileSizeKb = (sizeBytes / 1024).toFixed(1) + ' KB';
+    fileAccessible = 'YES';
+
+    const blob = file.getBlob();
+    const bytes = blob.getBytes();
+    if (bytes && bytes.length > 0) {
+      blobRetrieved = `YES (${(bytes.length / 1024).toFixed(1)} KB)`;
+      base64Data = 'data:' + (mimeType || 'image/jpeg') + ';base64,' + Utilities.base64Encode(bytes);
+    }
+  } catch (driveErr) {
+    const errMsg = driveErr.toString();
+    if (errMsg.includes('permission') || errMsg.includes('Access denied')) {
+      fileAccessible = 'NO (Permission Denied - Script account lacks read access)';
+    } else if (errMsg.includes('not found') || errMsg.includes('Item not found')) {
+      fileAccessible = 'NO (File Not Found - Invalid ID or deleted)';
+    } else {
+      fileAccessible = 'NO (' + errMsg + ')';
+    }
+  }
+
+  // 3. Test API & Cloudinary Upload if blob was retrieved
+  if (base64Data) {
+    try {
+      const sourceId = sheet.getParent().getId() + '_' + sheet.getSheetId() + '_row_' + testRow;
+      const res = UrlFetchApp.fetch(config.apiUrl, {
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+          'x-integration-key': config.integrationKey,
+          'Authorization': 'Bearer ' + config.integrationKey,
+        },
+        payload: JSON.stringify({
+          action: 'repair_photos',
+          batch: [{
+            sourceId: sourceId,
+            rowNumber: testRow,
+            legacyProfileId: legacyProfileId,
+            mobile: mobile,
+            primaryPhotoBase64: base64Data,
+          }],
+        }),
+        muteHttpExceptions: true,
+      });
+
+      const json = JSON.parse(res.getContentText());
+      apiResult = `HTTP ${res.getResponseCode()} (Success: ${json.success})`;
+      if (json.results && json.results.length > 0) {
+        const item = json.results[0];
+        cloudinaryResult = `${item.status} (Profile: ${item.profileId || 'N/A'}) ${item.reason || ''}`;
+      } else {
+        cloudinaryResult = res.getContentText();
+      }
+    } catch (apiErr) {
+      apiResult = 'FAILED: ' + apiErr.toString();
+      cloudinaryResult = 'ERROR: ' + apiErr.toString();
+    }
+  }
+
+  const report = [
+    `🔬 Google Drive Photo Access Diagnostic Report:`,
+    `--------------------------------------------------`,
+    `• Test Sheet Row        : Row ${testRow}`,
+    `• Candidate Name        : ${candidateName}`,
+    `• Legacy Profile ID     : ${legacyProfileId}`,
+    `• File ID Detected      : ${fileId}`,
+    `• File Name             : ${fileName}`,
+    `• MIME Type             : ${mimeType}`,
+    `• File Size             : ${fileSizeKb}`,
+    `• File Accessible       : ${fileAccessible}`,
+    `• Blob Retrieved        : ${blobRetrieved}`,
+    `• API Upload Attempted  : ${base64Data ? 'YES' : 'NO'}`,
+    `• API Upload Result     : ${apiResult}`,
+    `• Cloudinary Result     : ${cloudinaryResult}`,
+    `--------------------------------------------------`,
+    fileAccessible.startsWith('YES') && blobRetrieved.startsWith('YES')
+      ? '✅ Google Drive access and upload are fully functional!'
+      : '⚠️ Please verify DriveApp authorization & file permissions.'
+  ].join('\n');
+
+  ui.alert('Drive Photo Diagnostic', report, ui.ButtonSet.OK);
+}
+
+/**
+ * Menu 10: Checks and categorizes all errors recorded in Column AJ (Photo Repair Status)
+ */
+function checkPhotoRepairErrors() {
+  const config = getScriptConfig();
+  const sheet = getTargetSheet(config);
+  const lastRow = sheet.getLastRow();
+  const ui = SpreadsheetApp.getUi();
+
+  if (lastRow < 2) {
+    ui.alert('No Data', 'No response rows in sheet.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const photoStatusCol = 36;
+  const statuses = sheet.getRange(2, photoStatusCol, lastRow - 1, 1).getValues();
+
+  let attachedCount = 0;
+  let alreadyAttachedCount = 0;
+  let blankCount = 0;
+  let notFoundCount = 0;
+  let driveErrCount = 0;
+  let permDeniedCount = 0;
+  let fileNotFoundCount = 0;
+  let cloudinaryErrCount = 0;
+  let notScannedCount = 0;
+  let otherErrCount = 0;
+
+  for (let i = 0; i < statuses.length; i++) {
+    const val = String(statuses[i][0] || '').trim();
+    if (!val) {
+      notScannedCount++;
+    } else if (val.includes('PHOTO_ATTACHED')) {
+      attachedCount++;
+    } else if (val.includes('ALREADY_ATTACHED')) {
+      alreadyAttachedCount++;
+    } else if (val.includes('NO PHOTO')) {
+      blankCount++;
+    } else if (val.includes('PROFILE_NOT_FOUND')) {
+      notFoundCount++;
+    } else if (val.includes('PERMISSION DENIED')) {
+      permDeniedCount++;
+    } else if (val.includes('DRIVE FILE NOT FOUND')) {
+      fileNotFoundCount++;
+    } else if (val.includes('DRIVE ACCESS ERROR') || val.includes('Drive Access')) {
+      driveErrCount++;
+    } else if (val.includes('CLOUDINARY')) {
+      cloudinaryErrCount++;
+    } else {
+      otherErrCount++;
+    }
+  }
+
+  const msg = [
+    `📋 Photo Repair Error & Status Summary:`,
+    `----------------------------------------`,
+    `• Total Response Rows        : ${lastRow - 1}`,
+    `• Photos Attached (Success)  : ${attachedCount}`,
+    `• Already Attached (Skipped) : ${alreadyAttachedCount}`,
+    `• Blank / No Photo in Col AC : ${blankCount}`,
+    `• Profile Not Found in DB    : ${notFoundCount}`,
+    `• Drive Permission Denied    : ${permDeniedCount}`,
+    `• Drive File Not Found (404) : ${fileNotFoundCount}`,
+    `• Drive Access Errors (Other): ${driveErrCount}`,
+    `• Cloudinary Upload Errors   : ${cloudinaryErrCount}`,
+    `• Unscanned Rows (Remaining) : ${notScannedCount}`,
+    `• Other Statuses             : ${otherErrCount}`,
+    `----------------------------------------`,
+    `👉 To test individual Drive photo access, select Menu item '9. Test Google Drive Photo Access'.`
+  ].join('\n');
+
+  ui.alert('Photo Repair Errors Summary', msg, ui.ButtonSet.OK);
+}
+
+/**
+ * =========================================================================================
+ * SECTION D: SHARED CONTROLS & UTILITIES
  * =========================================================================================
  */
 
@@ -679,35 +889,72 @@ function onFormSubmit(e) {
 }
 
 /**
- * Extracts Google Drive File ID from various URL patterns
+ * Extracts Google Drive File ID from all supported URL patterns
  */
 function extractDriveFileId(urlOrText) {
   if (!urlOrText || typeof urlOrText !== 'string') return null;
   const str = urlOrText.trim();
-  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  
+  // Patterns:
+  // 1. ?id=FILE_ID or &id=FILE_ID
+  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
   if (idMatch) return idMatch[1];
-  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  
+  // 2. /d/FILE_ID/ or /d/FILE_ID
+  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/i);
   if (dMatch) return dMatch[1];
-  const generalMatch = str.match(/([a-zA-Z0-9_-]{25,})/);
-  return generalMatch ? generalMatch[1] : null;
+
+  // 3. /file/d/FILE_ID
+  const fileDMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/i);
+  if (fileDMatch) return fileDMatch[1];
+
+  // 4. Raw File ID
+  const generalMatch = str.match(/^([a-zA-Z0-9_-]{25,})$/);
+  if (generalMatch) return generalMatch[1];
+
+  return null;
 }
 
 /**
- * Converts a Google Drive file into base64 Data URI using DriveApp
+ * Converts a Google Drive file into base64 Data URI with diagnostic status
  */
-function getDriveFileBase64(urlOrText) {
+function getDriveFileBase64WithDiag(urlOrText) {
   try {
     const fileId = extractDriveFileId(urlOrText);
-    if (!fileId) return null;
+    if (!fileId) {
+      return { success: false, status: 'INVALID DRIVE URL' };
+    }
+
     const file = DriveApp.getFileById(fileId);
     const blob = file.getBlob();
     const contentType = blob.getContentType() || 'image/jpeg';
-    const base64 = Utilities.base64Encode(blob.getBytes());
-    return 'data:' + contentType + ';base64,' + base64;
+    const bytes = blob.getBytes();
+    if (!bytes || bytes.length === 0) {
+      return { success: false, status: 'DRIVE ACCESS ERROR (Empty Blob)' };
+    }
+
+    const base64 = Utilities.base64Encode(bytes);
+    return {
+      success: true,
+      status: 'PHOTO FOUND',
+      base64: 'data:' + contentType + ';base64,' + base64,
+    };
   } catch (err) {
-    Logger.log('Error reading Drive file (' + urlOrText + '): ' + err.toString());
-    return null;
+    const errMsg = err.toString();
+    Logger.log('Drive Error for (' + urlOrText + '): ' + errMsg);
+
+    if (errMsg.includes('permission') || errMsg.includes('Access denied')) {
+      return { success: false, status: 'DRIVE PERMISSION DENIED (Account lacks read access)' };
+    } else if (errMsg.includes('not found') || errMsg.includes('Item not found')) {
+      return { success: false, status: 'DRIVE FILE NOT FOUND (Invalid ID / Deleted)' };
+    }
+    return { success: false, status: 'DRIVE ACCESS ERROR: ' + errMsg };
   }
+}
+
+function getDriveFileBase64(urlOrText) {
+  const result = getDriveFileBase64WithDiag(urlOrText);
+  return result.success ? result.base64 : null;
 }
 
 /**

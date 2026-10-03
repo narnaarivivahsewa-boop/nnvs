@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
 export default function AdminProfileViewPage({
   params,
@@ -467,19 +468,15 @@ export default function AdminProfileViewPage({
         <div className="lg:col-span-4 space-y-6">
           {/* Photo Gallery Card */}
           <div className="bg-white rounded-2xl border border-[#EBE3D5] p-4 shadow-sm space-y-3">
-            <div className="relative h-[340px] w-full rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center border border-gray-200">
-              {activePhoto ? (
-                <img
-                  src={activePhoto}
-                  alt={candidateName}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="text-center p-6 text-gray-400">
-                  <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <span className="text-xs font-semibold">No Photo Uploaded</span>
-                </div>
-              )}
+            <div className="relative h-[340px] w-full rounded-xl overflow-hidden flex items-center justify-center">
+              <MatrimonyAvatar
+                imageUrl={activePhoto}
+                fullName={candidateName}
+                gender={profile.user?.gender}
+                size="hero"
+                badge={true}
+                className="h-full w-full rounded-xl"
+              />
             </div>
 
             {/* Photo Thumbnails */}

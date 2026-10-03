@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, User, Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import MandalaPattern from "./MandalaPattern";
+import MatrimonyAvatar from "./MatrimonyAvatar";
 
 type PublicProfile = {
   id: string;
@@ -138,22 +139,16 @@ export default function FeaturedProfiles() {
 
                   {/* Card Split: Photo / Avatar on Left + Details on Right */}
                   <div className="flex items-center gap-4 sm:gap-5 mt-1">
-                    {/* Left Photo or Avatar Icon */}
-                    <div className="h-28 w-24 sm:h-32 sm:w-28 flex-shrink-0 overflow-hidden rounded-xl bg-[#FAF0DC] border border-[#DACBB4] flex items-center justify-center">
-                      {photo ? (
-                        <img
-                          src={photo}
-                          alt={profile.user.fullName}
-                          className="h-full w-full object-cover object-top"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-[#7A5835]">
-                          <User className="h-10 w-10 stroke-[1.5] text-[#C5A059]" />
-                          <span className="text-[10px] font-semibold mt-1">
-                            {profile.user.gender === "FEMALE" ? "Bride" : "Groom"}
-                          </span>
-                        </div>
-                      )}
+                    {/* Left Photo or Avatar */}
+                    <div className="h-28 w-24 sm:h-32 sm:w-28 flex-shrink-0">
+                      <MatrimonyAvatar
+                        imageUrl={photo}
+                        fullName={profile.user.fullName}
+                        gender={profile.user.gender}
+                        size="md"
+                        badge={false}
+                        className="h-full w-full rounded-xl"
+                      />
                     </div>
 
                     {/* Right Details & CTA */}
