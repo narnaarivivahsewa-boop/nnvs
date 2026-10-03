@@ -319,9 +319,9 @@ export default function ProfileDetailsPage() {
                   </div>
                 )}
 
-                <div className="absolute top-3 left-3 flex flex-col gap-1">
+                <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                   <div className="rounded-full bg-black/70 backdrop-blur-md px-3 py-1 text-xs font-semibold text-[#DFBA73] shadow">
-                    <span>Profile ID: </span>
+                    <span>RishteClub ID: </span>
                     <span className="font-mono font-bold text-white">{profile.profileId}</span>
                   </div>
                   {profile.legacyProfileId && (
@@ -359,7 +359,15 @@ export default function ProfileDetailsPage() {
             {/* Profile Overview Column */}
             <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
               <div>
-                <div className="flex flex-wrap items-center gap-2.5 mb-3">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="rounded-lg bg-[#FAF0DC] px-3 py-1 text-xs font-bold text-[#4A121A] border border-[#E2D4BE]">
+                    RishteClub Profile ID: <strong className="font-mono">{profile.profileId}</strong>
+                  </span>
+                  {profile.legacyProfileId && (
+                    <span className="rounded-lg bg-[#FDE8EC] px-3 py-1 text-xs font-bold text-[#7A1F2D] border border-[#F5C2CB]">
+                      Old NNVS Profile ID: <strong className="font-mono">{profile.legacyProfileId}</strong>
+                    </span>
+                  )}
                   <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-900">
                     {profile.user.gender}
                   </span>
@@ -371,11 +379,6 @@ export default function ProfileDetailsPage() {
                   {profile.religion && (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
                       {profile.religion}
-                    </span>
-                  )}
-                  {profile.legacyProfileId && (
-                    <span className="rounded-full bg-[#FAF5EB] px-3 py-1 text-xs font-bold text-[#7A5835] border border-[#DACBB4]">
-                      Old Profile ID: <strong className="font-mono text-[#4A121A]">{profile.legacyProfileId}</strong>
                     </span>
                   )}
                 </div>

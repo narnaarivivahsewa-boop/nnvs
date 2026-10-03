@@ -455,14 +455,16 @@ function ProfilesContent() {
                         <span>Verified</span>
                       </div>
 
-                      {/* ID Tag */}
+                      {/* ID Badges Overlay */}
                       <div className="absolute top-3 left-3 flex flex-col gap-1 items-start">
-                        <div className="rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-semibold text-[#DFBA73]">
-                          {profile.profileId}
+                        <div className="rounded-full bg-black/70 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-semibold text-[#DFBA73] shadow">
+                          <span>RC ID: </span>
+                          <span className="font-mono font-bold text-white">{profile.profileId}</span>
                         </div>
                         {profile.legacyProfileId && (
-                          <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-bold text-white border border-[#DFBA73]/30">
-                            Old: {profile.legacyProfileId}
+                          <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-bold text-[#DFBA73] border border-[#DFBA73]/30 shadow">
+                            <span>Old NNVS ID: </span>
+                            <span className="font-mono font-bold text-white">{profile.legacyProfileId}</span>
                           </div>
                         )}
                       </div>
@@ -471,6 +473,20 @@ function ProfilesContent() {
                     {/* Profile Details Body */}
                     <div className="p-5 flex-1 flex flex-col justify-between">
                       <div>
+                        {/* ID Badges Row */}
+                        <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4A121A] bg-[#FAF0DC] px-2 py-0.5 rounded-md border border-[#E2D4BE]">
+                            <span className="text-[#8A7972]">RishteClub ID:</span>
+                            <strong className="font-mono font-bold">{profile.profileId}</strong>
+                          </span>
+                          {profile.legacyProfileId && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#7A1F2D] bg-[#FDE8EC] px-2 py-0.5 rounded-md border border-[#F5C2CB]">
+                              <span className="text-[#A13A4B]">Old NNVS ID:</span>
+                              <strong className="font-mono font-bold">{profile.legacyProfileId}</strong>
+                            </span>
+                          )}
+                        </div>
+
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors">

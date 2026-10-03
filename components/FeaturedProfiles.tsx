@@ -8,6 +8,7 @@ import MandalaPattern from "./MandalaPattern";
 type PublicProfile = {
   id: string;
   profileId: string;
+  legacyProfileId?: string | null;
   user: {
     fullName: string;
     gender: string;
@@ -158,9 +159,16 @@ export default function FeaturedProfiles() {
                     {/* Right Details & CTA */}
                     <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C5A059]">
-                          {profile.profileId}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className="text-[10px] font-bold tracking-wider text-[#4A121A] bg-[#FAF0DC] px-1.5 py-0.5 rounded border border-[#E2D4BE]">
+                            RC: {profile.profileId}
+                          </span>
+                          {profile.legacyProfileId && (
+                            <span className="text-[10px] font-bold tracking-wider text-[#7A1F2D] bg-[#FDE8EC] px-1.5 py-0.5 rounded border border-[#F5C2CB]">
+                              Old: {profile.legacyProfileId}
+                            </span>
+                          )}
+                        </div>
                         <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#2D221E] truncate leading-snug">
                           {profile.user.fullName}
                         </h3>
