@@ -131,6 +131,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // Check for Dedicated Photo Repair Mode
+    if (body.action === "repair_photos" || body.mode === "repair_photos" || body.repairPhotos === true) {
+      return await handlePhotoRepair(body);
+    }
+
     const dryRun = Boolean(body.dryRun);
     const rows: any[] = Array.isArray(body.batch)
       ? body.batch
@@ -574,4 +580,190 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Dedicated, idempotent photo repair handler for existing Google Form profiles.
+ * - Does NOT create or modify Users or Profiles.
+ * - Does NOT alter profile IDs, legacy IDs, payments, invoices, or visibility.
+ * - Matches existing profiles by sourceId, legacyProfileId, or mobile.
+ * - Uploads base64 image data to Cloudinary and attaches ProfilePhoto if missing.
+ */
+async function handlePhotoRepair(body: any) {
+  const items: any[] = Array.isArray(body.batch)
+    ? body.batch
+    : Array.isArray(body.rows)
+    ? body.rows
+    : body.row
+    ? [body.row]
+    : [];
+
+  if (items.length === 0) {
+    return NextResponse.json(
+      { success: false, message: "No items provided for photo repair." },
+      { status: 400 }
+    );
+  }
+
+  let photosProcessed = 0;
+  let photosAttached = 0;
+  let skippedNoPhoto = 0;
+  let skippedProfileNotFound = 0;
+  let skippedAlreadyAttached = 0;
+  let cloudinaryErrors = 0;
+
+  const results: any[] = [];
+
+  for (const item of items) {
+    photosProcessed++;
+    const rowIndex = item.rowNumber || item.rowIndex;
+    const sourceId = item.sourceId;
+    const legacyProfileId = item.legacyProfileId ? String(item.legacyProfileId).trim() : null;
+    const rawMobile = item.mobile || item.contactNo;
+    const mobile = cleanMobileNumber(rawMobile);
+    const photoBase64 = item.primaryPhotoBase64 || item.photoBase64 || item.profilePhotoBase64;
+    const additionalPhotos: string[] = Array.isArray(item.additionalPhotosBase64)
+      ? item.additionalPhotosBase64
+      : Array.isArray(item.photosBase64)
+      ? item.photosBase64
+      : [];
+
+    // Priority match:
+    // 1. sourceId
+    // 2. legacyProfileId (Col A)
+    // 3. registered mobile (Col Z)
+    let existingProfile: any = null;
+
+    if (sourceId) {
+      existingProfile = await prisma.profile.findUnique({
+        where: { sourceId },
+        include: { photos: true },
+      });
+    }
+
+    if (!existingProfile && legacyProfileId) {
+      existingProfile = await prisma.profile.findUnique({
+        where: { legacyProfileId },
+        include: { photos: true },
+      });
+    }
+
+    if (!existingProfile && mobile) {
+      const user = await prisma.user.findUnique({
+        where: { mobile },
+        include: { profile: { include: { photos: true } } },
+      });
+      if (user?.profile) {
+        existingProfile = user.profile;
+      }
+    }
+
+    if (!existingProfile) {
+      skippedProfileNotFound++;
+      results.push({
+        row: rowIndex,
+        status: "PROFILE_NOT_FOUND",
+        legacyProfileId,
+        mobile,
+        reason: "No matching profile found in database",
+      });
+      continue;
+    }
+
+    if (!photoBase64 && additionalPhotos.length === 0) {
+      skippedNoPhoto++;
+      results.push({
+        row: rowIndex,
+        profileId: existingProfile.profileId,
+        legacyProfileId: existingProfile.legacyProfileId,
+        status: "NO_PHOTO_PROVIDED",
+        reason: "Column AC was blank or image could not be read",
+      });
+      continue;
+    }
+
+    // Check existing photos count
+    const currentPhotos = existingProfile.photos || [];
+    const hasPrimaryPhoto = currentPhotos.some((p: any) => p.isPrimary);
+
+    if (hasPrimaryPhoto && currentPhotos.length > 0) {
+      skippedAlreadyAttached++;
+      results.push({
+        row: rowIndex,
+        profileId: existingProfile.profileId,
+        legacyProfileId: existingProfile.legacyProfileId,
+        status: "ALREADY_ATTACHED",
+        reason: `Profile already has ${currentPhotos.length} photo(s) attached`,
+      });
+      continue;
+    }
+
+    // Prepare photos to upload
+    const photosToUpload: { base64: string; isPrimary: boolean }[] = [];
+    if (photoBase64) {
+      photosToUpload.push({ base64: photoBase64, isPrimary: true });
+    }
+
+    for (let pIdx = 0; pIdx < additionalPhotos.length; pIdx++) {
+      const addB64 = additionalPhotos[pIdx];
+      if (addB64) {
+        photosToUpload.push({
+          base64: addB64,
+          isPrimary: photosToUpload.length === 0,
+        });
+      }
+    }
+
+    let attachedForThisProfile = 0;
+    for (let i = 0; i < photosToUpload.length; i++) {
+      const p = photosToUpload[i];
+      const cloudinaryUrl = await uploadToCloudinary(p.base64);
+      if (!cloudinaryUrl) {
+        cloudinaryErrors++;
+        continue;
+      }
+
+      await prisma.profilePhoto.create({
+        data: {
+          profileId: existingProfile.id,
+          imageUrl: cloudinaryUrl,
+          isPrimary: p.isPrimary,
+          status: "PENDING",
+        },
+      });
+
+      attachedForThisProfile++;
+      photosAttached++;
+    }
+
+    if (attachedForThisProfile > 0) {
+      results.push({
+        row: rowIndex,
+        profileId: existingProfile.profileId,
+        legacyProfileId: existingProfile.legacyProfileId,
+        status: "PHOTO_ATTACHED",
+        attachedCount: attachedForThisProfile,
+      });
+    } else {
+      results.push({
+        row: rowIndex,
+        profileId: existingProfile.profileId,
+        legacyProfileId: existingProfile.legacyProfileId,
+        status: "CLOUDINARY_ERROR",
+        reason: "Failed to upload photo to Cloudinary",
+      });
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    action: "repair_photos",
+    photosProcessed,
+    photosAttached,
+    skippedNoPhoto,
+    skippedProfileNotFound,
+    skippedAlreadyAttached,
+    cloudinaryErrors,
+    results,
+  });
 }
