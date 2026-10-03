@@ -109,6 +109,35 @@ export default function ContactPage() {
 
         </div>
 
+        {/* Business & Legal Registration Details */}
+        <div className="mt-8 rounded-3xl bg-[#FAF5EB] p-6 sm:p-8 shadow-sm border border-[#DACBB4]">
+          <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
+            Official Business & GST Registration
+          </h3>
+          <div className="mt-4 grid sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs text-[#5A4E48]">
+            <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
+              <span className="text-gray-400 block font-medium">Platform / Brand</span>
+              <strong className="text-[#2D221E] text-sm">{BUSINESS_INFO.brandName}</strong>
+              <span className="text-[10px] text-[#7A5835] block">Managed by {BUSINESS_INFO.managedBy}</span>
+            </div>
+            <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
+              <span className="text-gray-400 block font-medium">Trade Name (As per GST)</span>
+              <strong className="text-[#2D221E] text-sm">{BUSINESS_INFO.tradeName}</strong>
+              <span className="text-[10px] text-gray-500 block">Prop: {BUSINESS_INFO.proprietor}</span>
+            </div>
+            <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
+              <span className="text-gray-400 block font-medium">GSTIN</span>
+              <strong className="text-[#2D221E] font-mono text-sm">{BUSINESS_INFO.gstin}</strong>
+              <span className="text-[10px] text-gray-500 block">State: {BUSINESS_INFO.stateName} ({BUSINESS_INFO.stateCode})</span>
+            </div>
+            <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
+              <span className="text-gray-400 block font-medium">Service Classification</span>
+              <strong className="text-[#2D221E] text-sm font-mono">SAC {BUSINESS_INFO.sacCode}</strong>
+              <span className="text-[10px] text-gray-500 block">Online Matrimonial Services</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   );

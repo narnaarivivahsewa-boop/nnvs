@@ -17,8 +17,8 @@ export default function Footer() {
                 <span className="font-serif-luxury text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   Rishte<span className="text-[#DFBA73]">Club</span>
                 </span>
-                <span className="text-[10px] tracking-[0.18em] uppercase font-medium text-[#DFBA73] font-sans">
-                  by NNVS Matrimony
+                <span className="text-[10px] tracking-[0.14em] uppercase font-semibold text-[#DFBA73] font-sans">
+                  Managed by NNVS Matrimony
                 </span>
               </div>
             </Link>
@@ -145,19 +145,19 @@ export default function Footer() {
         <div className="mt-10 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-1.5">
           <div className="flex items-center gap-2 text-[#DFBA73] font-semibold text-xs uppercase tracking-wider">
             <ShieldCheck className="h-4 w-4" />
-            <span>Business & Regulatory Information</span>
+            <span>Official Business & Regulatory Information</span>
           </div>
           <p className="leading-relaxed">
-            <strong className="text-white">RishteClub</strong> is a matrimonial platform operated by <strong className="text-white">{BUSINESS_INFO.proprietor} (Proprietor)</strong>, Trade Name: <strong className="text-white">{BUSINESS_INFO.tradeName}</strong>, GSTIN: <strong className="text-white">{BUSINESS_INFO.gstin}</strong>.
+            <strong className="text-white">RishteClub</strong> (https://rishteclub.com) is a matrimonial matchmaking platform owned and operated by registered legal entity / trade name <strong className="text-white">{BUSINESS_INFO.tradeName}</strong> (Proprietor: <strong className="text-white">{BUSINESS_INFO.proprietor}</strong>, GSTIN: <strong className="text-white">{BUSINESS_INFO.gstin}</strong>), and managed by <strong className="text-white">{BUSINESS_INFO.managedByFull}</strong>.
           </p>
           <p className="text-[11px] text-[#A6938D]">
-            An initiative associated with {BUSINESS_INFO.associatedBrand}.
+            All tax invoices, billing, and GST compliance are processed under trade name <strong>{BUSINESS_INFO.tradeName}</strong>.
           </p>
         </div>
 
         {/* Bottom Bar */}
         <div className="mt-8 border-t border-[#521822] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#A6938D]">
-          <p>© {new Date().getFullYear()} RishteClub. Associated with NNVS Matrimony. All Rights Reserved.</p>
+          <p>© {new Date().getFullYear()} RishteClub (Managed by NNVS Matrimony). Trade Name: Trendy Traders. All Rights Reserved.</p>
           <p className="flex items-center gap-1.5 text-[#A6938D]">
             <span>Dedicated to bringing families together</span>
             <Heart className="h-3 w-3 text-[#DFBA73] fill-[#DFBA73] inline" />

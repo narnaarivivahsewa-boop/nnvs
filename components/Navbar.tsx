@@ -87,8 +87,8 @@ export default function Navbar() {
               <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[#4A121A]">
                 RishteClub
               </span>
-              <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-[#7A5835] -mt-1">
-                by NNVS Matrimony
+              <span className="text-[9.5px] uppercase tracking-[0.14em] font-semibold text-[#7A5835] -mt-0.5">
+                Managed by NNVS Matrimony
               </span>
             </div>
           </Link>

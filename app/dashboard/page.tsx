@@ -268,6 +268,30 @@ export default function Dashboard() {
               <ArrowRight className="h-4 w-4" />
             </div>
           </Link>
+
+          {/* GST Invoice & Receipts */}
+          <Link
+            href={profile?.profileId ? `/invoice?profileId=${encodeURIComponent(profile.profileId)}` : "/payment"}
+            className="group rounded-3xl bg-white p-7 shadow-md border border-gray-100 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-[#DACBB4] flex flex-col justify-between sm:col-span-2 lg:col-span-3 bg-gradient-to-r from-[#FAF6EF] to-white"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#FAF5EB] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#7A5835] border border-[#E8DCC8] mb-2">
+                  <span>GST Registered &bull; Trendy Traders</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#4A121A]">
+                  GST Tax Invoice & Payment Receipt
+                </h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  View and print your official GST tax invoice issued by Trendy Traders (RishteClub, Managed by NNVS Matrimony).
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-xl bg-[#4A121A] px-5 py-2.5 text-sm font-bold text-white shadow-md group-hover:bg-[#380C13] transition shrink-0 self-start sm:self-auto">
+                <span>View GST Invoice</span>
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

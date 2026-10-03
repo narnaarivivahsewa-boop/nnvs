@@ -21,10 +21,10 @@ export default function PrivacyPolicyPage() {
           <div className="mt-8 space-y-8 text-[#5A4E48] text-xs sm:text-sm leading-relaxed">
             <section>
               <h2 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2D221E]">
-                1. Introduction
+                1. Introduction & Legal Identity
               </h2>
               <p className="mt-2">
-                <strong>{BUSINESS_INFO.brandName}</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), an initiative associated with {BUSINESS_INFO.associatedBrand}, respects the privacy of its members and is committed to safeguarding personal information shared with us through our website and matrimonial matchmaking services.
+                <strong>{BUSINESS_INFO.brandName}</strong> (https://rishteclub.com) is an online matrimonial matchmaking portal owned and operated by registered trade entity <strong>{BUSINESS_INFO.tradeName}</strong> (Proprietor: {BUSINESS_INFO.proprietor}, GSTIN: {BUSINESS_INFO.gstin}) and managed by <strong>{BUSINESS_INFO.managedByFull}</strong>. We respect the privacy of our members and are committed to safeguarding all personal information shared with us.
               </p>
             </section>
 
