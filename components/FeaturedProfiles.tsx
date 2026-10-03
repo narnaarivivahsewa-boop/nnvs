@@ -45,16 +45,20 @@ function calculateAge(dobString?: string | null): string {
 
 export default function FeaturedProfiles() {
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadProfiles() {
       try {
-        const res = await fetch("/api/public/profiles");
+        const res = await fetch("/api/public/profiles?limit=6");
         const data = await res.json();
 
         if (data.success && Array.isArray(data.profiles)) {
           setProfiles(data.profiles);
+          if (data.total) {
+            setTotalCount(data.total);
+          }
         }
       } catch (err) {
         console.error("Error loading profiles:", err);
@@ -221,7 +225,7 @@ export default function FeaturedProfiles() {
             href="/profiles"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4A121A] hover:text-[#7A1F2D] transition-colors border-b border-[#4A121A] pb-0.5"
           >
-            <span>View All Profiles in Directory</span>
+            <span>View All {totalCount > 0 ? `${totalCount} ` : ""}Profiles in Directory</span>
             <span>→</span>
           </Link>
         </div>

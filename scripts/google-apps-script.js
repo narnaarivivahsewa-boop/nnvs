@@ -371,8 +371,13 @@ function onFormSubmit(e) {
  */
 function extractDriveFileId(urlOrText) {
   if (!urlOrText || typeof urlOrText !== 'string') return null;
-  const match = urlOrText.match(/[-\w]{25,}/);
-  return match ? match[0] : null;
+  const str = urlOrText.trim();
+  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  if (idMatch) return idMatch[1];
+  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  if (dMatch) return dMatch[1];
+  const generalMatch = str.match(/([a-zA-Z0-9_-]{25,})/);
+  return generalMatch ? generalMatch[1] : null;
 }
 
 /**

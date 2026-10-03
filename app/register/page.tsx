@@ -349,8 +349,8 @@ export default function RegisterPage() {
           Complete Your Biodata
         </h1>
 
-        <p className="mb-8 mt-3 text-center text-gray-500">
-          Let&apos;s create your matrimonial profile
+        <p className="mb-8 mt-3 text-center text-gray-500 text-sm">
+          Fill your matrimonial biodata below. Registration Fee: Female ₹399 + GST | Male ₹799 + GST (payable after submission).
         </p>
 
         <ProgressBar

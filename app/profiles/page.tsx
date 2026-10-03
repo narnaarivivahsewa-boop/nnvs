@@ -51,14 +51,19 @@ function ProfilesContent() {
   const initialAge = searchParams.get("age") || "";
   const initialCaste = searchParams.get("caste") || "";
   const initialReligion = searchParams.get("religion") || "";
+  const initialQuery = searchParams.get("q") || "";
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize] = useState<number>(24);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userGender, setUserGender] = useState<string | null>(null);
 
   // Filters State
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedGender, setSelectedGender] = useState(initialGender);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState(initialAge);
   const [selectedReligion, setSelectedReligion] = useState(initialReligion);
@@ -73,62 +78,83 @@ function ProfilesContent() {
   const handleReligionChange = (newRel: string) => {
     setSelectedReligion(newRel);
     setSelectedCommunity("");
+    setCurrentPage(1);
   };
 
+  // Check auth state and load profiles
   useEffect(() => {
-    async function loadProfiles() {
+    let isCancelled = false;
+
+    async function fetchProfilesData() {
       try {
         setLoading(true);
-        const res = await fetch("/api/profiles");
-        const data = await res.json();
 
-        if (res.status === 401 || data.authenticated === false) {
+        // Try authenticated endpoint first
+        let authSuccess = false;
+        try {
+          const authRes = await fetch("/api/profiles");
+          if (authRes.ok) {
+            const authData = await authRes.json();
+            if (authData.authenticated && authData.success && Array.isArray(authData.profiles)) {
+              authSuccess = true;
+              if (!isCancelled) {
+                setIsAuthenticated(true);
+                if (authData.userGender) {
+                  setUserGender(authData.userGender);
+                }
+              }
+            }
+          }
+        } catch {
+          authSuccess = false;
+        }
+
+        if (!authSuccess && !isCancelled) {
           setIsAuthenticated(false);
-          setProfiles([]);
-          return;
         }
 
-        setIsAuthenticated(true);
-        if (data.userGender) {
-          setUserGender(data.userGender);
+        // Fetch from paginated public profiles endpoint
+        const params = new URLSearchParams();
+        params.set("page", String(currentPage));
+        params.set("limit", String(pageSize));
+        if (selectedGender) params.set("gender", selectedGender);
+        if (selectedReligion && selectedReligion !== "All") params.set("religion", selectedReligion);
+        if (selectedCommunity && !selectedCommunity.startsWith("All ") && selectedCommunity !== "Other / Open to All") {
+          params.set("caste", selectedCommunity);
         }
-        if (data.success && Array.isArray(data.profiles)) {
-          setProfiles(data.profiles);
+        if (searchQuery.trim()) params.set("q", searchQuery.trim());
+
+        const publicRes = await fetch(`/api/public/profiles?${params.toString()}`);
+        if (publicRes.ok) {
+          const publicData = await publicRes.json();
+          if (publicData.success && Array.isArray(publicData.profiles)) {
+            if (!isCancelled) {
+              setProfiles(publicData.profiles);
+              setTotalCount(publicData.total || publicData.profiles.length);
+              setTotalPages(publicData.totalPages || 1);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to load profiles:", error);
-        setIsAuthenticated(false);
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    loadProfiles();
-  }, []);
+    fetchProfilesData();
 
-  // Filtered Profiles Logic
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPage, pageSize, selectedGender, selectedReligion, selectedCommunity, searchQuery]);
+
+  // Client-side supplementary filters (Age & Profession)
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
-      // 1. Gender Filter (if manually selected)
-      if (selectedGender) {
-        if (p.user.gender?.toUpperCase() !== selectedGender.toUpperCase()) {
-          return false;
-        }
-      }
-
-      // 2. Search query (Name or Profile ID or Caste)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const fullName = (p.user?.fullName || "").toLowerCase();
-        const pId = (p.profileId || "").toLowerCase();
-        const legacyId = (p.legacyProfileId || "").toLowerCase();
-        const caste = (p.caste || "").toLowerCase();
-        if (!fullName.includes(q) && !pId.includes(q) && !legacyId.includes(q) && !caste.includes(q)) {
-          return false;
-        }
-      }
-
-      // 3. Age Group Filter
+      // Age Group Filter
       if (selectedAgeGroup) {
         const age = calculateAge(p.dateOfBirth);
         if (age === null) return true;
@@ -141,27 +167,7 @@ function ProfilesContent() {
         if (selectedAgeGroup === "51+" && age < 51) return false;
       }
 
-      // 4. Religion Filter
-      if (selectedReligion && selectedReligion !== "All" && p.religion) {
-        if (p.religion.toLowerCase() !== selectedReligion.toLowerCase()) {
-          return false;
-        }
-      }
-
-      // 5. Community / Caste Filter
-      if (
-        selectedCommunity &&
-        !selectedCommunity.startsWith("All ") &&
-        selectedCommunity !== "Other / Open to All" &&
-        p.caste
-      ) {
-        const cleanSelected = selectedCommunity.toLowerCase().replace(" (all)", "");
-        if (!p.caste.toLowerCase().includes(cleanSelected)) {
-          return false;
-        }
-      }
-
-      // 6. Profession Filter
+      // Profession Filter
       if (selectedProfession) {
         const prof = (p.occupation?.profession || "").toLowerCase();
         if (!prof.includes(selectedProfession.toLowerCase())) {
@@ -171,7 +177,7 @@ function ProfilesContent() {
 
       return true;
     });
-  }, [profiles, selectedGender, searchQuery, selectedAgeGroup, selectedReligion, selectedCommunity, selectedProfession]);
+  }, [profiles, selectedAgeGroup, selectedProfession]);
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -180,61 +186,58 @@ function ProfilesContent() {
     setSelectedReligion("");
     setSelectedCommunity("");
     setSelectedProfession("");
+    setCurrentPage(1);
   };
 
-  // Unauthenticated Screen
-  if (!loading && isAuthenticated === false) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center bg-[#FAF6EF] px-4 py-16">
-        <div className="mx-auto max-w-xl text-center rounded-3xl bg-white p-8 sm:p-12 shadow-xl border border-[#DACBB4]">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FAF0DC] text-[#4A121A] mb-6 shadow-inner border border-[#E2D4BE]">
-            <Lock className="h-10 w-10 text-[#C5A059]" />
-          </div>
-
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#FAF0DC] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#4A121A] mb-4 border border-[#E2D4BE]">
-            <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
-            <span>Member Access Only</span>
-          </div>
-
-          <h1 className="font-serif-luxury text-2xl sm:text-3xl font-extrabold text-[#2D221E] tracking-tight">
-            Login Required to View Profiles
-          </h1>
-
-          <p className="mt-3 text-sm sm:text-base text-[#5A4E48] leading-relaxed">
-            Please login with your registered mobile number using OTP to view matrimonial profiles.
-          </p>
-
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/login?redirect=/profiles"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#4A121A] px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#380D13] transition"
-            >
-              <LogIn className="h-4 w-4" />
-              <span>Login with Mobile OTP</span>
-            </Link>
-
-            <Link
-              href="/register"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#C5A059] px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#B88E4C] transition"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Register Free Profile</span>
-            </Link>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-[#EFE4D2] text-xs text-[#8A7972]">
-            <span>Privacy Notice: Matrimonial biodatas are accessible exclusively to verified members.</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#FAF6EF] py-12">
+    <div className="min-h-screen bg-[#FAF6EF] py-10 sm:py-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+        {/* Guest Banner if not logged in */}
+        {!isAuthenticated && (
+          <div className="mb-8 rounded-2xl bg-gradient-to-r from-[#FAF0DC] via-white to-[#FAF0DC] border border-[#E2D4BE] p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-center sm:text-left">
+              <div className="h-10 w-10 rounded-full bg-[#4A121A] text-white flex items-center justify-center shrink-0 shadow">
+                <Lock className="h-5 w-5 text-[#DFBA73]" />
+              </div>
+              <div>
+                <h4 className="font-bold text-[#2D221E] text-sm sm:text-base">
+                  Viewing Public Matrimonial Directory ({totalCount} Profiles)
+                </h4>
+                <p className="text-xs text-[#5A4E48] mt-0.5">
+                  Login with your registered mobile OTP to view contact numbers and WhatsApp chat links.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+              <Link
+                href="/login?redirect=/profiles"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#380D13] transition"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Login with OTP</span>
+              </Link>
+
+              <Link
+                href="/register"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-[#C5A059] px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#B88E4C] transition"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>Register Profile</span>
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-[#FAF0DC] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[#4A121A] mb-2 border border-[#E2D4BE]">
               <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
@@ -243,30 +246,34 @@ function ProfilesContent() {
                   ? "Recommended Brides"
                   : userGender === "FEMALE"
                   ? "Recommended Grooms"
-                  : "Community Directory"}
+                  : "Verified Community Directory"}
               </span>
             </div>
             <h1 className="font-serif-luxury text-3xl sm:text-4xl font-extrabold text-[#2D221E] tracking-tight">
               Browse Matrimonial Profiles
             </h1>
-            <p className="mt-2 text-xs sm:text-sm text-[#5A4E48]">
+            <p className="mt-1.5 text-xs sm:text-sm text-[#5A4E48]">
               {userGender === "MALE"
                 ? "Showing verified brides matching your profile."
                 : userGender === "FEMALE"
                 ? "Showing verified grooms matching your profile."
-                : "Showing verified profiles looking for suitable life partners."}
+                : "Explore genuine matrimonial alliances across communities."}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="text-xs sm:text-sm font-semibold text-[#5A4E48] bg-[#FAF5EB] px-4 py-2 rounded-xl border border-[#DACBB4] shadow-xs">
-              <strong className="text-[#4A121A] font-bold">{filteredProfiles.length}</strong> Profiles Found
+              Showing <strong className="text-[#4A121A] font-bold">
+                {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+              </strong> - <strong className="text-[#4A121A] font-bold">
+                {Math.min(currentPage * pageSize, totalCount)}
+              </strong> of <strong className="text-[#4A121A] font-bold">{totalCount}</strong> Profiles
             </span>
           </div>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="rounded-3xl bg-[#FAF5EB] p-6 shadow-sm border border-[#DACBB4] mb-10 space-y-4">
+        <div className="rounded-3xl bg-[#FAF5EB] p-5 sm:p-6 shadow-sm border border-[#DACBB4] mb-8 space-y-4">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
             {/* Search Bar */}
             <div className="relative flex-1">
@@ -275,9 +282,47 @@ function ProfilesContent() {
                 type="text"
                 placeholder="Search by Name, Profile ID, or Caste (e.g. Jat, Gujjar, Yadav, Brahmin...)"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-2xl border border-[#DACBB4] bg-white py-3 pl-11 pr-4 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
               />
+            </div>
+
+            {/* Gender Toggle Filter */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGender(selectedGender === "FEMALE" ? "" : "FEMALE");
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 border ${
+                  selectedGender === "FEMALE"
+                    ? "bg-[#4A121A] text-white border-[#4A121A] shadow-xs"
+                    : "bg-white text-[#5A4E48] border-[#DACBB4] hover:bg-[#FAF0DC]"
+                }`}
+              >
+                <span>👩</span>
+                <span>Brides</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGender(selectedGender === "MALE" ? "" : "MALE");
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 border ${
+                  selectedGender === "MALE"
+                    ? "bg-[#4A121A] text-white border-[#4A121A] shadow-xs"
+                    : "bg-white text-[#5A4E48] border-[#DACBB4] hover:bg-[#FAF0DC]"
+                }`}
+              >
+                <span>👨</span>
+                <span>Grooms</span>
+              </button>
             </div>
           </div>
 
@@ -315,7 +360,10 @@ function ProfilesContent() {
             {/* Community / Caste Filter */}
             <select
               value={selectedCommunity}
-              onChange={(e) => setSelectedCommunity(e.target.value)}
+              onChange={(e) => {
+                setSelectedCommunity(e.target.value);
+                setCurrentPage(1);
+              }}
               className="rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs sm:text-sm font-medium text-[#2D221E] outline-none focus:border-[#C5A059]"
             >
               <option value="">
@@ -347,7 +395,7 @@ function ProfilesContent() {
           <div className="py-20 text-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C5A059] border-t-transparent mx-auto mb-4" />
             <h3 className="text-lg font-bold text-[#2D221E]">Loading Profiles...</h3>
-            <p className="text-xs text-[#5A4E48] mt-1">Fetching verified members.</p>
+            <p className="text-xs text-[#5A4E48] mt-1">Fetching verified profiles from database.</p>
           </div>
         )}
 
@@ -373,114 +421,177 @@ function ProfilesContent() {
 
         {/* Profile Grid Cards */}
         {!loading && filteredProfiles.length > 0 && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProfiles.map((profile) => {
-              const isFemale = profile.user.gender?.toUpperCase() === "FEMALE";
-              const age = calculateAge(profile.dateOfBirth);
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredProfiles.map((profile) => {
+                const isFemale = profile.user.gender?.toUpperCase() === "FEMALE";
+                const age = calculateAge(profile.dateOfBirth);
 
-              return (
-                <div
-                  key={profile.id}
-                  className="group relative flex flex-col justify-between overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md hover:border-[#C5A059]"
-                >
-                  {/* Card Header & Photo */}
-                  <div className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center">
-                    {profile.photos.length > 0 ? (
-                      <img
-                        src={profile.photos[0].imageUrl}
-                        alt={profile.user.fullName}
-                        className="h-40 w-40 rounded-full object-cover border-4 border-[#DFBA73] shadow-lg transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full border-4 border-[#DFBA73] bg-[#FAF5EB] shadow-lg">
-                        <span className="text-5xl">{isFemale ? "👩" : "👨"}</span>
-                        <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4A121A]">
-                          {isFemale ? "Bride Profile" : "Groom Profile"}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Verification Badge */}
-                    <div className="absolute top-4 right-4 flex items-center gap-1 rounded-full bg-white/95 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-[#4A121A] shadow">
-                      <UserCheck className="h-3.5 w-3.5 text-[#C5A059]" />
-                      <span>Verified</span>
-                    </div>
-
-                    {/* ID Tag */}
-                    <div className="absolute top-3 left-3 flex flex-col gap-1 items-start">
-                      <div className="rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-semibold text-[#DFBA73]">
-                        {profile.profileId}
-                      </div>
-                      {profile.legacyProfileId && (
-                        <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-bold text-white border border-[#DFBA73]/30">
-                          Old: {profile.legacyProfileId}
+                return (
+                  <div
+                    key={profile.id}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md hover:border-[#C5A059]"
+                  >
+                    {/* Card Header & Photo */}
+                    <div className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center">
+                      {profile.photos.length > 0 ? (
+                        <img
+                          src={profile.photos[0].imageUrl}
+                          alt={profile.user.fullName}
+                          className="h-40 w-40 rounded-full object-cover border-4 border-[#DFBA73] shadow-lg transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full border-4 border-[#DFBA73] bg-[#FAF5EB] shadow-lg">
+                          <span className="text-5xl">{isFemale ? "👩" : "👨"}</span>
+                          <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4A121A]">
+                            {isFemale ? "Bride Profile" : "Groom Profile"}
+                          </span>
                         </div>
                       )}
-                    </div>
-                  </div>
 
-                  {/* Profile Details Body */}
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors">
-                            {profile.user.fullName}
-                          </h3>
-                          <p className="text-xs font-medium text-[#5A4E48] mt-0.5">
-                            {age ? `${age} Yrs` : "Age N/A"} • {profile.height ? String(profile.height) : "Height N/A"}
-                          </p>
-                        </div>
-                        <div className="rounded-full bg-[#FAF0DC] p-2 text-[#C5A059]">
-                          <Heart className="h-4 w-4" />
-                        </div>
+                      {/* Verification Badge */}
+                      <div className="absolute top-4 right-4 flex items-center gap-1 rounded-full bg-white/95 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-[#4A121A] shadow">
+                        <UserCheck className="h-3.5 w-3.5 text-[#C5A059]" />
+                        <span>Verified</span>
                       </div>
 
-                      <div className="mt-4 space-y-1.5 text-xs text-[#5A4E48]">
-                        <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
-                          <span className="text-[#8A7972]">Gender</span>
-                          <span className="font-semibold text-[#2D221E]">{profile.user.gender}</span>
+                      {/* ID Tag */}
+                      <div className="absolute top-3 left-3 flex flex-col gap-1 items-start">
+                        <div className="rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-semibold text-[#DFBA73]">
+                          {profile.profileId}
                         </div>
-
-                        {profile.caste && (
-                          <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
-                            <span className="text-[#8A7972]">Community / Caste</span>
-                            <span className="font-semibold text-[#4A121A]">{profile.caste}</span>
-                          </div>
-                        )}
-
-                        {profile.education?.highestQualification && (
-                          <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
-                            <span className="text-[#8A7972]">Education</span>
-                            <span className="font-semibold text-[#2D221E] truncate max-w-[180px]">
-                              {profile.education.highestQualification}
-                            </span>
-                          </div>
-                        )}
-
-                        {profile.occupation?.profession && (
-                          <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
-                            <span className="text-[#8A7972]">Profession</span>
-                            <span className="font-semibold text-[#2D221E] truncate max-w-[180px]">
-                              {profile.occupation.profession}
-                            </span>
+                        {profile.legacyProfileId && (
+                          <div className="rounded-full bg-[#4A121A]/85 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-bold text-white border border-[#DFBA73]/30">
+                            Old: {profile.legacyProfileId}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <Link
-                      href={`/profile/${profile.profileId}`}
-                      className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-[#C5A059] py-2.5 px-4 text-xs sm:text-sm font-bold text-white shadow-xs transition duration-200 hover:bg-[#B88E4C] hover:shadow-md"
-                    >
-                      <span>View Full Profile</span>
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                    </Link>
+                    {/* Profile Details Body */}
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors">
+                              {profile.user.fullName}
+                            </h3>
+                            <p className="text-xs font-medium text-[#5A4E48] mt-0.5">
+                              {age ? `${age} Yrs` : "Age N/A"} • {profile.height ? String(profile.height) : "Height N/A"}
+                            </p>
+                          </div>
+                          <div className="rounded-full bg-[#FAF0DC] p-2 text-[#C5A059]">
+                            <Heart className="h-4 w-4" />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-1.5 text-xs text-[#5A4E48]">
+                          <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
+                            <span className="text-[#8A7972]">Gender</span>
+                            <span className="font-semibold text-[#2D221E]">{profile.user.gender}</span>
+                          </div>
+
+                          {profile.caste && (
+                            <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
+                              <span className="text-[#8A7972]">Community / Caste</span>
+                              <span className="font-semibold text-[#4A121A]">{profile.caste}</span>
+                            </div>
+                          )}
+
+                          {profile.education?.highestQualification && (
+                            <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
+                              <span className="text-[#8A7972]">Education</span>
+                              <span className="font-semibold text-[#2D221E] truncate max-w-[180px]">
+                                {profile.education.highestQualification}
+                              </span>
+                            </div>
+                          )}
+
+                          {profile.occupation?.profession && (
+                            <div className="flex items-center justify-between border-b border-[#E8DCC8] pb-1.5">
+                              <span className="text-[#8A7972]">Profession</span>
+                              <span className="font-semibold text-[#2D221E] truncate max-w-[180px]">
+                                {profile.occupation.profession}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/profile/${profile.profileId}`}
+                        className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-[#C5A059] py-2.5 px-4 text-xs sm:text-sm font-bold text-white shadow-xs transition duration-200 hover:bg-[#B88E4C] hover:shadow-md"
+                      >
+                        <span>View Full Profile</span>
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                      </Link>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#DACBB4] pt-6">
+                <div className="text-xs sm:text-sm text-[#5A4E48]">
+                  Page <strong className="text-[#4A121A] font-bold">{currentPage}</strong> of{" "}
+                  <strong className="text-[#4A121A] font-bold">{totalPages}</strong> ({totalCount} Total Profiles)
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="rounded-xl border border-[#DACBB4] bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-[#5A4E48] shadow-xs hover:bg-[#FAF0DC] transition disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    ← Previous
+                  </button>
+
+                  {/* Numeric Page Buttons */}
+                  <div className="hidden sm:flex items-center gap-1.5">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((page) => {
+                        return (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 2 && page <= currentPage + 2)
+                        );
+                      })
+                      .map((page, idx, arr) => {
+                        const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                        return (
+                          <div key={page} className="flex items-center gap-1.5">
+                            {showEllipsis && <span className="text-xs text-[#8A7972] px-1">...</span>}
+                            <button
+                              type="button"
+                              onClick={() => handlePageChange(page)}
+                              className={`h-9 w-9 rounded-xl text-xs font-bold transition ${
+                                currentPage === page
+                                  ? "bg-[#4A121A] text-white shadow-xs"
+                                  : "border border-[#DACBB4] bg-white text-[#5A4E48] hover:bg-[#FAF0DC]"
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="rounded-xl border border-[#DACBB4] bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-[#5A4E48] shadow-xs hover:bg-[#FAF0DC] transition disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -59,19 +59,6 @@ export default function ContactPage() {
                   WhatsApp Only – Do Not Call
                 </p>
               </div>
-
-              <div className="p-4 bg-white rounded-2xl border border-[#E8DCC8]">
-                <p className="text-xs font-bold uppercase tracking-wider text-[#8C6239] flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-[#C5A059]" />
-                  <span>Email Support</span>
-                </p>
-                <a
-                  href={`mailto:${BUSINESS_INFO.email}`}
-                  className="mt-1 block text-sm font-semibold text-[#2D221E] hover:text-[#4A121A] transition"
-                >
-                  {BUSINESS_INFO.email}
-                </a>
-              </div>
             </div>
           </div>
 
