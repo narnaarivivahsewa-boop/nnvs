@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mobile number already registered.",
+            message: "Mobile number already registered. Please proceed to login.",
           },
           {
             status: 400,
@@ -60,15 +60,29 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // Login Check
+    // Login Check & Admin Auto-Provisioning
     // ===========================
 
     if (otpType === "LOGIN") {
-      const existingUser = await prisma.user.findUnique({
+      let existingUser = await prisma.user.findUnique({
         where: {
           mobile,
         },
       });
+
+      const { isPermanentAdmin } = await import("@/lib/admin-auth");
+      if (!existingUser && isPermanentAdmin(mobile)) {
+        // Auto-provision permanent admin
+        existingUser = await prisma.user.create({
+          data: {
+            mobile,
+            fullName: mobile === "9871592002" ? "NNVS Admin" : "Rahul Dhamija",
+            role: "ADMIN",
+            status: "ACTIVE",
+            mobileVerified: true,
+          },
+        });
+      }
 
       if (!existingUser) {
         return NextResponse.json(
@@ -88,6 +102,12 @@ export async function POST(req: NextRequest) {
     // ===========================
 
     const otp = generateOTP();
+
+    // ===========================
+    // Development OTP Logging
+    // ===========================
+
+    printDevelopmentOTP(mobile, otp);
 
     const hashedOTP = hashOTP(otp);
 
@@ -116,12 +136,6 @@ export async function POST(req: NextRequest) {
         verified: false,
       },
     });
-
-    // ===========================
-    // Development OTP
-    // ===========================
-
-    printDevelopmentOTP(mobile, otp);
 
     return NextResponse.json({
       success: true,

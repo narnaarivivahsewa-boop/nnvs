@@ -5,6 +5,8 @@ import Hero from "@/components/Hero";
 import SearchBox from "@/components/SearchBox";
 import FeaturedProfiles from "@/components/FeaturedProfiles";
 import Stats from "@/components/Stats";
+import HomeAstroShowcase from "@/components/HomeAstroShowcase";
+import HomeServicesShowcase from "@/components/HomeServicesShowcase";
 import PremiumServices from "@/components/PremiumServices";
 import WhyChoose from "@/components/WhyChoose";
 import HowItWorks from "@/components/HowItWorks";
@@ -26,19 +28,25 @@ export default function Home() {
       {/* 3. Community Stats */}
       <Stats />
 
-      {/* 4. Explore Verified Profiles (Dynamic DB Profiles with Clean Format) */}
+      {/* 4. AI Kundli & Vedic Astrology Showcase Banner */}
+      <HomeAstroShowcase />
+
+      {/* 5. Explore Verified Profiles (Dynamic DB Profiles with Clean Format) */}
       <FeaturedProfiles />
 
-      {/* 5. Premium Services */}
+      {/* 6. Grand Wedding Services & Event Planner Showcase */}
+      <HomeServicesShowcase />
+
+      {/* 7. Premium Services */}
       <PremiumServices />
 
-      {/* 6. Why Choose NNVS */}
+      {/* 8. Why Choose NNVS */}
       <WhyChoose />
 
-      {/* 7. How It Works / Journey */}
+      {/* 9. How It Works / Journey */}
       <HowItWorks />
 
-      {/* 8. Footer */}
+      {/* 10. Footer */}
       <Footer />
 
       {/* Floating AI Matchmaker Action Trigger */}

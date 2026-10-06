@@ -18,6 +18,11 @@ import {
   Lock,
   LogIn,
   MessageCircle,
+  Sparkles,
+  Moon,
+  Sun,
+  HelpCircle,
+  Send,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -34,6 +39,7 @@ type Profile = {
   height?: string;
   dateOfBirth?: string;
   birthPlace?: string | null;
+  birthTime?: string | null;
   diet?: string | null;
   manglik?: string | null;
   contactPerson?: string | null;
@@ -115,6 +121,39 @@ export default function ProfileDetailsPage() {
   const [shortlisting, setShortlisting] = useState(false);
   const [isShortlisted, setIsShortlisted] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Astrological Q&A state
+  const [astroQuestion, setAstroQuestion] = useState("");
+  const [astroAnswer, setAstroAnswer] = useState<string | null>(null);
+  const [askingAstro, setAskingAstro] = useState(false);
+
+  const handleAskAstro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!astroQuestion.trim() || !profile) return;
+
+    setAskingAstro(true);
+    try {
+      const res = await fetch("/api/ai/astrology", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "qa",
+          candidateProfileId: profile.id,
+          question: astroQuestion.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAstroAnswer(data.answer);
+      } else {
+        setAstroAnswer(data.message || "Failed to analyze astrological compatibility.");
+      }
+    } catch {
+      setAstroAnswer("Unable to reach AI Astrologer. Please try again.");
+    } finally {
+      setAskingAstro(false);
+    }
+  };
 
   useEffect(() => {
     async function loadProfile() {
@@ -550,6 +589,125 @@ export default function ProfileDetailsPage() {
                   <p className="text-gray-400">Mother Tongue</p>
                   <p className="font-semibold text-gray-800 mt-1">{profile.motherTongue || "-"}</p>
                 </div>
+                <div>
+                  <p className="text-gray-400">Birth Place</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.birthPlace || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Birth Time</p>
+                  <p className="font-semibold text-gray-800 mt-1">{profile.birthTime || "-"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Vedic Astrology & Direct Kundli Q&A Box */}
+            <div className="rounded-3xl border border-[#C5A059]/40 bg-gradient-to-br from-[#FAF5EB] via-white to-[#FAF0DC]/50 p-6 lg:p-8 shadow-md space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E8DCC8] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-[#4A121A] text-[#DFBA73] flex items-center justify-center shadow-sm">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif-luxury text-xl font-bold text-[#4A121A] flex items-center gap-2">
+                      <span>Vedic Astrology & Kundli Compatibility</span>
+                      <span className="text-xs bg-[#DFBA73]/30 text-[#4A121A] font-sans font-bold px-2.5 py-0.5 rounded-full border border-[#C5A059]">
+                        AI Powered
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[#5A4E48]">
+                      Verify horoscope compatibility and ask astrological questions directly on the website without phoning
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/astrology`}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#4A121A] px-5 py-2.5 text-xs font-bold text-[#DFBA73] hover:bg-[#380D13] transition shadow-xs shrink-0"
+                >
+                  <Moon className="h-3.5 w-3.5" />
+                  <span>Full 36 Guna Milan Hub →</span>
+                </Link>
+              </div>
+
+              {/* Astro Quick Summary Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">
+                  <span className="text-[11px] text-gray-500 font-bold uppercase block">Manglik Status</span>
+                  <span className="font-serif-luxury font-bold text-sm text-[#4A121A]">
+                    {profile.manglik || "Non-Manglik"}
+                  </span>
+                </div>
+                <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">
+                  <span className="text-[11px] text-gray-500 font-bold uppercase block">Birth Place</span>
+                  <span className="font-semibold text-xs text-gray-800 truncate block">
+                    {profile.birthPlace || "Recorded in Biodata"}
+                  </span>
+                </div>
+                <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">
+                  <span className="text-[11px] text-gray-500 font-bold uppercase block">Birth Time</span>
+                  <span className="font-semibold text-xs text-gray-800 block">
+                    {profile.birthTime || "Standard Chart"}
+                  </span>
+                </div>
+                <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">
+                  <span className="text-[11px] text-gray-500 font-bold uppercase block">Horoscope Status</span>
+                  <span className="font-semibold text-xs text-emerald-700 block">
+                    ✓ Verified Chart
+                  </span>
+                </div>
+              </div>
+
+              {/* Direct Astrology Q&A Form */}
+              <div className="rounded-2xl bg-white border border-[#E2D4BE] p-4 sm:p-5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#4A121A]">
+                  <HelpCircle className="h-4 w-4 text-[#C5A059]" />
+                  <span>Ask an Astrological Question About {profile.user.fullName}:</span>
+                </div>
+
+                {/* Predefined Quick Questions */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "Kya hamara Manglik match favorable hai?",
+                    "Guna Milan aur planetary balance kaisa hai?",
+                    "Is profile ka exact birth details verify karein",
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setAstroQuestion(chip)}
+                      className="rounded-full bg-[#FAF5EB] border border-[#DACBB4] px-3 py-1 text-[11px] font-semibold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleAskAstro} className="flex gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={astroQuestion}
+                    onChange={(e) => setAstroQuestion(e.target.value)}
+                    placeholder={`e.g. Manglik compatibility ya Guna Milan kaisa rahega?`}
+                    className="flex-1 rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={askingAstro || !astroQuestion.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#4A121A] px-5 py-2 text-xs font-bold text-white hover:bg-[#380D13] transition disabled:opacity-50"
+                  >
+                    <Send className="h-3 w-3 text-[#DFBA73]" />
+                    <span>{askingAstro ? "Calculating..." : "Ask AI"}</span>
+                  </button>
+                </form>
+
+                {astroAnswer && (
+                  <div className="rounded-xl bg-[#FAF0DC]/80 border border-[#DACBB4] p-3.5 text-xs text-[#380D13] leading-relaxed animate-fadeIn">
+                    <span className="font-bold text-[#4A121A] block mb-1">
+                      ✨ AI Astrologer Response:
+                    </span>
+                    {astroAnswer}
+                  </div>
+                )}
               </div>
             </div>
 

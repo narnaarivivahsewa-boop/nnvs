@@ -54,13 +54,18 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/register" className="transition hover:text-[#DFBA73]">
-                  Register Now
+                <Link href="/astrology" className="transition hover:text-[#DFBA73] font-semibold text-[#DFBA73]">
+                  AI Kundli Milan ✨
                 </Link>
               </li>
               <li>
-                <Link href="/#services" className="transition hover:text-[#DFBA73]">
-                  Services
+                <Link href="/services" className="transition hover:text-[#DFBA73]">
+                  Wedding Services & Vendors
+                </Link>
+              </li>
+              <li>
+                <Link href="/register" className="transition hover:text-[#DFBA73]">
+                  Register Profile
                 </Link>
               </li>
               <li>

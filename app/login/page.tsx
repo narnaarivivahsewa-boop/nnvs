@@ -46,7 +46,7 @@ export default function LoginPage() {
       setOtpSent(true);
       setMessage(
         data.development
-          ? "OTP sent. (In dev mode, check terminal or enter 123456/received OTP)"
+          ? "OTP sent. (In development mode, check your server terminal for the OTP)"
           : "OTP sent successfully to your mobile number."
       );
     } catch {

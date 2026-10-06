@@ -87,9 +87,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased overflow-x-hidden`}
     >
-      <body className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden">
+      <body
+        suppressHydrationWarning
+        className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden"
+      >
         <PwaRegister />
         <Navbar />
         {children}

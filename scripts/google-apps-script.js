@@ -93,6 +93,8 @@ function getTargetSheet(config) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('RishteClub Sync')
+    .addItem('⚡ Setup Realtime Automatic New Form Trigger', 'setupFormSubmitTrigger')
+    .addSeparator()
     .addItem('1. Test Connection', 'testConnection')
     .addItem('2. Resume / Start Batch Sync', 'startOrResumeSync')
     .addItem('3. Check Sync Progress & Status', 'checkSyncStatus')
@@ -108,6 +110,47 @@ function onOpen() {
     .addItem('9. Test Google Drive Photo Access', 'testSinglePhotoAccess')
     .addItem('10. Check Photo Repair Errors', 'checkPhotoRepairErrors')
     .addToUi();
+}
+
+/**
+ * Creates or updates the installable trigger for automatic real-time new form imports
+ */
+function setupFormSubmitTrigger() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    SpreadsheetApp.getUi().alert('Error: No active spreadsheet found.');
+    return;
+  }
+
+  // Check and clean existing onFormSubmit triggers
+  const triggers = ScriptApp.getProjectTriggers();
+  let count = 0;
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onFormSubmit') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      count++;
+    }
+  }
+
+  // Create new installable trigger for Form Submissions
+  try {
+    ScriptApp.newTrigger('onFormSubmit')
+      .forSpreadsheet(ss)
+      .onFormSubmit()
+      .create();
+
+    SpreadsheetApp.getUi().alert(
+      '✅ Automatic Real-Time Import Enabled!',
+      'Installable Trigger successfully installed for "onFormSubmit".\n\nWhenever a user submits a new Google Form, it will automatically sync and import into RishteClub immediately without needing manual intervention.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } catch (err) {
+    SpreadsheetApp.getUi().alert(
+      'Trigger Setup Error',
+      'Could not automatically install trigger: ' + err.toString() + '\n\nPlease grant authorization or create trigger manually under Triggers (Clock icon) > Add Trigger > onFormSubmit > On form submit.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  }
 }
 
 /**
@@ -461,7 +504,10 @@ function processNextPhotoRepairBatch() {
       legacyProfileId: legacyProfileId || null,
       mobile: mobile || null,
       primaryPhotoBase64: primaryPhotoBase64,
+      primaryPhotoUrl: allPhotoUrls[0] || photoColRaw || null,
       additionalPhotosBase64: additionalPhotosBase64,
+      additionalPhotoUrls: allPhotoUrls.slice(1),
+      rawPhotoLink: photoColRaw || null,
     };
 
     const options = {
@@ -732,25 +778,34 @@ function testSinglePhotoAccess() {
     }
   }
 
+  let activeUser = 'Unknown';
+  let effectiveUser = 'Unknown';
+  try {
+    activeUser = Session.getActiveUser().getEmail() || 'N/A';
+    effectiveUser = Session.getEffectiveUser().getEmail() || 'N/A';
+  } catch (uErr) {}
+
   const report = [
     `🔬 Google Drive Photo Access Diagnostic Report:`,
     `--------------------------------------------------`,
-    `• Test Sheet Row        : Row ${testRow}`,
-    `• Candidate Name        : ${candidateName}`,
-    `• Legacy Profile ID     : ${legacyProfileId}`,
-    `• File ID Detected      : ${fileId}`,
-    `• File Name             : ${fileName}`,
-    `• MIME Type             : ${mimeType}`,
-    `• File Size             : ${fileSizeKb}`,
-    `• File Accessible       : ${fileAccessible}`,
-    `• Blob Retrieved        : ${blobRetrieved}`,
-    `• API Upload Attempted  : ${base64Data ? 'YES' : 'NO'}`,
-    `• API Upload Result     : ${apiResult}`,
-    `• Cloudinary Result     : ${cloudinaryResult}`,
+    `• Executing Google Account: ${effectiveUser} (Active: ${activeUser})`,
+    `• Test Sheet Row          : Row ${testRow}`,
+    `• Candidate Name          : ${candidateName}`,
+    `• Legacy Profile ID       : ${legacyProfileId}`,
+    `• Drive URL Tested        : ${photoUrlRaw}`,
+    `• File ID Detected        : ${fileId}`,
+    `• File Name               : ${fileName}`,
+    `• MIME Type               : ${mimeType}`,
+    `• File Size               : ${fileSizeKb}`,
+    `• DriveApp Access         : ${fileAccessible}`,
+    `• Blob Retrieved          : ${blobRetrieved}`,
+    `• API Upload Attempted    : ${base64Data ? 'YES' : 'NO'}`,
+    `• API Upload Result       : ${apiResult}`,
+    `• Cloudinary / DB Result  : ${cloudinaryResult}`,
     `--------------------------------------------------`,
     fileAccessible.startsWith('YES') && blobRetrieved.startsWith('YES')
-      ? '✅ Google Drive access and upload are fully functional!'
-      : '⚠️ Please verify DriveApp authorization & file permissions.'
+      ? '✅ Google Drive access and single-photo upload are fully functional!'
+      : '⚠️ DriveApp access failed. Please verify DriveApp authorization & ensure the executing account has read permission to the Form upload folder.'
   ].join('\n');
 
   ui.alert('Drive Photo Diagnostic', report, ui.ButtonSet.OK);
@@ -978,9 +1033,22 @@ function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
   };
 
   const name = getCol(3);       // Col D
-  const mobile = getCol(25);    // Col Z (Primary registered mobile)
+  let mobile = getCol(25);      // Col Z (Primary registered mobile)
   
-  if (!name && !mobile) {
+  // Search other columns if mobile is missing in Col Z
+  if (!mobile) {
+    const contactPerson = getCol(24);
+    const notesText = getCol(31);
+    const addressText = getCol(13);
+    const combined = contactPerson + ' ' + notesText + ' ' + addressText;
+    const match = combined.match(/[6-9]\d{9}/);
+    if (match) {
+      mobile = match[0];
+    }
+  }
+
+  // If both name and mobile are completely missing, skip
+  if (!name && !mobile && !getCol(0)) {
     return null;
   }
 
@@ -1035,9 +1103,12 @@ function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
     mobile: mobile,                         // Col Z: Contact No.
     partnerPreferences: getCol(26),         // Col AA: Partner Preferences
     consentSocialMedia: getCol(27),         // Col AB: Post Profile on Social Media
-    primaryPhotoBase64: primaryPhotoBase64, // Primary Photo (1st from Col AC)
+    primaryPhotoBase64: primaryPhotoBase64, // Primary Photo base64 (if accessible via DriveApp)
+    primaryPhotoUrl: allPhotoUrls[0] || photoColRaw || null, // Primary Google Drive / image URL
     consentGeneral: getCol(29),             // Col AD: Consent
-    additionalPhotosBase64: additionalPhotosBase64, // Additional Photos (Remaining from Col AC)
+    additionalPhotosBase64: additionalPhotosBase64, // Additional Photos base64
+    additionalPhotoUrls: allPhotoUrls.slice(1),     // Additional Google Drive URLs
+    rawPhotoLink: photoColRaw || null,      // Full raw link in Column AC
     otherMatrimonyInfo: getCol(30),         // Col AE: Other Matrimony Platform information (Text)
     notes: getCol(31),                      // Col AF: Column 30 / Notes
     paymentRemark: getCol(32) || getCol(33) // Col AG / Col AH: Payment (Remark only)

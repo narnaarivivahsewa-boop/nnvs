@@ -34,22 +34,53 @@ function authenticateRequest(req: NextRequest): { authenticated: boolean; error?
   return { authenticated: false, error: "Unauthorized integration request. Invalid or missing secret key." };
 }
 
-// Clean and normalize 10-digit Indian mobile number
-function cleanMobileNumber(raw: any): string | null {
-  if (!raw) return null;
-  const digits = String(raw).replace(/\.0$/, "").replace(/\D/g, "");
-  if (digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) {
-    return digits;
+// Clean and extract valid 10-digit Indian mobile numbers (handles multiple numbers, labels, delimiters)
+export function extractIndianMobiles(raw: any): { primary: string | null; all: string[]; raw: string } {
+  if (!raw) return { primary: null, all: [], raw: "" };
+  const rawStr = String(raw).trim();
+
+  // Replace delimiters with spaces
+  const cleaned = rawStr.replace(/[\/\,;\n\+\-\(\)\&]/g, " ");
+  const candidates = cleaned.split(/\s+/).filter(Boolean);
+  const matchedMobiles: string[] = [];
+
+  const isValid = (d: string) => d.length === 10 && /^[6-9]\d{9}$/.test(d);
+
+  for (let i = 0; i < candidates.length; i++) {
+    const chunk = candidates[i].replace(/\D/g, "");
+    if (isValid(chunk)) {
+      if (!matchedMobiles.includes(chunk)) matchedMobiles.push(chunk);
+    } else if (chunk.length === 12 && chunk.startsWith("91") && isValid(chunk.slice(2))) {
+      const num = chunk.slice(2);
+      if (!matchedMobiles.includes(num)) matchedMobiles.push(num);
+    } else if (chunk.length === 11 && chunk.startsWith("0") && isValid(chunk.slice(1))) {
+      const num = chunk.slice(1);
+      if (!matchedMobiles.includes(num)) matchedMobiles.push(num);
+    } else if (i + 1 < candidates.length) {
+      // Try combining split consecutive 5-digit pieces e.g. "94160 85772"
+      const combined = (candidates[i] + candidates[i + 1]).replace(/\D/g, "");
+      if (isValid(combined)) {
+        if (!matchedMobiles.includes(combined)) matchedMobiles.push(combined);
+        i++;
+      }
+    }
   }
-  if (digits.length === 12 && digits.startsWith("91")) {
-    const sliced = digits.slice(2);
-    if (/^[6-9]\d{9}$/.test(sliced)) return sliced;
+
+  // Fallback regex match across whole raw string
+  if (matchedMobiles.length === 0) {
+    const globalMatches = rawStr.match(/[6-9]\d{9}/g);
+    if (globalMatches) {
+      for (const m of globalMatches) {
+        if (!matchedMobiles.includes(m)) matchedMobiles.push(m);
+      }
+    }
   }
-  if (digits.length === 11 && digits.startsWith("0")) {
-    const sliced = digits.slice(1);
-    if (/^[6-9]\d{9}$/.test(sliced)) return sliced;
-  }
-  return null;
+
+  return {
+    primary: matchedMobiles[0] || null,
+    all: matchedMobiles,
+    raw: rawStr,
+  };
 }
 
 // Convert height string to standardized feet'inches"
@@ -86,17 +117,81 @@ function extractSisters(text: string): number {
   return match ? parseInt(match[1], 10) : 0;
 }
 
-// Parse dates safely
+// Parse dates safely (handles Date objects, ISO strings, DD/MM/YYYY, and Excel serial numbers)
 function parseDate(val: any): Date | null {
   if (!val) return null;
+  // If Excel serial date number
+  if (typeof val === "number" || (!isNaN(Number(val)) && !String(val).includes("-") && !String(val).includes("/"))) {
+    const num = Number(val);
+    if (num > 1000 && num < 60000) {
+      // Excel serial date (days since Dec 30 1899)
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      return new Date(excelEpoch.getTime() + num * 86400000);
+    }
+  }
+  // If DD/MM/YYYY or DD-MM-YYYY string
+  const str = String(val).trim();
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10);
+    const month = parseInt(dmy[2], 10) - 1;
+    const year = parseInt(dmy[3], 10);
+    if (year >= 1940 && year <= 2026 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      return new Date(Date.UTC(year, month, day));
+    }
+  }
   const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
+  if (isNaN(d.getTime())) return null;
+  const year = d.getUTCFullYear();
+  if (year < 1940 || year > 2026) return null;
+  return d;
+}
+
+// Extract Google Drive file ID from various Drive URL formats
+export function extractDriveFileId(urlOrText: any): string | null {
+  if (!urlOrText || typeof urlOrText !== "string") return null;
+  const str = urlOrText.trim();
+  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+  if (idMatch) return idMatch[1];
+  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/i);
+  if (dMatch) return dMatch[1];
+  const fileDMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/i);
+  if (fileDMatch) return fileDMatch[1];
+  const generalMatch = str.match(/^([a-zA-Z0-9_-]{25,})$/);
+  if (generalMatch) return generalMatch[1];
+  return null;
+}
+
+// Formats Google Drive URLs to both direct embeddable link and full Drive view link
+export function formatGoogleDrivePhotoUrl(urlOrText: any): { displayUrl: string; directDriveUrl: string; fileId: string | null } | null {
+  if (!urlOrText || typeof urlOrText !== "string") return null;
+  const trimmed = urlOrText.trim();
+  if (!trimmed) return null;
+
+  const fileId = extractDriveFileId(trimmed);
+  if (fileId) {
+    return {
+      displayUrl: `https://lh3.googleusercontent.com/d/${fileId}`,
+      directDriveUrl: `https://drive.google.com/file/d/${fileId}/view`,
+      fileId,
+    };
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return {
+      displayUrl: trimmed,
+      directDriveUrl: trimmed,
+      fileId: null,
+    };
+  }
+
+  return null;
 }
 
 // Upload base64 image data to Cloudinary
 async function uploadToCloudinary(base64Data: string, folder: string = "nnvs-matrimony/profile-photos"): Promise<string | null> {
   try {
-    if (!base64Data || !base64Data.startsWith("data:image/")) return null;
+    if (!base64Data || typeof base64Data !== "string" || !base64Data.startsWith("data:image/")) return null;
     const result = await cloudinary.uploader.upload(base64Data, {
       folder,
       resource_type: "image",
@@ -159,6 +254,7 @@ export async function POST(req: NextRequest) {
     let skippedCount = 0;
     let missingMobileCount = 0;
     let photoFailureCount = 0;
+    let duplicateFlaggedCount = 0;
 
     const rowResults: any[] = [];
 
@@ -171,39 +267,47 @@ export async function POST(req: NextRequest) {
       const sourceId = row.sourceId || `SHEET_ROW_${rowIndex}`;
       const legacyProfileId = row.legacyProfileId ? String(row.legacyProfileId).trim() : null;
 
-      // Registered Mobile (Col Z / index 25)
-      const rawMobile = row.mobile || row.contactNo;
-      const mobile = cleanMobileNumber(rawMobile);
-      const fullName = String(row.name || "").trim();
+      // Multi-Phone Extraction from Column Z (Contact No) or fallback row text
+      let rawMobile = row.mobile || row.contactNo || "";
+      if (!rawMobile) {
+        // Search contactPerson or notes/address for any phone numbers
+        const fallbackText = `${row.contactPerson || ""} ${row.notes || ""} ${row.address || ""}`;
+        const fallbackParsed = extractIndianMobiles(fallbackText);
+        if (fallbackParsed.primary) {
+          rawMobile = fallbackParsed.primary;
+        }
+      }
+
+      const parsedMobile = extractIndianMobiles(rawMobile);
+      const mobile = parsedMobile.primary;
+      const allMobiles = parsedMobile.all;
+
+      // Skip row safely if no usable Indian mobile number is found
+      if (!mobile) {
+        missingMobileCount++;
+        skippedCount++;
+        console.log(`Row ${rowIndex} (Source: ${sourceId}) - SKIPPED: NO USABLE MOBILE`);
+        rowResults.push({
+          row: rowIndex,
+          status: "SKIPPED: NO USABLE MOBILE",
+          reason: "No usable Indian mobile number found in row or contact details.",
+          sourceId,
+          legacyProfileId,
+          rawMobile,
+        });
+        continue;
+      }
+
+      let fullName = String(row.name || "").trim();
+      if (!fullName) {
+        fullName = legacyProfileId ? `Applicant (${legacyProfileId})` : `Applicant (Row ${rowIndex})`;
+      }
+
       const email = row.email ? String(row.email).trim().toLowerCase() : null;
       const genderStr = String(row.gender || "").toLowerCase().trim();
       const gender = genderStr === "female" ? "FEMALE" : "MALE";
 
-      if (!mobile) {
-        missingMobileCount++;
-        skippedCount++;
-        rowResults.push({
-          row: rowIndex,
-          status: "SKIPPED",
-          reason: `Missing or invalid 10-digit registered mobile number: '${rawMobile}'`,
-          legacyProfileId,
-        });
-        continue;
-      }
-
-      if (!fullName) {
-        skippedCount++;
-        rowResults.push({
-          row: rowIndex,
-          status: "SKIPPED",
-          reason: "Missing candidate name.",
-          mobile,
-          legacyProfileId,
-        });
-        continue;
-      }
-
-      // Check for Existing Records in Database
+      // Check for Existing Records in Database by sourceId (the exact row)
       let existingProfile = null;
 
       // 1. Match by sourceId
@@ -212,22 +316,19 @@ export async function POST(req: NextRequest) {
         include: { user: true, family: true, education: true, occupation: true, partnerPreference: true },
       });
 
-      // 2. Match by legacyProfileId (if present in Sheet Column A)
-      if (!existingProfile && legacyProfileId) {
-        existingProfile = await prisma.profile.findUnique({
-          where: { legacyProfileId },
-          include: { user: true, family: true, education: true, occupation: true, partnerPreference: true },
-        });
-      }
-
-      // 3. Match by User Registered Mobile (Column Z)
+      // 2. Check for User Registered Mobile (Column Z)
       const existingUser = await prisma.user.findUnique({
         where: { mobile },
         include: { profile: { include: { family: true, education: true, occupation: true, partnerPreference: true } } },
       });
 
-      if (!existingProfile && existingUser?.profile) {
-        existingProfile = existingUser.profile as any;
+      let isSharedMobileApplicant = false;
+      let effectiveMobile = mobile;
+
+      if (!existingProfile && existingUser) {
+        // Create unique user account for this sheet row so every row gets its own full profile
+        isSharedMobileApplicant = true;
+        effectiveMobile = `${mobile}_r${rowIndex}`;
       }
 
       // If DRY RUN: Record analysis and continue without making DB changes
@@ -240,6 +341,7 @@ export async function POST(req: NextRequest) {
             profileId: existingProfile.profileId,
             legacyProfileId: existingProfile.legacyProfileId || legacyProfileId,
             mobile,
+            allMobiles,
             fullName,
           });
         } else {
@@ -250,7 +352,9 @@ export async function POST(req: NextRequest) {
             generatedProfileId: `RC${Date.now()}_${rowIndex}`,
             legacyProfileId,
             mobile,
+            allMobiles,
             fullName,
+            isSharedMobile: isSharedMobileApplicant,
           });
         }
         continue;
@@ -260,28 +364,53 @@ export async function POST(req: NextRequest) {
       // REAL COMMIT MODE (Atomic Transactions)
       // ==========================================
       try {
-        // Handle Cloudinary Photo Uploads
+        // Handle Photo Uploads & Google Drive Fallback
         let primaryPhotoUrl: string | null = null;
         const additionalPhotoUrls: string[] = [];
 
+        // 1. Primary Photo Base64 upload to Cloudinary
         const primaryPhotoBase64 = row.primaryPhotoBase64 || row.profilePhotoBase64;
-        if (primaryPhotoBase64) {
+        if (primaryPhotoBase64 && typeof primaryPhotoBase64 === "string" && primaryPhotoBase64.startsWith("data:image/")) {
           primaryPhotoUrl = await uploadToCloudinary(primaryPhotoBase64);
           if (!primaryPhotoUrl) photoFailureCount++;
         }
 
-        const additionalPhotosArray = row.additionalPhotosBase64 || row.photosBase64 || [];
+        // 2. Primary Photo Drive / Direct URL fallback
+        if (!primaryPhotoUrl) {
+          const rawUrl = row.primaryPhotoUrl || row.photoUrl || row.driveUrl || row.rawPhotoLink || row.photo;
+          if (rawUrl) {
+            const formatted = formatGoogleDrivePhotoUrl(rawUrl);
+            if (formatted) {
+              primaryPhotoUrl = formatted.displayUrl;
+            }
+          }
+        }
+
+        // 3. Additional Photos
+        const additionalPhotosArray = row.additionalPhotosBase64 || row.photosBase64 || row.additionalPhotoUrls || [];
         if (Array.isArray(additionalPhotosArray)) {
           for (const item of additionalPhotosArray) {
-            const url = await uploadToCloudinary(item);
-            if (url) additionalPhotoUrls.push(url);
+            if (typeof item === "string" && item.startsWith("data:image/")) {
+              const url = await uploadToCloudinary(item);
+              if (url) additionalPhotoUrls.push(url);
+            } else if (item) {
+              const formatted = formatGoogleDrivePhotoUrl(item);
+              if (formatted && !additionalPhotoUrls.includes(formatted.displayUrl) && formatted.displayUrl !== primaryPhotoUrl) {
+                additionalPhotoUrls.push(formatted.displayUrl);
+              }
+            }
           }
         } else if (typeof additionalPhotosArray === "string" && additionalPhotosArray.startsWith("data:image/")) {
           const url = await uploadToCloudinary(additionalPhotosArray);
           if (url) additionalPhotoUrls.push(url);
+        } else if (typeof additionalPhotosArray === "string" && additionalPhotosArray.trim()) {
+          const formatted = formatGoogleDrivePhotoUrl(additionalPhotosArray);
+          if (formatted && formatted.displayUrl !== primaryPhotoUrl) {
+            additionalPhotoUrls.push(formatted.displayUrl);
+          }
         }
 
-        // Exact Field Extractions from Payload (No invented columns)
+        // Exact Field Extractions from Payload
         const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
         const height = normalizeHeight(row.height);
         const maritalStatus = row.maritalStatus || null;
@@ -319,13 +448,19 @@ export async function POST(req: NextRequest) {
         // Execute Transaction
         const transactionResult = await prisma.$transaction(async (tx) => {
           // 1. User Account
-          let userId = existingUser?.id;
+          let userId = isSharedMobileApplicant ? undefined : existingUser?.id;
           if (!userId) {
+            let userEmail: string | undefined = undefined;
+            if (email) {
+              const existingEmailUser = await tx.user.findUnique({ where: { email } });
+              if (!existingEmailUser) userEmail = email;
+            }
+
             const newUser = await tx.user.create({
               data: {
                 fullName,
-                mobile,
-                email: email || undefined,
+                mobile: effectiveMobile,
+                email: userEmail,
                 gender,
                 role: "MEMBER",
                 status: "ACTIVE",
@@ -336,11 +471,17 @@ export async function POST(req: NextRequest) {
             });
             userId = newUser.id;
           } else {
+            let userEmail = existingUser?.email || undefined;
+            if (email && email !== existingUser?.email) {
+              const existingEmailUser = await tx.user.findUnique({ where: { email } });
+              if (!existingEmailUser) userEmail = email;
+            }
+
             await tx.user.update({
               where: { id: userId },
               data: {
                 fullName: fullName || existingUser?.fullName,
-                email: email || existingUser?.email,
+                email: userEmail,
                 mobileVerified: true,
               },
             });
@@ -368,10 +509,14 @@ export async function POST(req: NextRequest) {
             source: "GOOGLE_FORM",
             sourceId,
             legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
-            // Google Form imported profiles start as non-public (UNDER_REVIEW, isVisible=false, paymentCompleted=false)
-            isVisible: existingProfile ? existingProfile.isVisible : false,
-            paymentCompleted: existingProfile ? existingProfile.paymentCompleted : false,
-            approvalStatus: existingProfile ? existingProfile.approvalStatus : "UNDER_REVIEW",
+            // Google Form profiles are active, visible and approved on the website
+            isVisible: true,
+            paymentCompleted: true,
+            approvalStatus: "APPROVED",
+            isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
+            duplicateNotes: isSharedMobileApplicant
+              ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
+              : existingProfile?.duplicateNotes || null,
           };
 
           let profile;
@@ -390,23 +535,27 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // 3. ProfilePhone
-          await tx.profilePhone.upsert({
-            where: {
-              profileId_phone: {
-                profileId: profile.id,
-                phone: mobile,
+          // 3. ProfilePhone: Store all extracted phone numbers
+          for (let pIdx = 0; pIdx < allMobiles.length; pIdx++) {
+            const ph = allMobiles[pIdx];
+            const isPrimary = pIdx === 0;
+            await tx.profilePhone.upsert({
+              where: {
+                profileId_phone: {
+                  profileId: profile.id,
+                  phone: ph,
+                },
               },
-            },
-            create: {
-              profileId: profile.id,
-              phone: mobile,
-              isPrimary: true,
-            },
-            update: {
-              isPrimary: true,
-            },
-          });
+              create: {
+                profileId: profile.id,
+                phone: ph,
+                isPrimary,
+              },
+              update: {
+                isPrimary,
+              },
+            });
+          }
 
           // 4. Family Details
           await tx.family.upsert({
@@ -530,6 +679,38 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless Monus Malhotra)
+          const isMonus = (fullName || "").toLowerCase().includes("monus");
+          if (!isMonus && userId) {
+            const existingPayment = await tx.payment.findFirst({
+              where: {
+                OR: [
+                  { profileId: profile.id },
+                  { userId: userId },
+                ],
+              },
+            });
+            if (!existingPayment) {
+              await tx.payment.create({
+                data: {
+                  userId: userId,
+                  profileId: profile.id,
+                  amount: 0,
+                  grossAmount: 0,
+                  taxableAmount: 0,
+                  gstRate: 0,
+                  gstAmount: 0,
+                  status: "SUCCESS",
+                  paymentGateway: "PAYMENT_EXEMPT",
+                  paymentDate: parseDate(row.timestamp) || new Date(),
+                  adminNotes: "Imported legacy NNVS profile - Payment Exempt (₹0)",
+                  confirmedByAdmin: true,
+                  confirmedAt: new Date(),
+                },
+              });
+            }
+          }
+
           return { userId, profile };
         });
 
@@ -545,6 +726,7 @@ export async function POST(req: NextRequest) {
           profileId: transactionResult.profile.profileId,
           legacyProfileId: transactionResult.profile.legacyProfileId,
           mobile,
+          allMobiles,
           fullName,
         });
       } catch (rowErr: any) {
@@ -570,6 +752,7 @@ export async function POST(req: NextRequest) {
         skipped: skippedCount,
         missingMobile: missingMobileCount,
         photoFailures: photoFailureCount,
+        duplicateFlagged: duplicateFlaggedCount,
       },
       results: rowResults,
     });
@@ -620,7 +803,8 @@ async function handlePhotoRepair(body: any) {
     const sourceId = item.sourceId;
     const legacyProfileId = item.legacyProfileId ? String(item.legacyProfileId).trim() : null;
     const rawMobile = item.mobile || item.contactNo;
-    const mobile = cleanMobileNumber(rawMobile);
+    const parsed = extractIndianMobiles(rawMobile);
+    const mobile = parsed.primary;
     const photoBase64 = item.primaryPhotoBase64 || item.photoBase64 || item.profilePhotoBase64;
     const additionalPhotos: string[] = Array.isArray(item.additionalPhotosBase64)
       ? item.additionalPhotosBase64
@@ -717,8 +901,21 @@ async function handlePhotoRepair(body: any) {
     let attachedForThisProfile = 0;
     for (let i = 0; i < photosToUpload.length; i++) {
       const p = photosToUpload[i];
-      const cloudinaryUrl = await uploadToCloudinary(p.base64);
-      if (!cloudinaryUrl) {
+      let finalImageUrl: string | null = null;
+      if (p.base64 && p.base64.startsWith("data:image/")) {
+        finalImageUrl = await uploadToCloudinary(p.base64);
+      }
+
+      if (!finalImageUrl) {
+        // Fallback to Drive URL
+        const rawDrive = item.primaryPhotoUrl || item.photoUrl || item.driveUrl || item.rawPhotoLink;
+        const formatted = formatGoogleDrivePhotoUrl(rawDrive);
+        if (formatted) {
+          finalImageUrl = formatted.displayUrl;
+        }
+      }
+
+      if (!finalImageUrl) {
         cloudinaryErrors++;
         continue;
       }
@@ -726,7 +923,7 @@ async function handlePhotoRepair(body: any) {
       await prisma.profilePhoto.create({
         data: {
           profileId: existingProfile.id,
-          imageUrl: cloudinaryUrl,
+          imageUrl: finalImageUrl,
           isPrimary: p.isPrimary,
           status: "PENDING",
         },
@@ -734,6 +931,23 @@ async function handlePhotoRepair(body: any) {
 
       attachedForThisProfile++;
       photosAttached++;
+    }
+
+    // If no base64 was sent but a direct drive link was provided in item
+    if (attachedForThisProfile === 0 && (item.primaryPhotoUrl || item.photoUrl || item.driveUrl || item.rawPhotoLink)) {
+      const formatted = formatGoogleDrivePhotoUrl(item.primaryPhotoUrl || item.photoUrl || item.driveUrl || item.rawPhotoLink);
+      if (formatted) {
+        await prisma.profilePhoto.create({
+          data: {
+            profileId: existingProfile.id,
+            imageUrl: formatted.displayUrl,
+            isPrimary: true,
+            status: "PENDING",
+          },
+        });
+        attachedForThisProfile++;
+        photosAttached++;
+      }
     }
 
     if (attachedForThisProfile > 0) {
@@ -750,7 +964,7 @@ async function handlePhotoRepair(body: any) {
         profileId: existingProfile.profileId,
         legacyProfileId: existingProfile.legacyProfileId,
         status: "CLOUDINARY_ERROR",
-        reason: "Failed to upload photo to Cloudinary",
+        reason: "Failed to upload photo to Cloudinary and no valid Drive link available",
       });
     }
   }

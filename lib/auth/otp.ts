@@ -34,14 +34,15 @@ export function printDevelopmentOTP(
   mobile: string,
   otp: string
 ) {
-  if (process.env.NODE_ENV === "development") {
-    console.log("\n");
-    console.log("========================================");
-    console.log("📱 NNVS MATRIMONY DEVELOPMENT OTP");
-    console.log("----------------------------------------");
-    console.log(`Mobile : ${mobile}`);
-    console.log(`OTP    : ${otp}`);
-    console.log("========================================");
-    console.log("\n");
+  if (process.env.NODE_ENV === "production") {
+    return;
   }
+
+  const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  console.log("\n========================================================");
+  console.log("🔔 [NNVS / RISHTECLUB AUTH OTP SERVER TERMINAL]");
+  console.log(`⏰ Time   : ${timeStr} (IST)`);
+  console.log(`📱 Mobile : ${mobile}`);
+  console.log(`🔑 OTP    : ${otp}`);
+  console.log("========================================================\n");
 }

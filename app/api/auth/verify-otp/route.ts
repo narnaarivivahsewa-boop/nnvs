@@ -125,20 +125,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { isPermanentAdmin } = await import("@/lib/admin-auth");
+    const isAdmin = isPermanentAdmin(mobile) || user.role === "ADMIN";
+
     user = await prisma.user.update({
       where: {
         id: user.id,
       },
       data: {
         mobileVerified: true,
+        ...(isAdmin ? { role: "ADMIN", status: "ACTIVE" } : {}),
       },
     });
 
+    const roleToAssign = isAdmin ? "ADMIN" : user.role;
+
     const token = await generateToken(
-  user.id,
-  user.mobile,
-  user.role
-);
+      user.id,
+      user.mobile,
+      roleToAssign
+    );
 
     const response = NextResponse.json({
   success: true,

@@ -79,6 +79,8 @@ export default function AdminProfilesPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [grossAmount, setGrossAmount] = useState("1100");
+  const [isPaymentExempt, setIsPaymentExempt] = useState(false);
+  const [exemptionReason, setExemptionReason] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
   const [transactionId, setTransactionId] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
@@ -120,15 +122,22 @@ export default function AdminProfilesPage() {
     setSelectedProfile(profile);
     const defaultFee = profile.user.gender === "FEMALE" ? "399" : "799";
     setGrossAmount(defaultFee);
+    setIsPaymentExempt(false);
+    setExemptionReason("");
     setPaymentDate(new Date().toISOString().split("T")[0]);
     setTransactionId("");
-    setAdminNotes(`Payment confirmed by admin for ${profile.user.fullName || profile.profileId}`);
+    setAdminNotes(`Payment recorded by admin for ${profile.user.fullName || profile.profileId}`);
     setPaymentModalOpen(true);
   };
 
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProfile) return;
+
+    if (isPaymentExempt && !exemptionReason.trim()) {
+      alert("Exemption reason is mandatory for Payment-Exempt records.");
+      return;
+    }
 
     try {
       setConfirmingPayment(true);
@@ -137,9 +146,11 @@ export default function AdminProfilesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           profileId: selectedProfile.id,
-          grossAmount: parseFloat(grossAmount),
+          grossAmount: isPaymentExempt ? 0 : parseFloat(grossAmount),
+          isPaymentExempt,
+          exemptionReason: isPaymentExempt ? exemptionReason.trim() : undefined,
           paymentDate,
-          transactionId: transactionId.trim() || undefined,
+          transactionId: transactionId.trim() || (isPaymentExempt ? "EXEMPT" : undefined),
           adminNotes: adminNotes.trim(),
         }),
       });
@@ -442,15 +453,22 @@ export default function AdminProfilesPage() {
                     {isFormImport ? "Google Form" : "Website Direct"}
                   </span>
 
-                  <span
-                    className={`px-2 py-0.5 rounded-md font-bold ${
-                      profile.paymentCompleted
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {profile.paymentCompleted ? "Paid" : "Pay Pending"}
-                  </span>
+                  {/* Payment Status Badge */}
+                  {latestPayment?.id ? (
+                    latestPayment.grossAmount === 0 || latestPayment.amount === 0 ? (
+                      <span className="px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        ₹0.00 • Exempt
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md font-bold bg-emerald-100 text-emerald-800">
+                        ₹{Number(latestPayment.grossAmount || latestPayment.amount).toFixed(0)} • Paid
+                      </span>
+                    )
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      Unrecorded
+                    </span>
+                  )}
 
                   {profile.isDuplicateFlagged && (
                     <span className="px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
@@ -480,25 +498,36 @@ export default function AdminProfilesPage() {
                     <span>WhatsApp</span>
                   </a>
 
-                  {!profile.paymentCompleted ? (
+                  {!latestPayment?.id ? (
                     <button
                       type="button"
                       onClick={() => openPaymentModal(profile)}
-                      className="col-span-2 flex items-center justify-center gap-1 rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition"
+                      className="col-span-2 flex items-center justify-center gap-1 rounded-xl bg-[#4A121A] py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#350d13] transition"
                     >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      <span>Confirm Manual Payment & Invoice</span>
+                      <CreditCard className="h-3.5 w-3.5 text-[#C5A059]" />
+                      <span>Record / Confirm Payment</span>
                     </button>
-                  ) : latestPayment?.id ? (
-                    <Link
-                      href={`/invoice/${latestPayment.id}`}
-                      target="_blank"
-                      className="col-span-2 flex items-center justify-center gap-1 rounded-xl bg-[#FAF5EB] py-2.5 text-xs font-bold text-[#7A5835] border border-[#DACBB4] hover:bg-[#F2E8D7] transition"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-[#C5A059]" />
-                      <span>View GST Tax Invoice ({latestPayment.invoiceNumber || "Invoice"})</span>
-                    </Link>
-                  ) : null}
+                  ) : (
+                    <div className="col-span-2 flex items-center gap-2">
+                      <Link
+                        href="/admin/payments"
+                        className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-gray-100 py-2 text-xs font-bold text-gray-700 border border-gray-300 hover:bg-gray-200 transition"
+                      >
+                        <CreditCard className="h-3.5 w-3.5 text-[#7A5835]" />
+                        <span>Edit Amount</span>
+                      </Link>
+                      {latestPayment.invoiceNumber && (
+                        <Link
+                          href={`/invoice/${latestPayment.id}`}
+                          target="_blank"
+                          className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-[#FAF5EB] py-2 text-xs font-bold text-[#7A5835] border border-[#DACBB4] hover:bg-[#F2E8D7] transition"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-[#C5A059]" />
+                          <span>Invoice</span>
+                        </Link>
+                      )}
+                    </div>
+                  )}
 
                   <button
                     type="button"
@@ -622,20 +651,26 @@ export default function AdminProfilesPage() {
                     </td>
 
                     <td className="px-4 py-3.5 text-xs">
-                      {profile.paymentCompleted ? (
-                        <div>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-800">
-                            <CheckCircle className="h-3 w-3" /> Paid
-                          </span>
-                          {latestPayment?.grossAmount && (
+                      {latestPayment?.id ? (
+                        latestPayment.grossAmount === 0 || latestPayment.amount === 0 ? (
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-300">
+                              ₹0.00 • Exempt
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+                              <CheckCircle className="h-3 w-3" /> Paid
+                            </span>
                             <div className="text-[11px] font-bold text-gray-700 mt-0.5">
-                              ₹{Number(latestPayment.grossAmount).toFixed(2)}
+                              ₹{Number(latestPayment.grossAmount || latestPayment.amount).toFixed(2)}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 font-bold text-red-700">
-                          <XCircle className="h-3 w-3" /> Pending
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 border border-amber-200">
+                          Unrecorded
                         </span>
                       )}
                     </td>
@@ -674,19 +709,27 @@ export default function AdminProfilesPage() {
                           <span>WhatsApp</span>
                         </a>
 
-                        {!profile.paymentCompleted && (
+                        {!latestPayment?.id ? (
                           <button
                             type="button"
                             onClick={() => openPaymentModal(profile)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-xs"
-                            title="Confirm Manual Payment"
+                            className="inline-flex items-center gap-1 rounded-lg bg-[#4A121A] px-2.5 py-1.5 text-xs font-bold text-white hover:bg-[#350d13] transition shadow-xs"
+                            title="Record Payment / Exemption"
                           >
-                            <CreditCard className="h-3.5 w-3.5" />
-                            <span>Confirm Pay</span>
+                            <CreditCard className="h-3.5 w-3.5 text-[#C5A059]" />
+                            <span>Record Pay</span>
                           </button>
+                        ) : (
+                          <Link
+                            href="/admin/payments"
+                            className="inline-flex items-center gap-1 rounded-lg bg-white border border-gray-300 px-2.5 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition shadow-xs"
+                            title="Edit Payment Amount"
+                          >
+                            <span>Edit Amount</span>
+                          </Link>
                         )}
 
-                        {profile.paymentCompleted && latestPayment?.id && (
+                        {latestPayment?.invoiceNumber && (
                           <Link
                             href={`/invoice/${latestPayment.id}`}
                             target="_blank"
@@ -740,32 +783,100 @@ export default function AdminProfilesPage() {
       {/* Manual Payment Confirmation Modal */}
       {paymentModalOpen && selectedProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-black text-[#4A121A] font-serif-luxury">
-              Confirm Manual Payment & Generate GST Invoice
+              Record Profile Payment
             </h2>
             <p className="mt-1 text-xs text-gray-600">
               Candidate: <strong>{selectedProfile.user.fullName || selectedProfile.profileId}</strong> (Mobile: {selectedProfile.user.mobile})
             </p>
 
-            <form onSubmit={handleConfirmPayment} className="mt-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Gross Amount Received (₹ INCLUDING GST) *
+            <form onSubmit={handleConfirmPayment} className="space-y-4 text-xs">
+              {/* Payment-Exempt Toggle */}
+              <div className="p-3 bg-[#FAF5EB] border border-[#DACBB4] rounded-xl">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPaymentExempt}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsPaymentExempt(checked);
+                      if (checked) {
+                        setGrossAmount("0");
+                        if (!transactionId) setTransactionId("EXEMPT");
+                      } else {
+                        const defaultFee = selectedProfile.user.gender === "FEMALE" ? "399" : "799";
+                        setGrossAmount(defaultFee);
+                        if (transactionId === "EXEMPT") setTransactionId("");
+                      }
+                    }}
+                    className="mt-0.5 rounded text-[#7A5835] focus:ring-[#7A5835] h-4 w-4"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-gray-900 block">
+                      Mark as "No Payment / Payment Exempt (₹0)"
+                    </span>
+                    <span className="text-[11px] text-gray-600 block mt-0.5">
+                      For legacy profiles, complimentary approvals, or accounts without monetary transactions.
+                    </span>
+                  </div>
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={grossAmount}
-                  onChange={(e) => setGrossAmount(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 p-3 font-mono font-bold text-gray-900 outline-none focus:border-[#4A121A]"
-                  placeholder="e.g. 1100.00"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Taxable value and 18% GST will be reverse calculated from this gross amount.
-                </p>
               </div>
+
+              {isPaymentExempt ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl space-y-1">
+                    <p className="text-[11px] leading-relaxed text-amber-900 font-semibold">
+                      ₹0 means no payment was received. This profile will be marked as Payment-Exempt. No GST invoice will be generated.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Exemption Reason (Required) *
+                    </label>
+                    <select
+                      value={exemptionReason}
+                      onChange={(e) => setExemptionReason(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#7A5835] mb-2"
+                    >
+                      <option value="">Select standard exemption reason...</option>
+                      <option value="Old legacy NNVS record without payment">Old legacy NNVS record without payment</option>
+                      <option value="Complimentary approval">Complimentary approval</option>
+                      <option value="Imported legacy profile">Imported legacy profile</option>
+                      <option value="Other admin-approved reason">Other admin-approved reason</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={exemptionReason}
+                      onChange={(e) => setExemptionReason(e.target.value)}
+                      placeholder="Or type custom exemption reason..."
+                      required
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Gross Amount Received (₹ INCLUDING 18% GST) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    value={grossAmount}
+                    onChange={(e) => setGrossAmount(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 p-3 font-mono font-bold text-gray-900 outline-none focus:border-[#4A121A]"
+                    placeholder="e.g. 799.00"
+                  />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Taxable base value and 18% GST will be reverse calculated from this gross amount.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -780,30 +891,29 @@ export default function AdminProfilesPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">UPI / UTR Ref ID</label>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    {isPaymentExempt ? "Reference Note (Optional)" : "UPI / UTR Ref ID *"}
+                  </label>
                   <input
                     type="text"
+                    required={!isPaymentExempt}
                     value={transactionId}
                     onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="e.g. 423871928371"
+                    placeholder={isPaymentExempt ? "EXEMPT" : "e.g. 423871928371"}
                     className="w-full rounded-xl border border-gray-300 p-2.5 font-mono outline-none focus:border-[#4A121A]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">Admin Confirmation Notes</label>
+                <label className="block font-bold text-gray-700 mb-1">Admin Remarks / Notes</label>
                 <textarea
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   className="w-full rounded-xl border border-gray-300 p-2.5 outline-none focus:border-[#4A121A]"
-                  placeholder="Payment verified via WhatsApp screenshot / UPI statement..."
+                  placeholder={isPaymentExempt ? "Exemption remarks..." : "Payment verified via WhatsApp screenshot / UPI statement..."}
                 />
-              </div>
-
-              <div className="rounded-xl bg-emerald-50 p-3 text-[11px] text-emerald-800 border border-emerald-200">
-                <strong>Action Summary:</strong> Sets <code>paymentCompleted = true</code>, makes profile <strong>LIVE</strong>, and generates official GST Tax Invoice from <strong>Trendy Traders</strong>.
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
@@ -821,7 +931,11 @@ export default function AdminProfilesPage() {
                   disabled={confirmingPayment}
                   className="rounded-xl bg-[#4A121A] px-6 py-2.5 font-bold text-white shadow hover:bg-[#380C13] transition disabled:opacity-50"
                 >
-                  {confirmingPayment ? "Confirming & Generating Invoice..." : "Confirm Payment"}
+                  {confirmingPayment
+                    ? "Saving..."
+                    : isPaymentExempt
+                    ? "Confirm Payment Exemption"
+                    : "Confirm & Generate GST Invoice"}
                 </button>
               </div>
             </form>

@@ -60,7 +60,8 @@ export default function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Profiles", href: "/profiles" },
-    { name: "Services", href: "/#services" },
+    { name: "AI Kundli ✨", href: "/astrology" },
+    { name: "Wedding Services", href: "/services" },
     { name: "About", href: "/about" },
     { name: "Contact", href: "/contact" },
   ];
@@ -84,9 +85,14 @@ export default function Navbar() {
               className="h-12 sm:h-14 w-auto object-contain transition-transform group-hover:scale-[1.02]"
             />
             <div className="flex flex-col">
-              <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[#4A121A]">
-                RishteClub
-              </span>
+              <div className="flex items-baseline">
+                <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[#4A121A]">
+                  RishteClub
+                </span>
+                <span className="text-[10px] font-bold text-[#C5A059] ml-1 font-sans">
+                  ™
+                </span>
+              </div>
               <span className="text-[9.5px] uppercase tracking-[0.14em] font-semibold text-[#7A5835] -mt-0.5">
                 Managed by NNVS Matrimony
               </span>
@@ -94,7 +100,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-7">
+          <nav className="hidden lg:flex items-center gap-6">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
