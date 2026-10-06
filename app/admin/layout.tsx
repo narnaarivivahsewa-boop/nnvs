@@ -16,6 +16,8 @@ import {
   X,
   LogOut,
   ExternalLink,
+  Store,
+  HardDrive,
 } from "lucide-react";
 
 const navItems = [
@@ -53,6 +55,16 @@ const navItems = [
     title: "Google Form Imports",
     href: "/admin/google-forms",
     icon: FileSpreadsheet,
+  },
+  {
+    title: "Wedding Vendors",
+    href: "/admin/vendors",
+    icon: Store,
+  },
+  {
+    title: "System Backups & Export",
+    href: "/admin/backup",
+    icon: HardDrive,
   },
   {
     title: "Settings",

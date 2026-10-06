@@ -21,18 +21,34 @@ import {
   X,
   Phone,
   Send,
+  Gift,
+  Tag,
+  Clock,
+  ArrowRight,
 } from "lucide-react";
-import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function ServicesPage() {
   const [partnerModalOpen, setPartnerModalOpen] = useState(false);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState("Event Planner & Management");
+
+  // Vendor Registration State
   const [vendorName, setVendorName] = useState("");
   const [vendorPhone, setVendorPhone] = useState("");
   const [vendorCity, setVendorCity] = useState("");
   const [vendorExperience, setVendorExperience] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [vendorSubmitted, setVendorSubmitted] = useState(false);
+
+  // Client Privilege Voucher State
+  const [clientName, setClientName] = useState("");
+  const [clientMobile, setClientMobile] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [clientBudget, setClientBudget] = useState("₹2,00,000 - ₹5,00,000");
+  const [voucherSubmitted, setVoucherSubmitted] = useState(false);
+  const [generatedVoucherCode, setGeneratedVoucherCode] = useState("");
+
   const [notifiedCategory, setNotifiedCategory] = useState<string | null>(null);
 
   const weddingServices = [
@@ -139,15 +155,22 @@ export default function ServicesPage() {
 
   function handleVendorRegister(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setVendorSubmitted(true);
     setTimeout(() => {
       setPartnerModalOpen(false);
-      setSubmitted(false);
+      setVendorSubmitted(false);
       setVendorName("");
       setVendorPhone("");
       setVendorCity("");
       setVendorExperience("");
     }, 2500);
+  }
+
+  function handleGenerateVoucher(e: React.FormEvent) {
+    e.preventDefault();
+    const code = `RC-PRIV-${Math.floor(1000 + Math.random() * 9000)}`;
+    setGeneratedVoucherCode(code);
+    setVoucherSubmitted(true);
   }
 
   function handleNotifyMe(serviceTitle: string) {
@@ -184,13 +207,16 @@ export default function ServicesPage() {
               <span>Register as Wedding Vendor / Partner</span>
             </button>
 
-            <Link
-              href="/profiles"
+            <button
+              onClick={() => {
+                setSelectedService("Royal Event Planning & Decor");
+                setVoucherModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/20"
             >
-              <span>Explore Verified Profiles</span>
-              <ChevronRight className="h-4 w-4" />
-            </Link>
+              <Gift className="h-4 w-4 text-[#DFBA73]" />
+              <span>Claim ₹5,000 Privilege Voucher</span>
+            </button>
           </div>
         </div>
       </section>
@@ -214,7 +240,7 @@ export default function ServicesPage() {
               Explore Upcoming Wedding Services
             </h2>
             <p className="text-xs sm:text-sm text-[#5A4E48] max-w-xl mx-auto">
-              Click &ldquo;Notify Me&rdquo; or partner with us to list your wedding service across India
+              Click &ldquo;Request Quotation & Voucher&rdquo; to connect with verified vendors or register your business.
             </p>
           </div>
 
@@ -268,14 +294,17 @@ export default function ServicesPage() {
                   </div>
 
                   {/* Card Actions */}
-                  <div className="pt-6 border-t border-[#E8DCC8] mt-6 flex items-center gap-3">
+                  <div className="pt-6 border-t border-[#E8DCC8] mt-6 flex flex-col sm:flex-row items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => handleNotifyMe(srv.title)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#4A121A] bg-white py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                      onClick={() => {
+                        setSelectedService(srv.title);
+                        setVoucherModalOpen(true);
+                      }}
+                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#4A121A] bg-white py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
                     >
-                      <Bell className="h-3.5 w-3.5 text-[#4A121A]" />
-                      <span>Notify Me</span>
+                      <Gift className="h-3.5 w-3.5 text-[#C5A059]" />
+                      <span>Request Quote</span>
                     </button>
 
                     <button
@@ -284,7 +313,7 @@ export default function ServicesPage() {
                         setSelectedService(srv.title);
                         setPartnerModalOpen(true);
                       }}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl bg-[#4A121A] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#380D13] transition shadow-xs"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1 rounded-xl bg-[#4A121A] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#380D13] transition shadow-xs"
                     >
                       <span>Join as Vendor</span>
                       <ChevronRight className="h-3.5 w-3.5" />
@@ -321,6 +350,155 @@ export default function ServicesPage() {
         </div>
       </main>
 
+      {/* Client Privilege Voucher & Quote Request Modal */}
+      {voucherModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-5 animate-scaleUp">
+            <button
+              onClick={() => {
+                setVoucherModalOpen(false);
+                setVoucherSubmitted(false);
+              }}
+              className="absolute top-4 right-4 rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {voucherSubmitted ? (
+              <div className="py-6 text-center space-y-4">
+                <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <Gift className="h-8 w-8 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-emerald-700 uppercase">Voucher Generated</span>
+                  <h3 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
+                    ₹5,000 Privilege Pass
+                  </h3>
+                </div>
+
+                {/* Voucher Passcode Box */}
+                <div className="rounded-2xl bg-[#FAF0DC] border-2 border-dashed border-[#C5A059] p-4 text-center space-y-1">
+                  <span className="text-xs text-[#7A5835] font-semibold block">Your Official Booking Code:</span>
+                  <p className="font-mono text-2xl font-black text-[#4A121A] tracking-wider">
+                    {generatedVoucherCode}
+                  </p>
+                  <span className="text-[11px] text-gray-500 block">Category: {selectedService}</span>
+                </div>
+
+                <p className="text-xs text-gray-600 leading-relaxed max-w-sm mx-auto">
+                  Thank you, <strong>{clientName}</strong>. Our wedding relations concierge has assigned this booking code to verified vendors in <strong>{clientCity}</strong>. You will receive customized quotes on WhatsApp: <strong>{clientMobile}</strong>.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setVoucherModalOpen(false)}
+                  className="w-full rounded-2xl bg-[#4A121A] py-3 text-xs font-bold text-white hover:bg-[#380D13] transition"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleGenerateVoucher} className="space-y-4">
+                <div>
+                  <span className="text-xs font-bold text-[#C5A059] uppercase tracking-wider">
+                    RishteClub Privilege Pass
+                  </span>
+                  <h3 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
+                    Request Quotation & Discount
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Service: <strong>{selectedService}</strong>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    Your Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                      WhatsApp / Mobile *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={clientMobile}
+                      onChange={(e) => setClientMobile(e.target.value)}
+                      placeholder="e.g. 9876543210"
+                      className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                      Event City / State *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={clientCity}
+                      onChange={(e) => setClientCity(e.target.value)}
+                      placeholder="e.g. Delhi NCR / Jaipur"
+                      className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                      Expected Event Date
+                    </label>
+                    <input
+                      type="date"
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                      Approx. Budget
+                    </label>
+                    <select
+                      value={clientBudget}
+                      onChange={(e) => setClientBudget(e.target.value)}
+                      className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                    >
+                      <option value="Under ₹1,00,000">Under ₹1,00,000</option>
+                      <option value="₹1,00,000 - ₹3,00,000">₹1,00,000 - ₹3,00,000</option>
+                      <option value="₹3,00,000 - ₹7,00,000">₹3,00,000 - ₹7,00,000</option>
+                      <option value="₹7,00,000 - ₹15,00,000">₹7,00,000 - ₹15,00,000</option>
+                      <option value="₹15,00,000+ Luxury">₹15,00,000+ Luxury</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380D13] transition"
+                >
+                  <Gift className="h-4 w-4 text-[#DFBA73]" />
+                  <span>Generate ₹5,000 Privilege Voucher</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Vendor Registration Modal */}
       {partnerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -332,7 +510,7 @@ export default function ServicesPage() {
               <X className="h-4 w-4" />
             </button>
 
-            {submitted ? (
+            {vendorSubmitted ? (
               <div className="py-8 text-center space-y-3">
                 <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle2 className="h-8 w-8" />
