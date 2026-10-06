@@ -18,8 +18,13 @@ import {
   Clock,
   MapPin,
   RefreshCw,
+  Lock,
+  Unlock,
+  CreditCard,
+  QrCode,
+  X,
+  AlertTriangle,
 } from "lucide-react";
-import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -41,13 +46,22 @@ export default function AstrologyPage() {
   const [calculating, setCalculating] = useState(false);
   const [matchResult, setMatchResult] = useState<any>(null);
 
-  // Astrological Q&A
+  // Astrological Q&A & ₹99 Monetization State
   const [questionText, setQuestionText] = useState("");
   const [answering, setAnswering] = useState(false);
+  const [freeQuestionsCount, setFreeQuestionsCount] = useState(0);
+  const MAX_FREE_QUESTIONS = 3;
+
+  const [isUpayeUnlocked, setIsUpayeUnlocked] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [utrNumber, setUtrNumber] = useState("");
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState(false);
+
   const [qaHistory, setQaHistory] = useState<Array<{ q: string; a: string; time: string }>>([
     {
       q: "Kya dono profiles me Manglik dosha compatible hai?",
-      a: "Vedic analysis ke anusar dono kundliyon me manglik prabhav santulit hai aur kisi vishesh shanti ya dosha nivaran ki aavashyakta nahi hai.",
+      a: "Vedic ganana ke anusar dono kundliyon me manglik prabhav santulit hai. Dosh vivaran upar scorecard me uplabdh hai.",
       time: "Recent Query",
     },
   ]);
@@ -118,9 +132,16 @@ export default function AstrologyPage() {
     e.preventDefault();
     if (!questionText.trim() || !selectedCandidateId) return;
 
+    // Check free question limit
+    if (freeQuestionsCount >= MAX_FREE_QUESTIONS && !isUpayeUnlocked) {
+      setShowPaymentModal(true);
+      return;
+    }
+
     const q = questionText.trim();
     setQuestionText("");
     setAnswering(true);
+    setFreeQuestionsCount((prev) => prev + 1);
 
     try {
       const res = await fetch("/api/ai/astrology", {
@@ -154,16 +175,29 @@ export default function AstrologyPage() {
     }
   }
 
+  // Handle ₹99 Payment Unlock
+  function handleUnlockPayment(e: React.FormEvent) {
+    e.preventDefault();
+    setVerifyingPayment(true);
+    setTimeout(() => {
+      setVerifyingPayment(false);
+      setIsUpayeUnlocked(true);
+      setPaymentSuccessMessage(true);
+      setTimeout(() => {
+        setShowPaymentModal(false);
+        setPaymentSuccessMessage(false);
+      }, 2000);
+    }, 1500);
+  }
+
   const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId);
 
   return (
     <div className="min-h-screen bg-[#FAF6EF] flex flex-col font-sans">
-      <Navbar />
-
       {/* Hero Banner */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#4A121A] via-[#380D13] to-[#25050A] text-white py-14 sm:py-18 border-b border-[#C5A059]/40">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#DFBA73_1px,transparent_1px)] [background-size:16px_16px]" />
-        
+
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 text-center space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#DFBA73]/50 bg-[#DFBA73]/10 px-4 py-1.5 text-xs font-semibold text-[#DFBA73] backdrop-blur-md">
             <Sparkles className="h-4 w-4 text-[#DFBA73]" />
@@ -485,28 +519,29 @@ export default function AstrologyPage() {
                   </div>
                 </div>
 
-                {/* Dedicated Lal Kitab Dosha & Upaye Section */}
+                {/* Lal Kitab Dosha & ₹99 Remedies Paywall Section */}
                 {matchResult.lalKitabData && (
-                  <div className="rounded-2xl bg-gradient-to-br from-[#FAF5EB] to-[#FAF0DC] border-2 border-[#C5A059]/50 p-6 space-y-5">
+                  <div className="rounded-2xl bg-gradient-to-br from-[#FAF5EB] to-[#FAF0DC] border-2 border-[#C5A059]/50 p-6 space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2D4BE] pb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-lg">📖</span>
                         <h4 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
-                          Lal Kitab Dosh & Upaye (लाल किताब दोष एवं अचूक उपाय)
+                          Lal Kitab Dosh & Upaye (लाल किताब दोष एवं उपाय)
                         </h4>
                       </div>
                       <span className="text-xs font-semibold text-[#7A5835] bg-white px-3 py-1 rounded-full border border-[#DACBB4]">
-                        Authentic Lal Kitab Vedic Remedial System
+                        Authentic Vedic Remedial Analysis
                       </span>
                     </div>
 
-                    {/* Detected Doshas List */}
+                    {/* Detected Doshas List (Always Free to View Dosh Status) */}
                     {matchResult.lalKitabData.doshas?.length > 0 ? (
                       <div className="space-y-4">
                         {matchResult.lalKitabData.doshas.map((dosh: any, idx: number) => (
-                          <div key={idx} className="rounded-xl bg-white border border-[#DACBB4] p-4 space-y-2.5">
+                          <div key={idx} className="rounded-xl bg-white border border-[#DACBB4] p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-sm text-[#4A121A]">
+                              <span className="font-bold text-sm text-[#4A121A] flex items-center gap-1.5">
+                                <AlertTriangle className="h-4 w-4 text-amber-600" />
                                 {dosh.hindiName} ({dosh.name})
                               </span>
                               <span
@@ -518,22 +553,58 @@ export default function AstrologyPage() {
                                     : "bg-amber-100 text-amber-800"
                                 }`}
                               >
-                                {dosh.severity === "Resolved" ? "✓ Shubh / Cancelled" : `${dosh.severity} Priority`}
+                                {dosh.severity === "Resolved" ? "✓ Shubh / Cancelled" : `${dosh.severity} Priority Dosh`}
                               </span>
                             </div>
 
                             <p className="text-xs text-[#5A4E48]">{dosh.description}</p>
 
-                            <div className="rounded-lg bg-[#FAF8F5] p-3 border border-[#E8DCC8] space-y-1.5">
-                              <span className="text-xs font-bold text-[#7A1F2D] block">
-                                🪔 Lal Kitab Upaye (निवारण उपाय):
-                              </span>
-                              <ul className="space-y-1 text-xs text-[#4A3E39] list-disc list-inside">
-                                {dosh.remedies.map((rem: string, rIdx: number) => (
-                                  <li key={rIdx}>{rem}</li>
-                                ))}
-                              </ul>
-                            </div>
+                            {/* REMEDY / UPAYE SECTION - PAYWALLED IF NOT UNLOCKED */}
+                            {isUpayeUnlocked ? (
+                              <div className="rounded-lg bg-[#FAF8F5] p-3.5 border border-[#C5A059]/60 space-y-2 animate-fadeIn">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-[#7A1F2D] flex items-center gap-1.5">
+                                    <Unlock className="h-3.5 w-3.5 text-emerald-600" />
+                                    Lal Kitab Achook Upaye (निवारण उपाय - Unlocked):
+                                  </span>
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                                    ✓ Premium Unlocked
+                                  </span>
+                                </div>
+                                <ul className="space-y-1.5 text-xs text-[#4A3E39] list-disc list-inside">
+                                  {dosh.remedies.map((rem: string, rIdx: number) => (
+                                    <li key={rIdx} className="leading-relaxed">{rem}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <div className="relative overflow-hidden rounded-xl border border-[#E2D4BE] bg-[#FAF8F5] p-4 text-center">
+                                {/* Blurred Fake Content */}
+                                <div className="filter blur-xs select-none opacity-40 text-xs space-y-1 text-left">
+                                  <p>• Neem ke ped ki jad me kacha doodh arpit karein aur shanti mantra jaap karein...</p>
+                                  <p>• Chandi ka bina jod wala chhalla dharan karein aur mangalwar ko daan karein...</p>
+                                </div>
+
+                                {/* Paywall Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent flex flex-col items-center justify-center p-3 gap-2">
+                                  <div className="flex items-center gap-1 text-xs font-bold text-[#4A121A]">
+                                    <Lock className="h-3.5 w-3.5 text-[#C5A059]" />
+                                    <span>Lal Kitab Achook Upaye (Locked)</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 max-w-sm">
+                                    Is dosha ka step-by-step Lal Kitab upaye, daan vidhi aur mantra report unlock karein.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPaymentModal(true)}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#4A121A] to-[#6A1A26] px-5 py-2 text-xs font-bold text-[#DFBA73] shadow hover:scale-105 transition"
+                                  >
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    <span>Unlock Lal Kitab Upaye @ ₹99 Only</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -542,18 +613,6 @@ export default function AstrologyPage() {
                         ✓ Dono kundliyon me koi bada grah dosha nahi paya gaya. Milan shanti aur samridhi dayak hai.
                       </div>
                     )}
-
-                    {/* Universal Blessings Upaye */}
-                    <div className="rounded-xl bg-white/80 p-4 border border-[#DACBB4] space-y-1.5">
-                      <span className="text-xs font-bold text-[#4A121A] block">
-                        🌸 Sadabahar Vaivahik Sukh Upaye (General Marriage Harmony):
-                      </span>
-                      <ul className="space-y-1 text-xs text-[#5A4E48] list-disc list-inside">
-                        {matchResult.lalKitabData.universalRemedies.map((rem: string, uIdx: number) => (
-                          <li key={uIdx}>{rem}</li>
-                        ))}
-                      </ul>
-                    </div>
                   </div>
                 )}
               </div>
@@ -562,24 +621,32 @@ export default function AstrologyPage() {
 
           {/* Interactive Astrological Q&A Section */}
           <div className="rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-md space-y-6">
-            <div className="flex items-center gap-3 border-b border-[#EFE5D6] pb-4">
-              <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
-                <Bot className="h-5 w-5 text-[#4A121A]" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EFE5D6] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
+                  <Bot className="h-5 w-5 text-[#4A121A]" />
+                </div>
+                <div>
+                  <h3 className="font-serif-luxury text-xl font-bold text-[#4A121A]">
+                    Ask Astrological Question About This Profile
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Ask regarding Dosha, Guna Milan, or planetary balance without phoning!
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-serif-luxury text-xl font-bold text-[#4A121A]">
-                  Ask AI Astrologer About This Profile
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Ask any question about Kundli compatibility, Manglik dosha, Gotra, or birth time without needing to call!
-                </p>
-              </div>
+
+              {!isUpayeUnlocked && (
+                <div className="text-xs text-[#7A5835] bg-[#FAF0DC] px-3.5 py-1.5 rounded-full border border-[#DACBB4] font-semibold">
+                  Free Questions: {Math.max(0, MAX_FREE_QUESTIONS - freeQuestionsCount)} / {MAX_FREE_QUESTIONS} Left
+                </div>
+              )}
             </div>
 
             {/* Suggested Question Chips */}
             <div className="flex flex-wrap gap-2">
               {[
-                "Kya Manglik dosha remedy ki zaroorat hai?",
+                "Kya is Kundli me koi bada Dosh hai?",
                 "Gun milan aur future compatibility kaisi rahegi?",
                 "Career and family harmony analysis kya kehta hai?",
                 "Is profile ki exact birth time and place record verify karein",
@@ -626,7 +693,7 @@ export default function AstrologyPage() {
                     <span className="text-[11px] text-gray-400 font-mono">{item.time}</span>
                   </div>
                   <div className="rounded-xl bg-white p-3.5 border border-[#DACBB4] text-xs sm:text-sm text-[#4A3E39] leading-relaxed">
-                    <span className="font-bold text-[#4A121A] block mb-1">✨ AI Astrological Verdict:</span>
+                    <span className="font-bold text-[#4A121A] block mb-1">✨ Astrological Verdict:</span>
                     {item.a}
                   </div>
                 </div>
@@ -636,6 +703,107 @@ export default function AstrologyPage() {
 
         </div>
       </main>
+
+      {/* ₹99 Lal Kitab Remedies Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-6 animate-scaleUp">
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              className="absolute top-4 right-4 rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {paymentSuccessMessage ? (
+              <div className="py-8 text-center space-y-3">
+                <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="h-8 w-8" />
+                </div>
+                <h3 className="font-serif-luxury text-2xl font-bold text-gray-900">
+                  Lal Kitab Remedies Unlocked!
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Aapki complete Lal Kitab Upaye & remedies report successfully unlock ho chuki hai.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleUnlockPayment} className="space-y-5">
+                <div className="text-center space-y-1">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF0DC] px-3 py-1 text-xs font-bold text-[#4A121A] border border-[#DACBB4] mb-2">
+                    <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
+                    <span>Lal Kitab Premium Remedial Report</span>
+                  </div>
+                  <h3 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
+                    Unlock Lal Kitab Upaye
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    Get customized remedies, dosha nivaran guidelines & unlimited questions.
+                  </p>
+                </div>
+
+                {/* Price Display */}
+                <div className="rounded-2xl bg-[#FAF0DC] border border-[#DACBB4] p-4 text-center">
+                  <span className="text-xs text-gray-600 font-semibold uppercase block">One-Time Fee</span>
+                  <div className="flex items-baseline justify-center gap-1 my-0.5">
+                    <span className="font-serif-luxury text-4xl font-extrabold text-[#4A121A]">₹99</span>
+                    <span className="text-xs text-gray-500 line-through">₹499</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-700">Instant Access & Complete Report</span>
+                </div>
+
+                {/* QR Code */}
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-center space-y-2">
+                  <p className="text-xs font-bold text-gray-700">Scan QR Code via Any UPI App:</p>
+                  <div className="h-44 w-44 mx-auto rounded-xl overflow-hidden border border-gray-300 bg-white p-2">
+                    <img
+                      src="/payment-qr.jpeg"
+                      alt="UPI QR Code"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <p className="font-mono text-xs font-bold text-[#4A121A]">
+                    UPI ID: narnaarivivahsewa@okicici
+                  </p>
+                </div>
+
+                {/* UPI Direct Link */}
+                <a
+                  href="upi://pay?pa=narnaarivivahsewa@okicici&pn=RishteClub%20Astrology&am=99&cu=INR"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>Pay ₹99 on GPay / PhonePe / Paytm</span>
+                </a>
+
+                {/* UTR Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    UPI Ref / UTR No. (12 Digits)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={utrNumber}
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    placeholder="Enter 12-digit UTR after payment"
+                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={verifyingPayment || !utrNumber.trim()}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380D13] transition disabled:opacity-50"
+                >
+                  <Unlock className="h-4 w-4 text-[#DFBA73]" />
+                  <span>{verifyingPayment ? "Verifying..." : "Verify & Unlock Upaye"}</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

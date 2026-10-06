@@ -157,8 +157,6 @@ export default function ServicesPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF6EF] flex flex-col font-sans">
-      <Navbar />
-
       {/* Hero Banner */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#4A121A] via-[#380D13] to-[#25050A] text-white py-16 sm:py-20 border-b border-[#C5A059]/40">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#DFBA73_1px,transparent_1px)] [background-size:16px_16px]" />

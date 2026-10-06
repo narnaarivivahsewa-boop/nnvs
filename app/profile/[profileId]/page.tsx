@@ -701,11 +701,24 @@ export default function ProfileDetailsPage() {
                 </form>
 
                 {astroAnswer && (
-                  <div className="rounded-xl bg-[#FAF0DC]/80 border border-[#DACBB4] p-3.5 text-xs text-[#380D13] leading-relaxed animate-fadeIn">
-                    <span className="font-bold text-[#4A121A] block mb-1">
-                      ✨ AI Astrologer Response:
-                    </span>
-                    {astroAnswer}
+                  <div className="rounded-xl bg-[#FAF0DC]/80 border border-[#DACBB4] p-3.5 text-xs text-[#380D13] leading-relaxed animate-fadeIn space-y-2">
+                    <div>
+                      <span className="font-bold text-[#4A121A] block mb-1">
+                        ✨ Astrological Analysis:
+                      </span>
+                      {astroAnswer}
+                    </div>
+                    <div className="pt-2 border-t border-[#DACBB4] flex items-center justify-between">
+                      <span className="text-[11px] text-[#7A5835] font-semibold">
+                        🔒 Lal Kitab Upaye & Dosh Nivaran Report @ ₹99
+                      </span>
+                      <Link
+                        href="/astrology"
+                        className="rounded-lg bg-[#4A121A] px-3 py-1 text-[11px] font-bold text-[#DFBA73] hover:bg-[#380D13] transition"
+                      >
+                        View & Unlock Upaye →
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>
