@@ -484,6 +484,78 @@ export default function AstrologyPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Dedicated Lal Kitab Dosha & Upaye Section */}
+                {matchResult.lalKitabData && (
+                  <div className="rounded-2xl bg-gradient-to-br from-[#FAF5EB] to-[#FAF0DC] border-2 border-[#C5A059]/50 p-6 space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2D4BE] pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">📖</span>
+                        <h4 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                          Lal Kitab Dosh & Upaye (लाल किताब दोष एवं अचूक उपाय)
+                        </h4>
+                      </div>
+                      <span className="text-xs font-semibold text-[#7A5835] bg-white px-3 py-1 rounded-full border border-[#DACBB4]">
+                        Authentic Lal Kitab Vedic Remedial System
+                      </span>
+                    </div>
+
+                    {/* Detected Doshas List */}
+                    {matchResult.lalKitabData.doshas?.length > 0 ? (
+                      <div className="space-y-4">
+                        {matchResult.lalKitabData.doshas.map((dosh: any, idx: number) => (
+                          <div key={idx} className="rounded-xl bg-white border border-[#DACBB4] p-4 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-[#4A121A]">
+                                {dosh.hindiName} ({dosh.name})
+                              </span>
+                              <span
+                                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                                  dosh.severity === "Resolved"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : dosh.severity === "High"
+                                    ? "bg-rose-100 text-rose-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {dosh.severity === "Resolved" ? "✓ Shubh / Cancelled" : `${dosh.severity} Priority`}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-[#5A4E48]">{dosh.description}</p>
+
+                            <div className="rounded-lg bg-[#FAF8F5] p-3 border border-[#E8DCC8] space-y-1.5">
+                              <span className="text-xs font-bold text-[#7A1F2D] block">
+                                🪔 Lal Kitab Upaye (निवारण उपाय):
+                              </span>
+                              <ul className="space-y-1 text-xs text-[#4A3E39] list-disc list-inside">
+                                {dosh.remedies.map((rem: string, rIdx: number) => (
+                                  <li key={rIdx}>{rem}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-white border border-emerald-200 p-4 text-xs text-emerald-800 font-medium">
+                        ✓ Dono kundliyon me koi bada grah dosha nahi paya gaya. Milan shanti aur samridhi dayak hai.
+                      </div>
+                    )}
+
+                    {/* Universal Blessings Upaye */}
+                    <div className="rounded-xl bg-white/80 p-4 border border-[#DACBB4] space-y-1.5">
+                      <span className="text-xs font-bold text-[#4A121A] block">
+                        🌸 Sadabahar Vaivahik Sukh Upaye (General Marriage Harmony):
+                      </span>
+                      <ul className="space-y-1 text-xs text-[#5A4E48] list-disc list-inside">
+                        {matchResult.lalKitabData.universalRemedies.map((rem: string, uIdx: number) => (
+                          <li key={uIdx}>{rem}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
