@@ -549,8 +549,18 @@ export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Pr
  * 4. Never Married Male
  */
 export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
-  const gender = String(profile.user?.gender || "MALE").toUpperCase().trim();
-  const isFemale = gender === "FEMALE";
+  const legacy = String(profile.legacyProfileId || "").toUpperCase().trim();
+  let isFemale: boolean;
+
+  if (legacy.includes("-G-") || legacy.startsWith("NNVS-G") || legacy.startsWith("G-") || legacy.startsWith("G0")) {
+    isFemale = true;
+  } else if (legacy.includes("-B-") || legacy.startsWith("NNVS-B") || legacy.startsWith("B-") || legacy.startsWith("B0")) {
+    isFemale = false;
+  } else {
+    const gender = String(profile.user?.gender || "MALE").toUpperCase().trim();
+    isFemale = gender === "FEMALE";
+  }
+
   const ms = String(profile.maritalStatus || "").toLowerCase().trim();
 
   const isDivorcedOrWidowOrAnnulled =

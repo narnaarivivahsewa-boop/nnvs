@@ -290,9 +290,16 @@ export async function POST(req: NextRequest) {
         fullName = legacyProfileId ? `Applicant (${legacyProfileId})` : `Applicant (Row ${rowIndex})`;
       }
 
-      const email = row.email ? String(row.email).trim().toLowerCase() : null;
-      const genderStr = String(row.gender || "").toLowerCase().trim();
-      const gender = genderStr === "female" ? "FEMALE" : "MALE";
+      const upperLegacy = (legacyProfileId || "").toUpperCase();
+      let gender: "MALE" | "FEMALE";
+      if (upperLegacy.includes("-G-") || upperLegacy.startsWith("NNVS-G") || upperLegacy.startsWith("G-") || upperLegacy.startsWith("G0")) {
+        gender = "FEMALE";
+      } else if (upperLegacy.includes("-B-") || upperLegacy.startsWith("NNVS-B") || upperLegacy.startsWith("B-") || upperLegacy.startsWith("B0")) {
+        gender = "MALE";
+      } else {
+        const genderStr = String(row.gender || "").toLowerCase().trim();
+        gender = genderStr === "female" ? "FEMALE" : "MALE";
+      }
 
       // Check for Existing Records in Database by sourceId (the exact row)
       let existingProfile = null;

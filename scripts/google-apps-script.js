@@ -520,9 +520,19 @@ function getCategoryDriveFolder(categoryName) {
  * - Never Married Female
  * - Never Married Male
  */
-function determineCategoryFolder(gender, maritalStatus) {
-  const g = String(gender || 'MALE').toUpperCase().trim();
-  const isFemale = g === 'FEMALE';
+function determineCategoryFolder(gender, maritalStatus, legacyProfileId) {
+  const legacy = String(legacyProfileId || '').toUpperCase().trim();
+  let isFemale = false;
+
+  if (legacy.indexOf('-G-') !== -1 || legacy.indexOf('NNVS-G') === 0 || legacy.indexOf('G-') === 0 || legacy.indexOf('G0') === 0) {
+    isFemale = true;
+  } else if (legacy.indexOf('-B-') !== -1 || legacy.indexOf('NNVS-B') === 0 || legacy.indexOf('B-') === 0 || legacy.indexOf('B0') === 0) {
+    isFemale = false;
+  } else {
+    const g = String(gender || 'MALE').toUpperCase().trim();
+    isFemale = g === 'FEMALE';
+  }
+
   const ms = String(maritalStatus || '').toLowerCase().trim();
 
   const isDivorcedOrWidowOrAnnulled =
@@ -562,7 +572,7 @@ function saveBiodataPdfToDrive(profileId, legacyProfileId, candidateName, gender
       return null;
     }
 
-    const category = determineCategoryFolder(gender, maritalStatus);
+    const category = determineCategoryFolder(gender, maritalStatus, legacyProfileId);
     const targetFolder = getCategoryDriveFolder(category);
 
     const safeName = (candidateName || 'Candidate').replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, '_').trim();
