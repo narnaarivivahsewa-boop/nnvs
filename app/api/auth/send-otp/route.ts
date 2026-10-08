@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOTPExpiry, maskMobileNumber } from "@/lib/auth/otp";
+import { getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
 import { sendTwoFactorOTP } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
@@ -126,11 +126,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Send Real SMS via 2Factor AUTOGEN (Rishteclub Registration OTP)
+    // 5. Send Strictly SMS OTP via 2Factor AUTOGEN2
     // ===========================
     const smsResult = await sendTwoFactorOTP(cleanMobile);
 
-    if (!smsResult.success) {
+    if (!smsResult.success || !smsResult.otp) {
       console.error("2Factor send OTP failed:", smsResult.error);
       return NextResponse.json(
         {
@@ -141,10 +141,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const hashedOTP = hashOTP(smsResult.otp);
     const expiresAt = getOTPExpiry();
 
     // ===========================
-    // 6. Save Session in DB
+    // 6. Save Hashed OTP in DB
     // ===========================
     await prisma.oTP.deleteMany({
       where: {
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: smsResult.sessionId || "2FACTOR_AUTOGEN",
+        code: hashedOTP,
         type: otpType,
         expiresAt,
         verified: false,
@@ -165,7 +166,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `OTP has been sent to +91 ${maskMobileNumber(cleanMobile)} via SMS.`,
+      message: `OTP sent via SMS to +91 ${maskMobileNumber(cleanMobile)}.`,
       maskedMobile: `+91 ${maskMobileNumber(cleanMobile)}`,
     });
   } catch (error) {

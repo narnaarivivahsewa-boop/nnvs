@@ -1,5 +1,5 @@
 /**
- * 2Factor.in SMS Gateway Integration
+ * 2Factor.in SMS Gateway Integration (STRICTLY SMS ONLY - NO VOICE CALLS)
  * Template: "Rishteclub Registration OTP"
  * Sender ID: "Rishte"
  * Approved Template Text: "XXXX is Your OTP Rishteclub. Please do not share this OTP with anyone."
@@ -7,13 +7,8 @@
 
 export interface SendSMSResult {
   success: boolean;
+  otp?: string;
   sessionId?: string;
-  message?: string;
-  error?: string;
-}
-
-export interface VerifySMSResult {
-  success: boolean;
   message?: string;
   error?: string;
 }
@@ -41,8 +36,8 @@ export async function sendTwoFactorOTP(
   }
 
   const templateName = encodeURIComponent("Rishteclub Registration OTP");
-  // 2Factor DLT-compliant AUTOGEN endpoint
-  const url = `https://2factor.in/API/V1/${apiKey}/SMS/${cleanMobile}/AUTOGEN/${templateName}`;
+  // AUTOGEN2 is the STRICTLY SMS ONLY endpoint on 2Factor (no voice calls / fallback)
+  const url = `https://2factor.in/API/V1/${apiKey}/SMS/${cleanMobile}/AUTOGEN2/${templateName}`;
 
   try {
     const controller = new AbortController();
@@ -57,9 +52,10 @@ export async function sendTwoFactorOTP(
 
     const data = await response.json();
 
-    if (data && data.Status === "Success") {
+    if (data && data.Status === "Success" && data.OTP) {
       return {
         success: true,
+        otp: String(data.OTP),
         sessionId: data.Details,
         message: "OTP sent successfully via SMS",
       };
@@ -82,59 +78,6 @@ export async function sendTwoFactorOTP(
     return {
       success: false,
       error: "Unable to reach SMS gateway. Please try again.",
-    };
-  }
-}
-
-export async function verifyTwoFactorOTP(
-  mobile: string,
-  otp: string,
-  sessionId?: string
-): Promise<VerifySMSResult> {
-  const apiKey = process.env.TWOFACTOR_API_KEY;
-
-  if (!apiKey) {
-    return {
-      success: false,
-      error: "SMS service not configured",
-    };
-  }
-
-  const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
-  const cleanOtp = otp.trim();
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    // Primary: VERIFY3 by mobile number
-    const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY3/${cleanMobile}/${cleanOtp}`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    const data = await response.json();
-
-    if (data && data.Status === "Success" && data.Details === "OTP Matched") {
-      return {
-        success: true,
-        message: "OTP verified successfully",
-      };
-    } else {
-      return {
-        success: false,
-        error: data?.Details === "OTP Mismatch" ? "Incorrect OTP. Please check the SMS and enter the valid 6-digit code." : (data?.Details || "OTP verification failed"),
-      };
-    }
-  } catch (err: any) {
-    console.error("2Factor verify API error:", err);
-    return {
-      success: false,
-      error: "Unable to verify OTP with SMS gateway. Please try again.",
     };
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashOTP } from "@/lib/auth/otp";
 import { generateToken } from "@/lib/jwt";
-import { verifyTwoFactorOTP } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,14 +67,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify OTP directly via 2Factor Gateway
-    const verifyResult = await verifyTwoFactorOTP(cleanMobile, otp, otpRecord.code);
-
-    if (!verifyResult.success) {
+    // Verify OTP Hash
+    if (otpRecord.code !== hashOTP(otp)) {
       return NextResponse.json(
         {
           success: false,
-          message: verifyResult.error || "Incorrect OTP. Please enter the valid code received on SMS.",
+          message: "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
       );
