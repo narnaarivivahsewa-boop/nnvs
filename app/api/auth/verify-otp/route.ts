@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hashOTP } from "@/lib/auth/otp";
 import { generateToken } from "@/lib/jwt";
+import { verifyTwoFactorOTP } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!/^\d{6}$/.test(otp)) {
+    if (!/^\d{4,6}$/.test(otp)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Please enter the 6-digit OTP received via SMS.",
+          message: "Please enter the valid OTP received via SMS.",
         },
         { status: 400 }
       );
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "No pending OTP found. Please request a new OTP.",
+          message: "No pending OTP found. Please click Resend OTP.",
         },
         { status: 404 }
       );
@@ -67,17 +67,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (otpRecord.code !== hashOTP(otp)) {
+    // Verify OTP directly via 2Factor Gateway
+    const verifyResult = await verifyTwoFactorOTP(cleanMobile, otp, otpRecord.code);
+
+    if (!verifyResult.success) {
       return NextResponse.json(
         {
           success: false,
-          message: "Incorrect OTP. Please enter the valid 6-digit OTP.",
+          message: verifyResult.error || "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
       );
     }
 
-    // Mark verified
+    // Mark verified in DB
     await prisma.oTP.update({
       where: {
         id: otpRecord.id,

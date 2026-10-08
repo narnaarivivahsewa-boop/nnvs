@@ -214,8 +214,43 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Mode Switcher Tabs */}
+        <div className="mt-6 grid grid-cols-2 p-1.5 bg-[#F0E6D6] rounded-2xl border border-[#DACBB4]">
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMode("PASSWORD");
+              setMessage("");
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              loginMode === "PASSWORD"
+                ? "bg-[#4A121A] text-white shadow-md"
+                : "text-[#5A4E48] hover:text-[#2D221E]"
+            }`}
+          >
+            <Lock className="h-4 w-4 text-[#DFBA73]" />
+            <span>Password Login</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMode("OTP");
+              setMessage("");
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              loginMode === "OTP"
+                ? "bg-[#4A121A] text-white shadow-md"
+                : "text-[#5A4E48] hover:text-[#2D221E]"
+            }`}
+          >
+            <Phone className="h-4 w-4 text-[#DFBA73]" />
+            <span>OTP Login</span>
+          </button>
+        </div>
+
         {/* Container */}
-        <div className="mt-8 space-y-5">
+        <div className="mt-6 space-y-5">
           {/* ========================================================= */}
           {/* 1. DEFAULT: PASSWORD LOGIN (All Members & Admin) */}
           {/* ========================================================= */}

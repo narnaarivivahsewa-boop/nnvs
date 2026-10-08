@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  generateOTP,
-  getOTPExpiry,
-  hashOTP,
-  maskMobileNumber,
-} from "@/lib/auth/otp";
+import { getOTPExpiry, maskMobileNumber } from "@/lib/auth/otp";
 import { sendTwoFactorOTP } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
@@ -111,7 +106,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Hourly Limit: Max 6 OTPs per mobile per hour
+    // Hourly Limit: Max 8 OTPs per mobile per hour
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const hourlyCount = await prisma.oTP.count({
       where: {
@@ -120,7 +115,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (hourlyCount >= 6) {
+    if (hourlyCount >= 8) {
       return NextResponse.json(
         {
           success: false,
@@ -131,16 +126,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Generate OTP & Expiry
+    // 5. Send Real SMS via 2Factor AUTOGEN (Rishteclub Registration OTP)
     // ===========================
-    const otp = generateOTP();
-    const hashedOTP = hashOTP(otp);
-    const expiresAt = getOTPExpiry();
-
-    // ===========================
-    // 6. Send SMS via 2Factor.in
-    // ===========================
-    const smsResult = await sendTwoFactorOTP(cleanMobile, otp);
+    const smsResult = await sendTwoFactorOTP(cleanMobile);
 
     if (!smsResult.success) {
       console.error("2Factor send OTP failed:", smsResult.error);
@@ -153,8 +141,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const expiresAt = getOTPExpiry();
+
     // ===========================
-    // 7. Save Hashed OTP in DB
+    // 6. Save Session in DB
     // ===========================
     await prisma.oTP.deleteMany({
       where: {
@@ -166,7 +156,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: hashedOTP,
+        code: smsResult.sessionId || "2FACTOR_AUTOGEN",
         type: otpType,
         expiresAt,
         verified: false,
@@ -175,7 +165,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `OTP has been sent to +91 ${maskMobileNumber(cleanMobile)}.`,
+      message: `OTP has been sent to +91 ${maskMobileNumber(cleanMobile)} via SMS.`,
       maskedMobile: `+91 ${maskMobileNumber(cleanMobile)}`,
     });
   } catch (error) {
