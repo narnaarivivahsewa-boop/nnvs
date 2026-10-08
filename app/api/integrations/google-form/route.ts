@@ -500,11 +500,8 @@ export async function POST(req: NextRequest) {
           websiteProfileId = candidateId;
         }
 
-        const lowerName = (fullName || "").toLowerCase();
-        const isExcludedFromLive = lowerName.includes("monus malhotra") || 
-                                   (lowerName.includes("lokesh") && lowerName.includes("anand")) ||
-                                   sourceId?.includes("row_627") || 
-                                   sourceId?.includes("row_630");
+        // All new Google Form submissions require Admin Approval and are NOT live by default
+        const isLegacyApproved = existingProfile && existingProfile.approvalStatus === "APPROVED" && existingProfile.isVisible;
 
         const profileData: any = {
           firstName: fullName.split(" ")[0] || fullName,
@@ -521,14 +518,16 @@ export async function POST(req: NextRequest) {
           consentGeneral,
           otherMatrimonyInfo,
           notes,
-          paymentRemark: isExcludedFromLive ? "Pending Admin Approval & Fee Verification" : (paymentRemark || "NNVS Old Profile - Fees Exempted"),
+          paymentRemark: isLegacyApproved
+            ? (paymentRemark || existingProfile?.paymentRemark || "Google Form Sync")
+            : (paymentRemark || "Google Form New Submission - Pending Admin Approval & Verification"),
           source: "GOOGLE_FORM",
           sourceId,
           legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
-          isVisible: !isExcludedFromLive,
-          paymentCompleted: !isExcludedFromLive,
-          approvalStatus: isExcludedFromLive ? "UNDER_REVIEW" : "APPROVED",
-          approvedAt: isExcludedFromLive ? null : new Date(),
+          isVisible: isLegacyApproved ? true : false,
+          paymentCompleted: isLegacyApproved ? true : false,
+          approvalStatus: isLegacyApproved ? "APPROVED" : "UNDER_REVIEW",
+          approvedAt: isLegacyApproved ? (existingProfile?.approvedAt || new Date()) : null,
           isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
           duplicateNotes: isSharedMobileApplicant
             ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
@@ -695,8 +694,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless pending review profiles)
-        if (!isExcludedFromLive && userId) {
+        // 9. Payment Record for Google Form Imports (Only existing approved legacy profiles get auto payment-exempt record)
+        if (isLegacyApproved && userId) {
           const existingPayment = await prisma.payment.findFirst({
             where: {
               OR: [
