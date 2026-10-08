@@ -13,6 +13,7 @@ import {
   EyeOff,
   RotateCcw,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -20,23 +21,25 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "";
 
-  // Active Tab: 'OTP' or 'PASSWORD' (Admin)
-  const [loginMode, setLoginMode] = useState<"OTP" | "PASSWORD">("OTP");
+  // Mode: 'PASSWORD' (Default for all users & admin) or 'OTP' (Alternative/Fallback)
+  const [loginMode, setLoginMode] = useState<"PASSWORD" | "OTP">("PASSWORD");
+
+  // Password Login State
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // OTP Login State
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  // Password / Admin Login State
-  const [adminUsername, setAdminUsername] = useState("9871592002");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  // General State
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  // Timer countdown effect for Resend OTP
+  // Countdown timer for Resend OTP
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (resendTimer > 0) {
@@ -47,7 +50,63 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // Send OTP
+  // ==========================================
+  // 1. PRIMARY: PASSWORD LOGIN (Admin & Members)
+  // ==========================================
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+
+    if (!username.trim()) {
+      setMessage("Please enter your registered mobile number or username.");
+      return;
+    }
+
+    if (!password.trim()) {
+      setMessage("Please enter your password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const res = await fetch("/api/auth/login-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage(data.message || "Invalid credentials. Please check your mobile/password.");
+        return;
+      }
+
+      setMessage("Login Successful! Redirecting...");
+
+      setTimeout(() => {
+        if (redirectUrl) {
+          router.push(redirectUrl);
+        } else if (data.role === "ADMIN") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
+      }, 400);
+    } catch {
+      setMessage("An unexpected error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+  // 2. ALTERNATIVE: OTP LOGIN
+  // ==========================================
   const handleSendOTP = async () => {
     setMessage("");
 
@@ -76,10 +135,10 @@ export default function LoginPage() {
       }
 
       setOtpSent(true);
-      setResendTimer(30); // 30 seconds cooldown
+      setResendTimer(30);
       setMessage(
         data.development
-          ? "OTP sent! (In dev mode, check server terminal for code)"
+          ? "OTP sent! (In dev mode, check server terminal for OTP)"
           : "OTP sent successfully to your mobile number."
       );
     } catch {
@@ -89,7 +148,6 @@ export default function LoginPage() {
     }
   };
 
-  // Verify OTP
   const handleVerifyOTP = async () => {
     setMessage("");
 
@@ -128,61 +186,9 @@ export default function LoginPage() {
         } else {
           router.push("/dashboard");
         }
-      }, 500);
+      }, 400);
     } catch {
       setMessage("Something went wrong while verifying OTP.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Admin Password Login (Without OTP)
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("");
-
-    if (!adminUsername.trim()) {
-      setMessage("Please enter your Admin username or mobile number.");
-      return;
-    }
-
-    if (!adminPassword.trim()) {
-      setMessage("Please enter your Admin password.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/auth/login-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: adminUsername,
-          password: adminPassword,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessage(data.message || "Invalid Admin credentials.");
-        return;
-      }
-
-      setMessage("Admin Login Successful! Redirecting to Dashboard...");
-
-      setTimeout(() => {
-        if (redirectUrl) {
-          router.push(redirectUrl);
-        } else if (data.role === "ADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
-      }, 500);
-    } catch {
-      setMessage("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -201,57 +207,117 @@ export default function LoginPage() {
             />
           </Link>
 
-          <h1 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
-            RishteClub Login
+          <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#4A121A]">
+            {loginMode === "PASSWORD" ? "Sign In with Password" : "Login with Mobile OTP"}
           </h1>
 
-          <p className="mt-1 text-xs text-[#5A4E48]">
-            Welcome back! Please sign in to access your matrimonial portal.
+          <p className="mt-1.5 text-xs text-[#5A4E48]">
+            {loginMode === "PASSWORD"
+              ? "Enter your registered mobile/username and password to continue."
+              : "Enter your registered mobile number to receive a secure login OTP."}
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="mt-6 flex rounded-2xl bg-[#EDE4D4] p-1.5 border border-[#DACBB4]">
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode("OTP");
-              setMessage("");
-            }}
-            className={`flex-1 rounded-xl py-2 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-              loginMode === "OTP"
-                ? "bg-[#4A121A] text-white shadow-sm"
-                : "text-[#5A4E48] hover:text-[#4A121A]"
-            }`}
-          >
-            <Phone className="h-3.5 w-3.5" />
-            <span>Mobile OTP Login</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode("PASSWORD");
-              setMessage("");
-            }}
-            className={`flex-1 rounded-xl py-2 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-              loginMode === "PASSWORD"
-                ? "bg-[#C5A059] text-white shadow-sm"
-                : "text-[#5A4E48] hover:text-[#4A121A]"
-            }`}
-          >
-            <Lock className="h-3.5 w-3.5" />
-            <span>Admin Password Login</span>
-          </button>
-        </div>
-
-        {/* Form Container */}
-        <div className="mt-6 space-y-5">
+        {/* Container */}
+        <div className="mt-8 space-y-5">
           {/* ========================================================= */}
-          {/* MODE 1: MOBILE OTP LOGIN */}
+          {/* 1. DEFAULT: PASSWORD LOGIN (All Members & Admin) */}
+          {/* ========================================================= */}
+          {loginMode === "PASSWORD" && (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              {/* Mobile / Username */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
+                  Mobile Number / Username
+                </label>
+
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter 10 digit mobile or username"
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-4 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-[#2D221E]">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginMode("OTP");
+                      setMobile(username.replace(/\D/g, ""));
+                      setMessage("");
+                    }}
+                    className="text-[11px] font-semibold text-[#C5A059] hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-11 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A7972] hover:text-[#4A121A]"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                <Lock className="h-4 w-4 text-[#DFBA73]" />
+                <span>{loading ? "Signing in..." : "Sign In with Password"}</span>
+              </button>
+
+              {/* Switch to OTP Login Option */}
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMode("OTP");
+                    setMobile(username.replace(/\D/g, ""));
+                    setMessage("");
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4A121A] hover:text-[#C5A059] transition hover:underline"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  <span>Login with Mobile OTP instead</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ========================================================= */}
+          {/* 2. ALTERNATIVE: MOBILE OTP LOGIN */}
           {/* ========================================================= */}
           {loginMode === "OTP" && (
-            <>
+            <div className="space-y-4">
               {/* Mobile Input */}
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
@@ -284,11 +350,11 @@ export default function LoginPage() {
                   className="w-full rounded-xl bg-[#4A121A] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   <Phone className="h-4 w-4 text-[#DFBA73]" />
-                  <span>{loading ? "Sending Secure OTP..." : "Send OTP"}</span>
+                  <span>{loading ? "Sending OTP..." : "Send Login OTP"}</span>
                 </button>
               )}
 
-              {/* OTP Input & Verification */}
+              {/* OTP Input & Verify */}
               {otpSent && (
                 <>
                   <div>
@@ -320,7 +386,7 @@ export default function LoginPage() {
                     <span>{loading ? "Verifying..." : "Verify OTP & Sign In"}</span>
                   </button>
 
-                  {/* Resend OTP & Change Mobile Row */}
+                  {/* Resend OTP & Change Number */}
                   <div className="flex items-center justify-between pt-1 text-xs">
                     <button
                       type="button"
@@ -352,77 +418,22 @@ export default function LoginPage() {
                   </div>
                 </>
               )}
-            </>
-          )}
 
-          {/* ========================================================= */}
-          {/* MODE 2: ADMIN PASSWORD LOGIN (BINA OTP) */}
-          {/* ========================================================= */}
-          {loginMode === "PASSWORD" && (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
-              <div className="rounded-xl bg-amber-50/70 p-3 border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-[#C5A059] shrink-0 mt-0.5" />
-                <span>
-                  Admin Portal Instant Login (No OTP required for authorized administrator).
-                </span>
+              {/* Back to Password Login */}
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMode("PASSWORD");
+                    setMessage("");
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4A121A] hover:text-[#C5A059] transition hover:underline"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>← Back to Password Login</span>
+                </button>
               </div>
-
-              {/* Username / Mobile */}
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
-                  Admin Username / Mobile
-                </label>
-
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
-                  <input
-                    type="text"
-                    value={adminUsername}
-                    onChange={(e) => setAdminUsername(e.target.value)}
-                    placeholder="Enter Admin Mobile / Username"
-                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-4 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
-                  Admin Password
-                </label>
-
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Enter Password"
-                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-11 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A7972] hover:text-[#4A121A]"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-[#4A121A] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                <Lock className="h-4 w-4 text-[#DFBA73]" />
-                <span>{loading ? "Signing in..." : "Sign In to Admin Portal"}</span>
-              </button>
-            </form>
+            </div>
           )}
 
           {/* Feedback Message */}
@@ -440,12 +451,13 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Footer link */}
+          {/* Footer link to Register */}
           <div className="pt-4 border-t border-[#E8DCC8] text-center space-y-2">
             <p className="text-xs text-[#5A4E48]">
               Don&apos;t have an account yet?{" "}
-              <Link href="/register" className="font-bold text-[#4A121A] hover:underline">
-                Register Candidate Profile
+              <Link href="/register" className="font-bold text-[#4A121A] hover:underline inline-flex items-center gap-1">
+                <span>Register Candidate Profile (One-time OTP)</span>
+                <ArrowRight className="h-3 w-3" />
               </Link>
             </p>
           </div>
