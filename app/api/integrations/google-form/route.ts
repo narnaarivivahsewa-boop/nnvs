@@ -492,6 +492,12 @@ export async function POST(req: NextRequest) {
           websiteProfileId = candidateId;
         }
 
+        const lowerName = (fullName || "").toLowerCase();
+        const isExcludedFromLive = lowerName.includes("monus malhotra") || 
+                                   (lowerName.includes("lokesh") && lowerName.includes("anand")) ||
+                                   sourceId?.includes("row_627") || 
+                                   sourceId?.includes("row_630");
+
         const profileData: any = {
           firstName: fullName.split(" ")[0] || fullName,
           lastName: fullName.split(" ").slice(1).join(" ") || null,
@@ -507,15 +513,14 @@ export async function POST(req: NextRequest) {
           consentGeneral,
           otherMatrimonyInfo,
           notes,
-          paymentRemark,
+          paymentRemark: isExcludedFromLive ? "Pending Admin Approval & Fee Verification" : (paymentRemark || "NNVS Old Profile - Fees Exempted"),
           source: "GOOGLE_FORM",
           sourceId,
           legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
-          // Google Form profiles are active, visible and approved on the website
-          isVisible: true,
-          paymentCompleted: true,
-          approvalStatus: "APPROVED",
-          approvedAt: new Date(),
+          isVisible: !isExcludedFromLive,
+          paymentCompleted: !isExcludedFromLive,
+          approvalStatus: isExcludedFromLive ? "UNDER_REVIEW" : "APPROVED",
+          approvedAt: isExcludedFromLive ? null : new Date(),
           isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
           duplicateNotes: isSharedMobileApplicant
             ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
@@ -682,9 +687,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless Monus Malhotra)
-        const isMonus = (fullName || "").toLowerCase().includes("monus");
-        if (!isMonus && userId) {
+        // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless pending review profiles)
+        if (!isExcludedFromLive && userId) {
           const existingPayment = await prisma.payment.findFirst({
             where: {
               OR: [
@@ -706,9 +710,19 @@ export async function POST(req: NextRequest) {
                 status: "SUCCESS",
                 paymentGateway: "PAYMENT_EXEMPT",
                 paymentDate: parseDate(row.timestamp) || new Date(),
-                adminNotes: "Imported legacy NNVS profile - Payment Exempt (₹0)",
+                adminNotes: "NNVS Old Profile - Fees Exempted (Old Registered Candidate)",
                 confirmedByAdmin: true,
                 confirmedAt: new Date(),
+              },
+            });
+          } else {
+            await prisma.payment.update({
+              where: { id: existingPayment.id },
+              data: {
+                paymentGateway: "PAYMENT_EXEMPT",
+                status: "SUCCESS",
+                adminNotes: "NNVS Old Profile - Fees Exempted (Old Registered Candidate)",
+                confirmedByAdmin: true,
               },
             });
           }

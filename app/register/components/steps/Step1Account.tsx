@@ -102,20 +102,31 @@ export default function Step1Account({
 
             <input
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               maxLength={6}
               placeholder="6 Digit OTP"
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-red-700 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-lg font-bold tracking-widest outline-none focus:border-red-700 focus:ring-2 focus:ring-red-100"
             />
 
-            <button
-              type="button"
-              onClick={onVerifyOTP}
-              disabled={otpLoading}
-              className="mt-3 rounded-lg bg-green-700 px-4 py-2 text-white transition hover:bg-green-800 disabled:opacity-50"
-            >
-              {otpLoading ? "Verifying..." : "Verify OTP"}
-            </button>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onVerifyOTP}
+                disabled={otpLoading}
+                className="rounded-lg bg-green-700 px-4 py-2 text-white font-semibold transition hover:bg-green-800 disabled:opacity-50"
+              >
+                {otpLoading ? "Verifying..." : "Verify OTP"}
+              </button>
+
+              <button
+                type="button"
+                onClick={onSendOTP}
+                disabled={otpLoading}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Resend OTP
+              </button>
+            </div>
           </div>
         )}
                 <InputField

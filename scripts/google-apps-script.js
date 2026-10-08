@@ -1,16 +1,22 @@
 /* eslint-disable */
 /**
  * =========================================================================================
- * RISHTECLUB MATRIMONY – 100% RELIABLE GOOGLE FORM SYNC & REAL-TIME AUTO-IMPORT SCRIPT
+ * RISHTECLUB / NNVS MATRIMONY – FAST GOOGLE FORM SYNC & 24/7 AUTOMATIC BIODATA PDF GENERATOR
  * =========================================================================================
  * 
  * Key Features:
- * 1. 100% Infallible Sync: Every single row (even with duplicate numbers, invalid phones,
- *    missing fields, Google Drive photos) is imported and made LIVE on the website.
- * 2. Real-Time Form Submissions: Automatically activates an installable trigger on new submissions.
- * 3. Drive Photo Support: Fetches Google Drive images directly or sends high-speed embed URLs.
- * 4. Automatic Batch Continuation: Chained background triggers process all rows from Row 2 to end.
- * 5. Visual Status Tracking: Column 35 ("RishteClub Sync Status") displays LIVE profile IDs.
+ * 1. 100% Infallible Sync: Every single candidate is imported and made LIVE on the website.
+ * 2. 24/7 Cloud Biodata PDF Auto-Generation: As soon as a profile is live, its styled Biodata PDF
+ *    is automatically generated and saved into the exact Category Folder on Google Drive:
+ *      📁 NNVS Website Biodatas/
+ *         ├── 📁 Divorced Female
+ *         ├── 📁 Divorced Male
+ *         ├── 📁 Never Married Female
+ *         └── 📁 Never Married Male
+ *    (Runs completely on Google Cloud 24x7, regardless of whether your laptop is ON or OFF).
+ * 3. Drive PDF Link Tracking: Column 36 displays the direct clickable Google Drive PDF link.
+ * 4. 1-Click Bulk PDF Generator: Organize all 630+ candidates' PDFs into Drive folders anytime.
+ * 5. Real-Time Form Submissions: Auto-sync + Auto-PDF creation on every new form submission.
  * =========================================================================================
  */
 
@@ -20,7 +26,7 @@ function getScriptConfig() {
   const integrationKey = props.getProperty('INTEGRATION_KEY') || '9377018194b7c3361ccd1c929de0d9d267c821544c05ff12ea64e5cabfdea20c';
   const sheetName = props.getProperty('SHEET_NAME');
   const sheetId = props.getProperty('SHEET_ID');
-  const batchSize = parseInt(props.getProperty('BATCH_SIZE') || '15', 10);
+  const batchSize = parseInt(props.getProperty('BATCH_SIZE') || '25', 10);
   const syncNextRow = parseInt(props.getProperty('SYNC_NEXT_ROW') || '2', 10);
 
   return {
@@ -28,7 +34,7 @@ function getScriptConfig() {
     integrationKey: integrationKey.trim(),
     sheetName: sheetName ? sheetName.trim() : null,
     sheetId: sheetId ? sheetId.trim() : null,
-    batchSize: batchSize > 0 ? batchSize : 15,
+    batchSize: batchSize > 0 ? batchSize : 25,
     syncNextRow: syncNextRow >= 2 ? syncNextRow : 2,
   };
 }
@@ -65,15 +71,19 @@ function getTargetSheet(config) {
  */
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('RishteClub Sync')
-    .addItem('⚡ 1-Click Setup Realtime Auto-Import for New Forms', 'setupFormSubmitTrigger')
+    .createMenu('RishteClub Sync & PDFs')
+    .addItem('⚡ 1-Click Setup 24/7 Realtime Auto-Import + PDF Creator', 'setupFormSubmitTrigger')
     .addSeparator()
     .addItem('1. Test Connection with Website', 'testConnection')
-    .addItem('2. Start / Resume Full Sheet Sync (All Profiles Live)', 'startOrResumeSync')
-    .addItem('3. Check Sync Progress & Status', 'checkSyncStatus')
+    .addItem('2. Start / Resume Full Sheet Sync (Fast)', 'startOrResumeSync')
+    .addItem('3. 🔧 Sync ONLY Missing / Failed Rows (Fix Missing)', 'syncOnlyMissingRows')
+    .addItem('4. Check Sync Progress & Database Status', 'checkSyncStatus')
     .addSeparator()
-    .addItem('4. Reset Sync Cursor to Row 2 (Start Fresh)', 'resetSyncCursor')
-    .addItem('5. Cancel All Background Triggers', 'cancelAllTriggers')
+    .addItem('📁 5. Auto-Generate & Save All Biodata PDFs to Drive Folders', 'generateAllDriveBiodataPdfs')
+    .addItem('🔗 6. Open Google Drive Biodatas Main Folder', 'openDriveBiodataFolder')
+    .addSeparator()
+    .addItem('7. Reset Sync Cursor to Row 2 (Start Fresh)', 'resetSyncCursor')
+    .addItem('8. Cancel All Background Triggers', 'cancelAllTriggers')
     .addToUi();
 }
 
@@ -102,8 +112,8 @@ function setupFormSubmitTrigger() {
       .create();
 
     SpreadsheetApp.getUi().alert(
-      '✅ Real-Time Sync Activated!',
-      'Whenever a new Google Form is submitted, it will now automatically and instantly be created as an active LIVE profile on the website without any manual step.',
+      '✅ 24/7 Real-Time Automation Activated!',
+      'Whenever a new Google Form is submitted:\n1. It is instantly imported & made LIVE on website.\n2. Its Biodata PDF is automatically generated & saved to the correct Category Folder on Google Drive (Divorced/Never Married Male/Female).\n\nThis runs 24/7 on Google Cloud even if your laptop is turned OFF.',
       SpreadsheetApp.getUi().ButtonSet.OK
     );
   } catch (err) {
@@ -169,14 +179,14 @@ function startOrResumeSync() {
   if (config.syncNextRow > lastRow) {
     SpreadsheetApp.getUi().alert(
       'Sync Complete',
-      `All ${lastRow} rows have already been processed (Cursor is at row ${config.syncNextRow}).\n\nTo re-scan from start, select "4. Reset Sync Cursor to Row 2".`,
+      `All ${lastRow} rows have already been processed (Cursor is at row ${config.syncNextRow}).\n\nTo re-scan from start, select "7. Reset Sync Cursor to Row 2", or select "3. 🔧 Sync ONLY Missing / Failed Rows".`,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
     return;
   }
 
   SpreadsheetApp.getUi().alert(
-    'Starting Fresh Sync',
+    'Starting Fast Sync',
     `Starting sync from Row ${config.syncNextRow} of ${lastRow} in batches of ${config.batchSize} rows.\n\nEvery candidate will be made LIVE on the website.\nBackground triggers will automatically continue until all rows are done.`,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
@@ -186,13 +196,161 @@ function startOrResumeSync() {
 }
 
 /**
- * Process a batch of rows
+ * Sync ONLY Missing or Failed rows (Checks Status Column)
+ */
+function syncOnlyMissingRows() {
+  const config = getScriptConfig();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getTargetSheet(config);
+  const spreadsheetId = ss.getId();
+  const sheetId = sheet.getSheetId().toString();
+  const lastRow = sheet.getLastRow();
+  const statusColIndex = 35;
+  const pdfColIndex = 36;
+
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert('No data rows found in sheet.');
+    return;
+  }
+
+  const statusValues = sheet.getRange(2, statusColIndex, lastRow - 1, 1).getValues();
+  const missingRowNumbers = [];
+
+  for (let i = 0; i < statusValues.length; i++) {
+    const rowNum = i + 2;
+    const val = String(statusValues[i][0] || '').trim();
+    if (!val.startsWith('LIVE') && !val.startsWith('CREATED') && !val.startsWith('UPDATED')) {
+      missingRowNumbers.push(rowNum);
+    }
+  }
+
+  if (missingRowNumbers.length === 0) {
+    SpreadsheetApp.getUi().alert('✅ All Rows are LIVE', 'All ' + (lastRow - 1) + ' rows in the sheet are already marked LIVE! No missing rows found.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'Syncing Missing Rows',
+    `Found ${missingRowNumbers.length} rows not yet marked LIVE (e.g., Rows: ${missingRowNumbers.slice(0, 10).join(', ')}...).\n\nStarting immediate sync for these rows now...`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+
+  const maxCol = Math.max(34, sheet.getLastColumn());
+  const batchSize = 25;
+  let successCount = 0;
+
+  for (let b = 0; b < missingRowNumbers.length; b += batchSize) {
+    const chunkRowNums = missingRowNumbers.slice(b, b + batchSize);
+    const batchPayload = [];
+
+    for (let j = 0; j < chunkRowNums.length; j++) {
+      const rNum = chunkRowNums[j];
+      const rowVals = sheet.getRange(rNum, 1, 1, maxCol).getValues()[0];
+      const mapped = mapRowToPayload(rowVals, spreadsheetId, sheetId, rNum);
+      if (mapped) batchPayload.push(mapped);
+    }
+
+    if (batchPayload.length > 0) {
+      const sendResult = sendPayloadToApi(config, batchPayload);
+      if (sendResult.success && sendResult.results) {
+        for (let k = 0; k < sendResult.results.length; k++) {
+          const item = sendResult.results[k];
+          const targetRow = item.row;
+          let statusText = item.status === 'CREATED' ? 'LIVE' : item.status;
+          if (item.profileId) statusText += ' (' + item.profileId + ')';
+          if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
+          if (item.error) statusText += ' - ' + item.error;
+          sheet.getRange(targetRow, statusColIndex).setValue(statusText);
+          successCount++;
+        }
+      } else {
+        // Fallback single row retry
+        for (let j = 0; j < batchPayload.length; j++) {
+          const single = batchPayload[j];
+          const singleRes = sendPayloadToApi(config, [single]);
+          if (singleRes.success && singleRes.results && singleRes.results.length > 0) {
+            const item = singleRes.results[0];
+            let statusText = item.status === 'CREATED' ? 'LIVE' : item.status;
+            if (item.profileId) statusText += ' (' + item.profileId + ')';
+            if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
+            sheet.getRange(item.row, statusColIndex).setValue(statusText);
+            successCount++;
+          } else {
+            sheet.getRange(single.rowNumber, statusColIndex).setValue('RETRY_FAILED: ' + (singleRes.error || 'Server error'));
+          }
+        }
+      }
+    }
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'Sync Complete',
+    `Successfully synced ${successCount} of ${missingRowNumbers.length} missing rows!`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+/**
+ * Reset sync cursor back to Row 2
+ */
+function resetSyncCursor() {
+  PropertiesService.getScriptProperties().setProperty('SYNC_NEXT_ROW', '2');
+  PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'IDLE');
+  deleteContinuationTriggers();
+  SpreadsheetApp.getUi().alert('Sync Cursor Reset', 'Sync cursor has been reset to Row 2. Next sync will scan from the beginning.', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/**
+ * Cancel background triggers
+ */
+function cancelAllTriggers() {
+  deleteContinuationTriggers();
+  PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'CANCELLED');
+  SpreadsheetApp.getUi().alert('Triggers Cancelled', 'All background batch sync triggers have been removed.', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/**
+ * Sends a batch payload to the website API endpoint
+ */
+function sendPayloadToApi(config, batchPayload) {
+  const options = {
+    method: 'POST',
+    contentType: 'application/json',
+    headers: {
+      'x-integration-key': config.integrationKey,
+      'Authorization': 'Bearer ' + config.integrationKey,
+    },
+    payload: JSON.stringify({
+      dryRun: false,
+      batch: batchPayload,
+    }),
+    muteHttpExceptions: true,
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(config.apiUrl, options);
+    const code = response.getResponseCode();
+    const text = response.getContentText();
+
+    if (code >= 200 && code < 300) {
+      const data = JSON.parse(text);
+      return { success: true, results: data.results || [] };
+    } else {
+      return { success: false, error: 'HTTP ' + code + ': ' + text };
+    }
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+/**
+ * Core Batch Process Worker
  */
 function processNextBatch() {
   deleteContinuationTriggers();
 
-  const props = PropertiesService.getScriptProperties();
   const config = getScriptConfig();
+  const props = PropertiesService.getScriptProperties();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getTargetSheet(config);
   const spreadsheetId = ss.getId();
@@ -230,37 +388,34 @@ function processNextBatch() {
   }
 
   if (batchPayload.length > 0) {
-    const options = {
-      method: 'POST',
-      contentType: 'application/json',
-      headers: {
-        'x-integration-key': config.integrationKey,
-        'Authorization': 'Bearer ' + config.integrationKey,
-      },
-      payload: JSON.stringify({ dryRun: false, batch: batchPayload }),
-      muteHttpExceptions: true,
-    };
+    const sendResult = sendPayloadToApi(config, batchPayload);
 
-    try {
-      const res = UrlFetchApp.fetch(config.apiUrl, options);
-      const json = JSON.parse(res.getContentText());
-
-      if (json.results && Array.isArray(json.results)) {
-        for (let k = 0; k < json.results.length; k++) {
-          const item = json.results[k];
-          const targetRow = item.row;
+    if (sendResult.success && sendResult.results && Array.isArray(sendResult.results)) {
+      for (let k = 0; k < sendResult.results.length; k++) {
+        const item = sendResult.results[k];
+        const targetRow = item.row;
+        let statusText = item.status === 'CREATED' ? 'LIVE' : item.status;
+        if (item.profileId) statusText += ' (' + item.profileId + ')';
+        if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
+        if (item.error) statusText += ' - ' + item.error;
+        sheet.getRange(targetRow, statusColIndex).setValue(statusText);
+      }
+      Logger.log(`Batch [${startRow}-${endRow}] complete.`);
+    } else {
+      Logger.log(`Batch [${startRow}-${endRow}] API error: ${sendResult.error || 'Retrying row by row...'}`);
+      // Fallback row-by-row so zero rows are missed
+      for (let j = 0; j < batchPayload.length; j++) {
+        const single = batchPayload[j];
+        const singleRes = sendPayloadToApi(config, [single]);
+        if (singleRes.success && singleRes.results && singleRes.results.length > 0) {
+          const item = singleRes.results[0];
           let statusText = item.status === 'CREATED' ? 'LIVE' : item.status;
           if (item.profileId) statusText += ' (' + item.profileId + ')';
           if (item.legacyProfileId) statusText += ' [Old: ' + item.legacyProfileId + ']';
-          if (item.error) statusText += ' - ' + item.error;
-          sheet.getRange(targetRow, statusColIndex).setValue(statusText);
+          sheet.getRange(item.row, statusColIndex).setValue(statusText);
+        } else {
+          sheet.getRange(single.rowNumber, statusColIndex).setValue('RETRY_FAILED: ' + (singleRes.error || 'Server error'));
         }
-      }
-      Logger.log(`Batch [${startRow}-${endRow}] complete.`);
-    } catch (err) {
-      Logger.log(`Batch [${startRow}-${endRow}] API error: ` + err.toString());
-      for (let r = startRow; r <= endRow; r++) {
-        sheet.getRange(r, statusColIndex).setValue('API ERROR: ' + err.toString());
       }
     }
   }
@@ -274,7 +429,7 @@ function processNextBatch() {
     Logger.log(`Scheduling continuation trigger for row ${nextStartRow}...`);
     ScriptApp.newTrigger('processNextBatch')
       .timeBased()
-      .after(15 * 1000)
+      .after(5 * 1000)
       .create();
   } else {
     props.setProperty('SYNC_STATUS', 'COMPLETE');
@@ -305,52 +460,223 @@ function checkSyncStatus() {
     }
   }
 
-  const msg = [
-    `📊 RishteClub Live Sync Progress:`,
-    `----------------------------------------`,
-    `• Total Sheet Rows : ${lastRow} (Header + ${lastRow - 1} Profiles)`,
-    `• Next Row to Sync : Row ${nextRow}`,
-    `• Rows Processed   : ${processedCount}`,
-    `• Rows Remaining   : ${remainingCount}`,
-    `• Status           : ${syncStatus}`,
-    `• Background Job   : ${hasActiveTrigger ? 'Running (In Progress)' : 'Idle'}`,
-    `----------------------------------------`,
-    nextRow > lastRow ? '✅ All sheet profiles have been synced and made live!' : '👉 Click "2. Start / Resume Full Sheet Sync" to continue.'
+  const message = [
+    '--- RISHTECLUB SYNC STATUS ---',
+    'Sheet Name: ' + sheet.getName(),
+    'Total Rows: ' + lastRow + ' (' + (lastRow - 1) + ' candidate responses)',
+    'Processed Rows: ' + processedCount,
+    'Remaining Rows: ' + remainingCount,
+    'Current Sync Cursor: Row ' + nextRow,
+    'Sync Status: ' + syncStatus,
+    'Active Background Job: ' + (hasActiveTrigger ? 'YES (Running)' : 'NO (Idle)'),
   ].join('\n');
 
-  SpreadsheetApp.getUi().alert('Sync Progress & Status', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+  SpreadsheetApp.getUi().alert('Sync Progress', message, SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
-/**
- * Reset Sync Cursor
- */
-function resetSyncCursor() {
-  const ui = SpreadsheetApp.getUi();
-  const confirm = ui.alert(
-    'Reset Sync Cursor',
-    'Are you sure you want to reset the sync cursor back to Row 2?\n\nThis will re-process the sheet from the beginning.',
-    ui.ButtonSet.YES_NO
-  );
+// =========================================================================================
+// 24/7 GOOGLE DRIVE BIODATA PDF AUTOMATION & CATEGORY FOLDER ORGANIZER
+// =========================================================================================
 
-  if (confirm === ui.Button.YES) {
-    deleteContinuationTriggers();
-    PropertiesService.getScriptProperties().setProperty('SYNC_NEXT_ROW', '2');
-    PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'RESET');
-    ui.alert('Sync cursor reset to Row 2.');
+/**
+ * Gets or creates the Google Drive Folder hierarchy for Biodata PDFs
+ * Structure:
+ * My Drive > NNVS Website Biodatas >
+ *   ├── Divorced Female
+ *   ├── Divorced Male
+ *   ├── Never Married Female
+ *   └── Never Married Male
+ */
+function getCategoryDriveFolder(categoryName) {
+  const rootFolderName = 'NNVS Website Biodatas';
+  const rootFolders = DriveApp.getFoldersByName(rootFolderName);
+  let rootFolder;
+  if (rootFolders.hasNext()) {
+    rootFolder = rootFolders.next();
+  } else {
+    rootFolder = DriveApp.createFolder(rootFolderName);
+    try {
+      rootFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+  }
+
+  const catFolders = rootFolder.getFoldersByName(categoryName);
+  if (catFolders.hasNext()) {
+    return catFolders.next();
+  } else {
+    const subFolder = rootFolder.createFolder(categoryName);
+    try {
+      subFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+    return subFolder;
   }
 }
 
 /**
- * Cancel All Background Triggers
+ * Determines Category Folder for a candidate
+ * Categories:
+ * - Divorced Female
+ * - Divorced Male
+ * - Never Married Female
+ * - Never Married Male
  */
-function cancelAllTriggers() {
-  deleteContinuationTriggers();
-  PropertiesService.getScriptProperties().setProperty('SYNC_STATUS', 'PAUSED');
-  SpreadsheetApp.getUi().alert('All ongoing background triggers stopped.');
+function determineCategoryFolder(gender, maritalStatus) {
+  const g = String(gender || 'MALE').toUpperCase().trim();
+  const isFemale = g === 'FEMALE';
+  const ms = String(maritalStatus || '').toLowerCase().trim();
+
+  const isDivorcedOrWidowOrAnnulled =
+    ms.indexOf('divorc') !== -1 ||
+    ms.indexOf('widow') !== -1 ||
+    ms.indexOf('annul') !== -1 ||
+    ms.indexOf('separat') !== -1;
+
+  if (isDivorcedOrWidowOrAnnulled) {
+    return isFemale ? 'Divorced Female' : 'Divorced Male';
+  } else {
+    return isFemale ? 'Never Married Female' : 'Never Married Male';
+  }
+}
+
+/**
+ * Downloads Biodata PDF from Website API and Saves directly into designated Google Drive Category Folder
+ */
+function saveBiodataPdfToDrive(profileId, legacyProfileId, candidateName, gender, maritalStatus) {
+  if (!profileId && !legacyProfileId) return null;
+  const config = getScriptConfig();
+  const lookupId = legacyProfileId || profileId;
+  const baseUrl = config.apiUrl.replace(/\/api\/integrations\/.*$/, '');
+  const pdfUrl = baseUrl + '/api/profiles/' + encodeURIComponent(lookupId) + '/pdf';
+
+  try {
+    const response = UrlFetchApp.fetch(pdfUrl, {
+      method: 'GET',
+      muteHttpExceptions: true,
+      headers: {
+        'x-integration-key': config.integrationKey,
+      }
+    });
+
+    if (response.getResponseCode() !== 200) {
+      Logger.log('PDF fetch failed for ' + lookupId + ': HTTP ' + response.getResponseCode());
+      return null;
+    }
+
+    const category = determineCategoryFolder(gender, maritalStatus);
+    const targetFolder = getCategoryDriveFolder(category);
+
+    const safeName = (candidateName || 'Candidate').replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, '_').trim();
+    const safeCode = (legacyProfileId || profileId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = (safeCode ? safeCode + '_' : '') + safeName + '.pdf';
+
+    // Remove existing file with same name if any in that folder to avoid duplicates
+    const existing = targetFolder.getFilesByName(fileName);
+    while (existing.hasNext()) {
+      existing.next().setTrashed(true);
+    }
+
+    const blob = response.getBlob().setName(fileName);
+    const file = targetFolder.createFile(blob);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+
+    return {
+      fileUrl: file.getUrl(),
+      fileId: file.getId(),
+      category: category,
+      fileName: fileName
+    };
+  } catch (e) {
+    Logger.log('Error saving PDF to drive for ' + lookupId + ': ' + e.toString());
+    return null;
+  }
+}
+
+/**
+ * 1-Click UI action to open Google Drive Biodatas folder
+ */
+function openDriveBiodataFolder() {
+  const rootFolderName = 'NNVS Website Biodatas';
+  const rootFolders = DriveApp.getFoldersByName(rootFolderName);
+  let rootFolder;
+  if (rootFolders.hasNext()) {
+    rootFolder = rootFolders.next();
+  } else {
+    rootFolder = DriveApp.createFolder(rootFolderName);
+    try {
+      rootFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+  }
+
+  const html = '<script>window.open("' + rootFolder.getUrl() + '", "_blank");google.script.host.close();</script>';
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(400).setHeight(120), 'Opening Google Drive Folder...');
+}
+
+/**
+ * Generate and organize PDFs for all existing sheet rows into Google Drive category folders
+ */
+function generateAllDriveBiodataPdfs() {
+  const config = getScriptConfig();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getTargetSheet(config);
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert('No data rows found in sheet.');
+    return;
+  }
+
+  const statusColIndex = 35;
+  const pdfColIndex = 36;
+  try {
+    sheet.getRange(1, pdfColIndex).setValue('Biodata PDF Drive Link');
+  } catch(e) {}
+
+  SpreadsheetApp.getUi().alert(
+    'Starting Cloud PDF Generator',
+    'Generating and saving Biodata PDFs for all candidates directly into Google Drive Category Folders...\n\nCategories:\n📁 Divorced Female\n📁 Divorced Male\n📁 Never Married Female\n📁 Never Married Male\n\nDirect PDF Drive links will be saved in Column 36.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+
+  let successCount = 0;
+  const maxCol = Math.max(34, sheet.getLastColumn());
+
+  for (let r = 2; r <= lastRow; r++) {
+    const rowVals = sheet.getRange(r, 1, 1, maxCol).getValues()[0];
+    const legacyId = String(rowVals[0] || '').trim();
+    const name = String(rowVals[3] || '').trim();
+    const gender = String(rowVals[4] || '').trim();
+    const maritalStatus = String(rowVals[5] || '').trim();
+    const statusVal = String(sheet.getRange(r, statusColIndex).getValue() || '');
+    
+    // Extract profileId from status column if available e.g. "LIVE (RC...)"
+    let profileId = null;
+    const rcMatch = statusVal.match(/RC\d+_\d+/);
+    if (rcMatch) {
+      profileId = rcMatch[0];
+    }
+
+    if (!legacyId && !profileId) continue;
+
+    const saved = saveBiodataPdfToDrive(profileId, legacyId, name, gender, maritalStatus);
+    if (saved && saved.fileUrl) {
+      sheet.getRange(r, pdfColIndex).setValue(saved.fileUrl);
+      successCount++;
+    }
+  }
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Cloud PDF Generation Complete',
+    `Successfully generated and organized ${successCount} Biodata PDFs in Google Drive Category Folders!`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
 }
 
 /**
  * Real-time trigger handler for new Google Form Submissions
+ * - Automatically imports & publishes profile
+ * - Automatically creates & saves categorized Biodata PDF in Google Drive 24x7
  */
 function onFormSubmit(e) {
   const config = getScriptConfig();
@@ -366,72 +692,37 @@ function onFormSubmit(e) {
   if (!mapped) return;
 
   const statusColIndex = 35;
-
+  const pdfColIndex = 36;
   try {
-    const response = UrlFetchApp.fetch(config.apiUrl, {
-      method: 'POST',
-      contentType: 'application/json',
-      headers: {
-        'x-integration-key': config.integrationKey,
-        'Authorization': 'Bearer ' + config.integrationKey,
-      },
-      payload: JSON.stringify({ dryRun: false, batch: [mapped] }),
-      muteHttpExceptions: true,
-    });
+    sheet.getRange(1, pdfColIndex).setValue('Biodata PDF Drive Link');
+  } catch(e) {}
 
-    const json = JSON.parse(response.getContentText());
-    if (json.results && json.results.length > 0) {
-      const res = json.results[0];
-      let statusText = res.status === 'CREATED' ? 'LIVE' : res.status;
-      if (res.profileId) statusText += ' (' + res.profileId + ')';
-      if (res.legacyProfileId) statusText += ' [Old: ' + res.legacyProfileId + ']';
-      sheet.getRange(rowNumber, statusColIndex).setValue(statusText);
+  const sendRes = sendPayloadToApi(config, [mapped]);
+
+  if (sendRes.success && sendRes.results && sendRes.results.length > 0) {
+    const res = sendRes.results[0];
+    let statusText = res.status === 'CREATED' ? 'LIVE' : res.status;
+    if (res.profileId) statusText += ' (' + res.profileId + ')';
+    if (res.legacyProfileId) statusText += ' [Old: ' + res.legacyProfileId + ']';
+    sheet.getRange(rowNumber, statusColIndex).setValue(statusText);
+
+    // 24/7 AUTOMATIC BIODATA PDF CREATION & GOOGLE DRIVE CATEGORY SORTING
+    try {
+      const savedPdf = saveBiodataPdfToDrive(
+        res.profileId,
+        res.legacyProfileId,
+        mapped.name,
+        mapped.gender,
+        mapped.maritalStatus
+      );
+      if (savedPdf && savedPdf.fileUrl) {
+        sheet.getRange(rowNumber, pdfColIndex).setValue(savedPdf.fileUrl);
+      }
+    } catch (pdfErr) {
+      Logger.log('PDF auto-generation notice: ' + pdfErr.toString());
     }
-  } catch (err) {
-    Logger.log('onFormSubmit Error: ' + err.toString());
-    sheet.getRange(rowNumber, statusColIndex).setValue('API ERROR: ' + err.toString());
-  }
-}
-
-/**
- * Extract Google Drive File ID
- */
-function extractDriveFileId(urlOrText) {
-  if (!urlOrText || typeof urlOrText !== 'string') return null;
-  const str = urlOrText.trim();
-  
-  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
-  if (idMatch) return idMatch[1];
-  
-  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/i);
-  if (dMatch) return dMatch[1];
-
-  const fileDMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/i);
-  if (fileDMatch) return fileDMatch[1];
-
-  const generalMatch = str.match(/^([a-zA-Z0-9_-]{25,})$/);
-  if (generalMatch) return generalMatch[1];
-
-  return null;
-}
-
-/**
- * Downloads Drive file to Base64 image
- */
-function getDriveFileBase64(urlOrText) {
-  try {
-    const fileId = extractDriveFileId(urlOrText);
-    if (!fileId) return null;
-
-    const file = DriveApp.getFileById(fileId);
-    const blob = file.getBlob();
-    const contentType = blob.getContentType() || 'image/jpeg';
-    const bytes = blob.getBytes();
-    if (!bytes || bytes.length === 0) return null;
-
-    return 'data:' + contentType + ';base64,' + Utilities.base64Encode(bytes);
-  } catch (err) {
-    return null;
+  } else {
+    sheet.getRange(rowNumber, statusColIndex).setValue('API ERROR: ' + (sendRes.error || 'Failed'));
   }
 }
 
@@ -480,11 +771,8 @@ function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
   const photoColRaw = getCol(28);
   const allPhotoUrls = splitPhotoUrls(photoColRaw);
   
-  // Convert primary photo to base64 if Drive file accessible, else pass direct URL
-  let primaryPhotoBase64 = null;
   let primaryPhotoUrl = null;
   if (allPhotoUrls.length > 0) {
-    primaryPhotoBase64 = getDriveFileBase64(allPhotoUrls[0]);
     primaryPhotoUrl = allPhotoUrls[0];
   } else if (photoColRaw) {
     primaryPhotoUrl = photoColRaw;
@@ -521,10 +809,8 @@ function mapRowToPayload(row, spreadsheetId, sheetId, rowNumber) {
     mobile: mobile,                         // Col Z: Contact No.
     partnerPreferences: getCol(26),         // Col AA: Partner Preferences
     consentSocialMedia: getCol(27),         // Col AB: Post Profile on Social Media
-    primaryPhotoBase64: primaryPhotoBase64,
     primaryPhotoUrl: primaryPhotoUrl,
     consentGeneral: getCol(29),             // Col AD: Consent
-    additionalPhotosBase64: [],
     additionalPhotoUrls: allPhotoUrls.slice(1),
     rawPhotoLink: photoColRaw || null,
     otherMatrimonyInfo: getCol(30),         // Col AE: Other Matrimony Platform info
