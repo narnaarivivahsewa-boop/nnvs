@@ -27,6 +27,9 @@ type InvoiceData = {
     managedBy: string;
     managedByFull: string;
     domain: string;
+    unitName?: string;
+    udyamNumber?: string;
+    address?: string;
   };
   buyer: {
     name: string;

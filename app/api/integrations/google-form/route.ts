@@ -405,6 +405,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Exact Field Extractions from Payload
+        const email = row.email ? String(row.email).trim() : null;
         const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
         const height = normalizeHeight(row.height);
         const maritalStatus = row.maritalStatus || null;

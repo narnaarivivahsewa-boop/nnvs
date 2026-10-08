@@ -77,6 +77,36 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
+    // Verify Mobile OTP Verification Status
+    // ===========================
+    const cleanMobile = String(mobile ?? "").replace(/\D/g, "").slice(-10);
+    const verifiedOtp = await prisma.oTP.findFirst({
+      where: {
+        mobile: cleanMobile,
+        type: "REGISTRATION",
+        verified: true,
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 60 * 1000), // verified within last 30 minutes
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (!verifiedOtp) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please verify your mobile number with SMS OTP before submitting registration.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // ===========================
     // Hash Password
     // ===========================
 
@@ -87,6 +117,12 @@ export async function POST(req: NextRequest) {
     // ===========================
 
     const result = await prisma.$transaction(async (tx) => {
+      // Clear verified OTP after registration
+      await tx.oTP.deleteMany({
+        where: {
+          mobile: cleanMobile,
+        },
+      });
 
       // -------------------------
       // User

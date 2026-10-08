@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +28,24 @@ export default function RegisterPage() {
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otp, setOtp] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
+  const [maskedMobile, setMaskedMobile] = useState("");
+  const [otpStatus, setOtpStatus] = useState<{
+    type: "success" | "error" | "info" | null;
+    message: string;
+  }>({
+    type: null,
+    message: "",
+  });
+
+  // Resend OTP countdown effect
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   // Photos
   const [photos, setPhotos] = useState<string[]>([]);
@@ -107,92 +125,112 @@ export default function RegisterPage() {
     setOtp("");
     setOtpSent(false);
     setOtpVerified(false);
+    setResendTimer(0);
+    setOtpStatus({ type: null, message: "" });
   };
 
   const sendOTP = async () => {
-  const mobile = getValues("mobile");
-  const email = getValues("email");
+    const mobile = getValues("mobile")?.trim();
+    const email = getValues("email")?.trim();
 
-  if (!/^[6-9]\d{9}$/.test(mobile)) {
-    alert("Enter valid mobile number.");
-    return;
-  }
-
-  if (!email) {
-    alert("Enter your email address.");
-    return;
-  }
-
-  try {
-    setOtpLoading(true);
-
-    // -------------------------
-    // Check Email First
-    // -------------------------
-
-    const emailRes = await fetch("/api/auth/check-email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-      }),
-    });
-
-    const emailResult = await emailRes.json();
-
-    if (!emailRes.ok) {
-      alert(emailResult.message);
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setOtpStatus({
+        type: "error",
+        message: "Please enter a valid 10-digit Indian mobile number.",
+      });
       return;
     }
 
-    // -------------------------
-    // Send OTP
-    // -------------------------
-
-    const res = await fetch("/api/auth/send-otp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        mobile,
-        type: "REGISTRATION",
-      }),
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert(result.message);
-      return;
-    }
-
-    setOtpSent(true);
-
-    alert("OTP Sent Successfully");
-
-  } catch (err) {
-    console.error(err);
-
-    alert("Unable to Send OTP");
-
-  } finally {
-    setOtpLoading(false);
-  }
-};
-
-  const verifyOTP = async () => {
-    const mobile = getValues("mobile");
-
-    if (otp.length !== 6) {
-      alert("Enter 6 Digit OTP");
+    if (!email) {
+      setOtpStatus({
+        type: "error",
+        message: "Please enter your email address first.",
+      });
       return;
     }
 
     try {
       setOtpLoading(true);
+      setOtpStatus({ type: "info", message: "Checking email and sending SMS OTP..." });
+
+      // Check Email First
+      const emailRes = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+        }),
+      });
+
+      const emailResult = await emailRes.json();
+
+      if (!emailRes.ok) {
+        setOtpStatus({
+          type: "error",
+          message: emailResult.message || "Email check failed.",
+        });
+        return;
+      }
+
+      // Send OTP via 2Factor backend
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mobile,
+          type: "REGISTRATION",
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        if (result.cooldownRemaining) {
+          setResendTimer(result.cooldownRemaining);
+        }
+        setOtpStatus({
+          type: "error",
+          message: result.message || "Failed to send SMS OTP.",
+        });
+        return;
+      }
+
+      setOtpSent(true);
+      setMaskedMobile(result.maskedMobile || mobile);
+      setResendTimer(30); // 30s cooldown
+      setOtpStatus({
+        type: "success",
+        message: result.message || `OTP sent to ${result.maskedMobile || mobile} via SMS.`,
+      });
+    } catch (err) {
+      console.error(err);
+      setOtpStatus({
+        type: "error",
+        message: "Network error. Unable to reach SMS gateway.",
+      });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyOTP = async () => {
+    const mobile = getValues("mobile")?.trim();
+
+    if (otp.length !== 6) {
+      setOtpStatus({
+        type: "error",
+        message: "Please enter the full 6-digit OTP code.",
+      });
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+      setOtpStatus({ type: "info", message: "Verifying OTP..." });
 
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
@@ -209,16 +247,24 @@ export default function RegisterPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        alert(result.message);
+        setOtpStatus({
+          type: "error",
+          message: result.message || "OTP verification failed.",
+        });
         return;
       }
 
       setOtpVerified(true);
-
-      alert("Mobile Verified");
+      setOtpStatus({
+        type: "success",
+        message: "Mobile number verified successfully! ✓ You can now continue with your registration.",
+      });
     } catch (err) {
       console.error(err);
-      alert("OTP Verification Failed");
+      setOtpStatus({
+        type: "error",
+        message: "OTP verification failed due to network error.",
+      });
     } finally {
       setOtpLoading(false);
     }
@@ -369,6 +415,9 @@ export default function RegisterPage() {
               otpSent={otpSent}
               otpVerified={otpVerified}
               otpLoading={otpLoading}
+              resendTimer={resendTimer}
+              maskedMobile={maskedMobile}
+              otpStatus={otpStatus}
               onSendOTP={sendOTP}
               onVerifyOTP={verifyOTP}
               onChangeMobile={changeMobile}

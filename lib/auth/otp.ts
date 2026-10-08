@@ -1,7 +1,8 @@
 import crypto from "crypto";
 
 export const OTP_LENGTH = 6;
-export const OTP_EXPIRY_MINUTES = 5;
+export const OTP_EXPIRY_MINUTES = 10;
+export const MAX_OTP_ATTEMPTS = 5;
 
 export function generateOTP(): string {
   const min = 100000;
@@ -30,19 +31,8 @@ export function verifyOTP(
   return hashOTP(plainOTP) === hashedOTP;
 }
 
-export function printDevelopmentOTP(
-  mobile: string,
-  otp: string
-) {
-  if (process.env.NODE_ENV === "production") {
-    return;
-  }
-
-  const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-  console.log("\n========================================================");
-  console.log("🔔 [NNVS / RISHTECLUB AUTH OTP SERVER TERMINAL]");
-  console.log(`⏰ Time   : ${timeStr} (IST)`);
-  console.log(`📱 Mobile : ${mobile}`);
-  console.log(`🔑 OTP    : ${otp}`);
-  console.log("========================================================\n");
+export function maskMobileNumber(mobile: string): string {
+  const clean = mobile.replace(/\D/g, "");
+  if (clean.length < 10) return mobile;
+  return `${clean.slice(0, 2)}******${clean.slice(-2)}`;
 }

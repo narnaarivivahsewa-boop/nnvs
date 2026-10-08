@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
 import {
   generateOTP,
   getOTPExpiry,
   hashOTP,
-  printDevelopmentOTP,
+  maskMobileNumber,
 } from "@/lib/auth/otp";
+import { sendTwoFactorOTP } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const mobile = String(body.mobile ?? "").trim();
+    const rawMobile = String(body.mobile ?? "").trim();
+    const cleanMobile = rawMobile.replace(/\D/g, "").slice(-10);
 
     const otpType =
       body.type === "REGISTRATION"
@@ -20,29 +21,25 @@ export async function POST(req: NextRequest) {
         : "LOGIN";
 
     // ===========================
-    // Validate Mobile
+    // 1. Validate 10-Digit Mobile
     // ===========================
-
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid mobile number.",
+          message: "Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
     // ===========================
-    // Registration Check
+    // 2. Registration Check
     // ===========================
-
     if (otpType === "REGISTRATION") {
       const existingUser = await prisma.user.findUnique({
         where: {
-          mobile,
+          mobile: cleanMobile,
         },
       });
 
@@ -52,31 +49,27 @@ export async function POST(req: NextRequest) {
             success: false,
             message: "Mobile number already registered. Please proceed to login.",
           },
-          {
-            status: 400,
-          }
+          { status: 400 }
         );
       }
     }
 
     // ===========================
-    // Login Check & Admin Auto-Provisioning
+    // 3. Login Check & Auto Admin
     // ===========================
-
     if (otpType === "LOGIN") {
       let existingUser = await prisma.user.findUnique({
         where: {
-          mobile,
+          mobile: cleanMobile,
         },
       });
 
       const { isPermanentAdmin } = await import("@/lib/admin-auth");
-      if (!existingUser && isPermanentAdmin(mobile)) {
-        // Auto-provision permanent admin
+      if (!existingUser && isPermanentAdmin(cleanMobile)) {
         existingUser = await prisma.user.create({
           data: {
-            mobile,
-            fullName: mobile === "9871592002" ? "NNVS Admin" : "Rahul Dhamija",
+            mobile: cleanMobile,
+            fullName: cleanMobile === "9871592002" ? "NNVS Admin" : "Rahul Dhamija",
             role: "ADMIN",
             status: "ACTIVE",
             mobileVerified: true,
@@ -88,48 +81,91 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mobile number not registered.",
+            message: "Mobile number not registered. Please register first.",
           },
-          {
-            status: 404,
-          }
+          { status: 404 }
         );
       }
     }
 
     // ===========================
-    // Generate OTP
+    // 4. Rate Limiting & Cooldown
     // ===========================
+    const lastOtp = await prisma.oTP.findFirst({
+      where: { mobile: cleanMobile },
+      orderBy: { createdAt: "desc" },
+    });
 
-    const otp = generateOTP();
+    if (lastOtp) {
+      const secondsSinceLastOtp = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+      if (secondsSinceLastOtp < 30) {
+        const remaining = Math.ceil(30 - secondsSinceLastOtp);
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Please wait ${remaining} seconds before requesting a new OTP.`,
+            cooldownRemaining: remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
 
-    // ===========================
-    // Development OTP Logging
-    // ===========================
-
-    printDevelopmentOTP(mobile, otp);
-
-    const hashedOTP = hashOTP(otp);
-
-    const expiresAt = getOTPExpiry();
-
-    // ===========================
-    // Delete Old OTPs
-    // ===========================
-
-    await prisma.oTP.deleteMany({
+    // Hourly Limit: Max 6 OTPs per mobile per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const hourlyCount = await prisma.oTP.count({
       where: {
-        mobile,
+        mobile: cleanMobile,
+        createdAt: { gte: oneHourAgo },
       },
     });
 
+    if (hourlyCount >= 6) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many OTP requests for this number. Please try again after 1 hour.",
+        },
+        { status: 429 }
+      );
+    }
+
     // ===========================
-    // Save OTP
+    // 5. Generate OTP & Expiry
     // ===========================
+    const otp = generateOTP();
+    const hashedOTP = hashOTP(otp);
+    const expiresAt = getOTPExpiry();
+
+    // ===========================
+    // 6. Send SMS via 2Factor.in
+    // ===========================
+    const smsResult = await sendTwoFactorOTP(cleanMobile, otp);
+
+    if (!smsResult.success) {
+      console.error("2Factor send OTP failed:", smsResult.error);
+      return NextResponse.json(
+        {
+          success: false,
+          message: smsResult.error || "Unable to send SMS OTP. Please try again.",
+        },
+        { status: 502 }
+      );
+    }
+
+    // ===========================
+    // 7. Save Hashed OTP in DB
+    // ===========================
+    await prisma.oTP.deleteMany({
+      where: {
+        mobile: cleanMobile,
+        verified: false,
+      },
+    });
 
     await prisma.oTP.create({
       data: {
-        mobile,
+        mobile: cleanMobile,
         code: hashedOTP,
         type: otpType,
         expiresAt,
@@ -139,21 +175,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "OTP sent successfully.",
-      development: process.env.NODE_ENV === "development",
+      message: `OTP has been sent to +91 ${maskMobileNumber(cleanMobile)}.`,
+      maskedMobile: `+91 ${maskMobileNumber(cleanMobile)}`,
     });
-
   } catch (error) {
     console.error("Send OTP Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "Something went wrong.",
+        message: "Something went wrong while sending OTP. Please try again.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

@@ -7,7 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const mobile = String(body.mobile ?? "").trim();
+    const rawMobile = String(body.mobile ?? "").trim();
+    const cleanMobile = rawMobile.replace(/\D/g, "").slice(-10);
     const otp = String(body.otp ?? "").trim();
 
     const otpType =
@@ -15,11 +16,11 @@ export async function POST(req: NextRequest) {
         ? "REGISTRATION"
         : "LOGIN";
 
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid mobile number.",
+          message: "Invalid 10-digit mobile number.",
         },
         { status: 400 }
       );
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid OTP.",
+          message: "Please enter the 6-digit OTP received via SMS.",
         },
         { status: 400 }
       );
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const otpRecord = await prisma.oTP.findFirst({
       where: {
-        mobile,
+        mobile: cleanMobile,
         verified: false,
         type: otpType,
       },
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "OTP not found.",
+          message: "No pending OTP found. Please request a new OTP.",
         },
         { status: 404 }
       );
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "OTP has expired.",
+          message: "OTP has expired. Please click Resend OTP to get a new code.",
         },
         { status: 400 }
       );
@@ -70,12 +71,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid OTP.",
+          message: "Incorrect OTP. Please enter the valid 6-digit OTP.",
         },
         { status: 400 }
       );
     }
 
+    // Mark verified
     await prisma.oTP.update({
       where: {
         id: otpRecord.id,
@@ -84,15 +86,10 @@ export async function POST(req: NextRequest) {
         verified: true,
       },
     });
-    await prisma.oTP.deleteMany({
-  where: {
-    mobile,
-  },
-});
 
     let user = await prisma.user.findUnique({
       where: {
-        mobile,
+        mobile: cleanMobile,
       },
     });
 
@@ -102,7 +99,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mobile number already registered.",
+            message: "Mobile number is already registered. Please proceed to login.",
           },
           { status: 400 }
         );
@@ -110,7 +107,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "OTP verified successfully.",
+        message: "Mobile number verified successfully! ✓",
+        verified: true,
       });
     }
 
@@ -119,14 +117,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Account not found.",
+          message: "Account not found with this mobile number.",
         },
         { status: 404 }
       );
     }
 
     const { isPermanentAdmin } = await import("@/lib/admin-auth");
-    const isAdmin = isPermanentAdmin(mobile) || user.role === "ADMIN";
+    const isAdmin = isPermanentAdmin(cleanMobile) || user.role === "ADMIN";
 
     user = await prisma.user.update({
       where: {
@@ -147,12 +145,12 @@ export async function POST(req: NextRequest) {
     );
 
     const response = NextResponse.json({
-  success: true,
-  message: "OTP verified successfully.",
-  userId: user.id,
-  role: user.role,
-  isNewUser: false,
-});
+      success: true,
+      message: "OTP verified successfully.",
+      userId: user.id,
+      role: user.role,
+      isNewUser: false,
+    });
 
     response.cookies.set("nnvs_token", token, {
       httpOnly: true,
@@ -163,7 +161,6 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-
   } catch (error) {
     console.error("Verify OTP Error:", error);
 
@@ -172,9 +169,7 @@ export async function POST(req: NextRequest) {
         success: false,
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
