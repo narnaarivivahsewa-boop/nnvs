@@ -10,9 +10,12 @@ export const BUSINESS_INFO = {
   associatedBrand: "NNVS Matrimony – Nar Naari Vivah Sewa",
   legacyBrandShort: "NNVS Matrimony",
   
-  // Legal & GST Registered Entity Details (Official GST Certificate)
+  // Legal & GST Registered Entity Details (Official GST Certificate REG-06)
   tradeName: "Trendy Traders",
-  legalEntityName: "Trendy Traders",
+  legalEntityName: "Rahul Dhamija (Proprietor, Trendy Traders)",
+  legalName: "Rahul Dhamija",
+  additionalTradeNames: ["NNVS MATRIMONY"],
+  constitution: "Proprietorship",
   proprietor: "Rahul Dhamija",
   gstin: "06APYPD6931J1ZE",
   stateCode: "06",
@@ -21,8 +24,32 @@ export const BUSINESS_INFO = {
   sacCode: "998399",
   sacDescription: "Online Matrimonial Matchmaking & Database Services",
   
-  // Support Contacts & Payment (WhatsApp Only – Do Not Call)
+  // MSME / Udyam Registration Details (Government of India)
+  udyamRegistrationNumber: "UDYAM-HR-06-0012710",
+  enterpriseType: "Micro",
+  majorActivity: "Services",
+  nicCodes: [
+    { code: "96091", description: "Social activities such as marriage bureaus" },
+    { code: "96096", description: "Astrological and spiritualists' activities" },
+  ],
+  
+  // Principal Place of Business / Registered Office Address
+  address: {
+    buildingNo: "6/34",
+    street: "Patel Nagar",
+    landmark: "Near Guru Kirpa Bister House",
+    locality: "Patel Nagar",
+    city: "Hisar",
+    district: "Hisar",
+    state: "Haryana",
+    pinCode: "125001",
+    country: "India",
+    fullFormatted: "6/34, Near Guru Kirpa Bister House, Patel Nagar, Hisar, Haryana - 125001",
+  },
+  
+  // Support Contacts & Official Communications
   email: "narnaarivivahsewa@gmail.com",
+  officialEmail: "rahul.dhamija786@gmail.com",
   primaryWhatsApp: "9871592002",
   whatsappUrl: "https://wa.me/919871592002",
   contactInstruction: "WhatsApp Only – Do Not Call",
@@ -41,7 +68,7 @@ export const BUSINESS_INFO = {
 } as const;
 
 export const LEGAL_DISCLAIMER_TEXT = 
-  "RishteClub (https://www.rishteclub.com) is a matrimonial matchmaking platform owned and operated by Trendy Traders (Proprietor: Rahul Dhamija, GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony – Nar Naari Vivah Sewa.";
+  "RishteClub (https://www.rishteclub.com) is a matrimonial matchmaking platform owned and operated by Trendy Traders (Proprietor: Rahul Dhamija, GSTIN: 06APYPD6931J1ZE, Udyam: UDYAM-HR-06-0012710) and managed by NNVS Matrimony – Nar Naari Vivah Sewa.";
 
 /**
  * Converts a numeric amount to Indian Rupee Words for GST Tax Invoices
@@ -182,4 +209,3 @@ export function calculateGstFromGross(grossAmount: number, gstPercentage: number
     };
   }
 }
-

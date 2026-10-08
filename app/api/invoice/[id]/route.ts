@@ -109,8 +109,11 @@ export async function GET(
       seller: {
         legalName: BUSINESS_INFO.legalEntityName,
         tradeName: BUSINESS_INFO.tradeName,
+        unitName: BUSINESS_INFO.additionalTradeNames[0],
         proprietor: BUSINESS_INFO.proprietor,
         gstin: BUSINESS_INFO.gstin,
+        udyamNumber: BUSINESS_INFO.udyamRegistrationNumber,
+        address: BUSINESS_INFO.address.fullFormatted,
         stateName: BUSINESS_INFO.stateName,
         stateCode: BUSINESS_INFO.stateCode,
         country: BUSINESS_INFO.country,

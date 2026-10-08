@@ -80,10 +80,14 @@ export default function PrivacyPolicyPage() {
               <p className="mt-2">
                 For privacy-related questions, corrections, or profile removal assistance, please write to:
               </p>
-              <div className="mt-3 p-4 rounded-xl bg-white border border-[#DACBB4] space-y-1">
-                <p><strong>Email:</strong> {BUSINESS_INFO.email}</p>
-                <p><strong>Platform:</strong> {BUSINESS_INFO.brandName} (Associated with {BUSINESS_INFO.associatedBrand})</p>
-                <p><strong>Proprietor:</strong> {BUSINESS_INFO.proprietor} (Trade Name: {BUSINESS_INFO.tradeName})</p>
+              <div className="mt-3 p-4 rounded-xl bg-white border border-[#DACBB4] space-y-1.5 text-xs sm:text-sm">
+                <p><strong>Platform:</strong> {BUSINESS_INFO.brandName} (Unit: {BUSINESS_INFO.additionalTradeNames[0]} | Managed by {BUSINESS_INFO.managedByFull})</p>
+                <p><strong>Legal Entity / Trade Name:</strong> {BUSINESS_INFO.tradeName} (Proprietor: {BUSINESS_INFO.proprietor})</p>
+                <p><strong>GSTIN:</strong> {BUSINESS_INFO.gstin} (Haryana)</p>
+                <p><strong>MSME Udyam Reg.:</strong> {BUSINESS_INFO.udyamRegistrationNumber}</p>
+                <p><strong>Registered Address:</strong> {BUSINESS_INFO.address.fullFormatted}</p>
+                <p><strong>Email:</strong> {BUSINESS_INFO.email} | {BUSINESS_INFO.officialEmail}</p>
+                <p><strong>WhatsApp Support:</strong> +91 {BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call)</p>
               </div>
             </section>
           </div>

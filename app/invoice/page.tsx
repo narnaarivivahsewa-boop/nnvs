@@ -190,19 +190,25 @@ function InvoiceContent() {
                 {invoice.seller.tradeName}
               </h3>
               <p className="text-xs text-gray-700">
+                <strong>Unit:</strong> NNVS MATRIMONY
+              </p>
+              <p className="text-xs text-gray-700">
                 <strong>Proprietor:</strong> {invoice.seller.proprietor}
               </p>
               <p className="text-xs text-gray-700">
                 <strong>GSTIN:</strong> <span className="font-mono font-bold text-gray-900">{invoice.seller.gstin}</span>
               </p>
               <p className="text-xs text-gray-700">
-                <strong>State:</strong> {invoice.seller.stateName} (Code: {invoice.seller.stateCode}), {invoice.seller.country}
+                <strong>MSME Udyam Reg.:</strong> <span className="font-mono font-bold text-gray-900">UDYAM-HR-06-0012710</span>
+              </p>
+              <p className="text-xs text-gray-700">
+                <strong>Registered Address:</strong> 6/34, Near Guru Kirpa Bister House, Patel Nagar, Hisar, Haryana - 125001
               </p>
               <p className="text-xs text-gray-600">
                 <strong>Email:</strong> {invoice.seller.email}
               </p>
               <p className="text-xs text-gray-600">
-                <strong>Helpline:</strong> {invoice.seller.helplineNumbers.join(", ")}
+                <strong>WhatsApp Support:</strong> +91 9871592002 (WhatsApp Only – Do Not Call)
               </p>
             </div>
 

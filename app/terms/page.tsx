@@ -113,12 +113,14 @@ export default function TermsPage() {
                 For questions, clarifications, or reporting grievances regarding these terms:
               </p>
               <div className="mt-3 p-5 rounded-2xl bg-white border border-[#DACBB4] space-y-2 text-xs sm:text-sm">
-                <p><strong>Brand:</strong> {BUSINESS_INFO.brandName}</p>
-                <p><strong>Associated Brand:</strong> {BUSINESS_INFO.associatedBrand}</p>
+                <p><strong>Platform:</strong> {BUSINESS_INFO.brandName} (Unit: {BUSINESS_INFO.additionalTradeNames[0]})</p>
+                <p><strong>Operational Management:</strong> {BUSINESS_INFO.managedByFull}</p>
+                <p><strong>Legal Entity / Trade Name:</strong> {BUSINESS_INFO.tradeName}</p>
                 <p><strong>Proprietor:</strong> {BUSINESS_INFO.proprietor}</p>
-                <p><strong>Trade Name:</strong> {BUSINESS_INFO.tradeName}</p>
-                <p><strong>GSTIN:</strong> {BUSINESS_INFO.gstin}</p>
-                <p><strong>Email:</strong> {BUSINESS_INFO.email}</p>
+                <p><strong>GSTIN:</strong> {BUSINESS_INFO.gstin} (Haryana)</p>
+                <p><strong>MSME Udyam Registration:</strong> {BUSINESS_INFO.udyamRegistrationNumber}</p>
+                <p><strong>Principal Place of Business:</strong> {BUSINESS_INFO.address.fullFormatted}</p>
+                <p><strong>Official Email:</strong> {BUSINESS_INFO.email} | {BUSINESS_INFO.officialEmail}</p>
                 <p><strong>WhatsApp Support:</strong> +91 {BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call)</p>
               </div>
             </section>

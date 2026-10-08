@@ -103,29 +103,34 @@ export default function ContactPage() {
         {/* Business & Legal Registration Details */}
         <div className="mt-8 rounded-3xl bg-[#FAF5EB] p-6 sm:p-8 shadow-sm border border-[#DACBB4]">
           <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
-            Official Business & GST Registration
+            Official Business, GST & MSME Registration Details
           </h3>
           <div className="mt-4 grid sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs text-[#5A4E48]">
             <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
-              <span className="text-gray-400 block font-medium">Platform / Brand</span>
+              <span className="text-gray-400 block font-medium">Platform & Unit</span>
               <strong className="text-[#2D221E] text-sm">{BUSINESS_INFO.brandName}</strong>
-              <span className="text-[10px] text-[#7A5835] block">Managed by {BUSINESS_INFO.managedBy}</span>
+              <span className="text-[10px] text-[#7A5835] block font-semibold">Unit: {BUSINESS_INFO.additionalTradeNames[0]}</span>
             </div>
             <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
-              <span className="text-gray-400 block font-medium">Trade Name (As per GST)</span>
+              <span className="text-gray-400 block font-medium">Trade Name (GST REG-06)</span>
               <strong className="text-[#2D221E] text-sm">{BUSINESS_INFO.tradeName}</strong>
               <span className="text-[10px] text-gray-500 block">Prop: {BUSINESS_INFO.proprietor}</span>
             </div>
             <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
-              <span className="text-gray-400 block font-medium">GSTIN</span>
+              <span className="text-gray-400 block font-medium">GST Identification (GSTIN)</span>
               <strong className="text-[#2D221E] font-mono text-sm">{BUSINESS_INFO.gstin}</strong>
               <span className="text-[10px] text-gray-500 block">State: {BUSINESS_INFO.stateName} ({BUSINESS_INFO.stateCode})</span>
             </div>
             <div className="p-3.5 bg-white rounded-xl border border-[#E8DCC8]">
-              <span className="text-gray-400 block font-medium">Service Classification</span>
-              <strong className="text-[#2D221E] text-sm font-mono">SAC {BUSINESS_INFO.sacCode}</strong>
-              <span className="text-[10px] text-gray-500 block">Online Matrimonial Services</span>
+              <span className="text-gray-400 block font-medium">MSME Udyam Registration</span>
+              <strong className="text-[#2D221E] font-mono text-xs">{BUSINESS_INFO.udyamRegistrationNumber}</strong>
+              <span className="text-[10px] text-gray-500 block">Govt. of India (Services)</span>
             </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-white rounded-2xl border border-[#E8DCC8] text-xs text-[#5A4E48]">
+            <span className="text-gray-400 block font-medium text-[11px]">Principal Place of Business / Registered Office Address</span>
+            <strong className="text-[#2D221E] text-sm block mt-0.5">{BUSINESS_INFO.address.fullFormatted}</strong>
           </div>
         </div>
 

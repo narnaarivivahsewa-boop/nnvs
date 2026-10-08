@@ -183,22 +183,30 @@ export default function Footer() {
         </div>
 
         {/* Business & Legal Entity Details */}
-        <div className="mt-8 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-1.5">
+        <div className="mt-8 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-2">
           <div className="flex items-center gap-2 text-[#DFBA73] font-semibold text-xs uppercase tracking-wider">
             <ShieldCheck className="h-4 w-4" />
             <span>Official Business & Regulatory Information</span>
           </div>
           <p className="leading-relaxed">
-            <strong className="text-white">RishteClub</strong> (https://rishteclub.com) is a matrimonial matchmaking platform owned and operated by registered legal entity / trade name <strong className="text-white">{BUSINESS_INFO.tradeName}</strong> (Proprietor: <strong className="text-white">{BUSINESS_INFO.proprietor}</strong>, GSTIN: <strong className="text-white">{BUSINESS_INFO.gstin}</strong>), and managed by <strong className="text-white">{BUSINESS_INFO.managedByFull}</strong>.
+            <strong className="text-white">RishteClub</strong> (https://rishteclub.com) is a matrimonial matchmaking platform owned and operated by registered trade entity <strong className="text-white">{BUSINESS_INFO.tradeName}</strong> (Unit: <strong className="text-white">NNVS MATRIMONY</strong> | Proprietor: <strong className="text-white">{BUSINESS_INFO.proprietor}</strong>), and managed by <strong className="text-white">{BUSINESS_INFO.managedByFull}</strong>.
           </p>
-          <p className="text-[11px] text-[#A6938D]">
-            All tax invoices, billing, and GST compliance are processed under trade name <strong>{BUSINESS_INFO.tradeName}</strong>.
-          </p>
+          <div className="grid sm:grid-cols-2 gap-2 pt-1 text-[11px] text-[#A6938D]">
+            <p>
+              <strong className="text-white">GSTIN:</strong> <span className="font-mono text-[#DFBA73]">{BUSINESS_INFO.gstin}</span> (Haryana)
+            </p>
+            <p>
+              <strong className="text-white">MSME Udyam Reg.:</strong> <span className="font-mono text-[#DFBA73]">{BUSINESS_INFO.udyamRegistrationNumber}</span>
+            </p>
+            <p className="sm:col-span-2">
+              <strong className="text-white">Registered Place of Business:</strong> {BUSINESS_INFO.address.fullFormatted}
+            </p>
+          </div>
         </div>
 
         {/* Bottom Bar */}
         <div className="mt-8 border-t border-[#521822] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#A6938D]">
-          <p>© {new Date().getFullYear()} RishteClub (Managed by NNVS Matrimony). Trade Name: Trendy Traders. All Rights Reserved.</p>
+          <p>© {new Date().getFullYear()} RishteClub (Managed by NNVS Matrimony • Trendy Traders). All Rights Reserved.</p>
           <p className="flex items-center gap-1.5 text-[#A6938D]">
             <span>Dedicated to bringing families together</span>
             <Heart className="h-3 w-3 text-[#DFBA73] fill-[#DFBA73] inline" />
