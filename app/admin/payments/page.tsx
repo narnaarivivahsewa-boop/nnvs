@@ -95,9 +95,30 @@ export default function PaymentsPage() {
     };
   }, [search]);
 
+  const getProfileFeeInfo = (profile: any) => {
+    const gender = String(profile?.user?.gender || profile?.gender || "").toUpperCase();
+    const legacyId = String(profile?.legacyProfileId || "").toUpperCase();
+    const isFemale = gender === "FEMALE" || legacyId.includes("-G-");
+
+    const baseFee = isFemale ? 399 : 799;
+    const gst = Math.round(baseFee * 0.18 * 100) / 100;
+    const gross = Math.round((baseFee + gst) * 100) / 100;
+
+    return {
+      isFemale,
+      genderLabel: isFemale ? "Female" : "Male",
+      baseFee,
+      gst,
+      gross,
+      displayBadge: isFemale ? "Female: ₹399 + 18% GST (₹470.82)" : "Male: ₹799 + 18% GST (₹942.82)",
+      grossStr: String(gross),
+    };
+  };
+
   const handleOpenConfirmModal = (profile: any) => {
     setSelectedProfile(profile);
-    setGrossAmount("1100");
+    const feeInfo = getProfileFeeInfo(profile);
+    setGrossAmount(feeInfo.grossStr);
     setIsPaymentExempt(false);
     setExemptionReason("");
     setPaymentDate(new Date().toISOString().split("T")[0]);
@@ -410,10 +431,17 @@ export default function PaymentsPage() {
                       </div>
 
                       {/* Expected Fee */}
-                      <div className="mt-3 flex items-center justify-between text-xs text-gray-600 px-1">
-                        <span>Standard Membership Fee:</span>
-                        <span className="font-bold text-[#4A121A] text-sm">₹1,100 (incl. 18% GST)</span>
-                      </div>
+                      {(() => {
+                        const feeInfo = getProfileFeeInfo(item);
+                        return (
+                          <div className="mt-3 flex items-center justify-between text-xs text-gray-600 px-1 bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                            <span>Registration Fee ({feeInfo.genderLabel}):</span>
+                            <span className="font-bold text-[#4A121A] text-xs sm:text-sm">
+                              {feeInfo.displayBadge}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Action Button */}
@@ -687,7 +715,8 @@ export default function PaymentsPage() {
                         setGrossAmount("0");
                         if (!transactionId) setTransactionId("EXEMPT");
                       } else {
-                        setGrossAmount("1100");
+                        const feeInfo = getProfileFeeInfo(selectedProfile);
+                        setGrossAmount(feeInfo.grossStr);
                         if (transactionId === "EXEMPT") setTransactionId("");
                       }
                     }}
@@ -747,11 +776,16 @@ export default function PaymentsPage() {
               ) : (
                 /* Normal Paid Payment Form Elements */
                 <>
-                  {/* Gross Amount Input */}
+                  {/* Gross Amount Input with Gender Presets */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                      Gross Amount Received (₹ incl. 18% GST) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Gross Amount Received (₹ incl. 18% GST) *
+                      </label>
+                      <span className="text-[11px] font-semibold text-gray-500">
+                        Female ₹399+GST | Male ₹799+GST
+                      </span>
+                    </div>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</span>
                       <input
@@ -762,8 +796,34 @@ export default function PaymentsPage() {
                         value={grossAmount}
                         onChange={(e) => setGrossAmount(e.target.value)}
                         className="w-full pl-8 pr-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
-                        placeholder="1100"
+                        placeholder="e.g. 470.82 or 942.82"
                       />
+                    </div>
+
+                    {/* Quick Preset Buttons */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGrossAmount("470.82")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                          grossAmount === "470.82"
+                            ? "bg-purple-100 text-purple-900 border-purple-300"
+                            : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        Female: ₹470.82 (₹399+GST)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGrossAmount("942.82")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                          grossAmount === "942.82"
+                            ? "bg-blue-100 text-blue-900 border-blue-300"
+                            : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        Male: ₹942.82 (₹799+GST)
+                      </button>
                     </div>
                   </div>
 

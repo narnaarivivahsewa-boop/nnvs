@@ -153,7 +153,11 @@ export async function POST(req: NextRequest) {
     // ==========================================
     const setting = await prisma.adminSetting.findFirst();
     const gstPercentage = Number(setting?.gstPercentage || 18);
-    const grossAmountNum = Number(grossAmount || setting?.registrationFee || 1100);
+    const isFemale =
+      profile.user?.gender === "FEMALE" ||
+      String(profile.legacyProfileId || "").toUpperCase().includes("-G-");
+    const defaultGenderFee = isFemale ? 470.82 : 942.82;
+    const grossAmountNum = Number(grossAmount ?? defaultGenderFee);
 
     if (isNaN(grossAmountNum) || grossAmountNum <= 0) {
       return NextResponse.json(
