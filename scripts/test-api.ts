@@ -1,14 +1,37 @@
 async function test() {
   const url = 'https://www.rishteclub.com/api/integrations/google-form';
-  const rawKey = '9377018194b7c3361ccd1c929de0d9d267c821544c05ff12ea64e5cabfdea20c';
-  const quotedKey = '"9377018194b7c3361ccd1c929de0d9d267c821544c05ff12ea64e5cabfdea20c"';
+  const key = '9377018194b7c3361ccd1c929de0d9d267c821544c05ff12ea64e5cabfdea20c';
 
-  console.log('--- TEST 1: WITHOUT QUOTES ---');
-  let res = await fetch(url, { headers: { 'x-integration-key': rawKey } });
-  console.log('Status:', res.status, await res.text());
+  const testPayload = {
+    dryRun: false,
+    batch: [
+      {
+        sourceId: 'TEST_ROW_1',
+        rowNumber: 1,
+        legacyProfileId: 'NNVS-TEST-001',
+        name: 'Test Candidate',
+        gender: 'Male',
+        mobile: '9876543210',
+        maritalStatus: 'Never Married',
+        qualification: 'B.Tech',
+        occupation: 'Software Engineer',
+      }
+    ]
+  };
 
-  console.log('--- TEST 2: WITH QUOTES ---');
-  res = await fetch(url, { headers: { 'x-integration-key': quotedKey } });
-  console.log('Status:', res.status, await res.text());
+  console.log('Sending test POST request...');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-integration-key': key,
+    },
+    body: JSON.stringify(testPayload),
+  });
+
+  console.log('Status:', res.status);
+  const data = await res.json();
+  console.log('Response:', JSON.stringify(data, null, 2));
 }
+
 test();

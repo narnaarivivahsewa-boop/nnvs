@@ -432,292 +432,287 @@ export async function POST(req: NextRequest) {
         // Partner Preferences (Col AA)
         const partnerPrefText = row.partnerPreferences || null;
 
-        // Execute Transaction
-        const transactionResult = await prisma.$transaction(async (tx) => {
-          // 1. User Account
-          let userId = isSharedMobileApplicant ? undefined : existingUser?.id;
-          if (!userId) {
-            let userEmail: string | undefined = undefined;
-            if (email) {
-              const existingEmailUser = await tx.user.findUnique({ where: { email } });
-              if (!existingEmailUser) userEmail = email;
-            }
-
-            // Ensure final user mobile is 100% unique in database
-            let finalMobile = effectiveMobile;
-            let mobileCollision = await tx.user.findUnique({ where: { mobile: finalMobile } });
-            if (mobileCollision) {
-              finalMobile = `${finalMobile}_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
-            }
-
-            const newUser = await tx.user.create({
-              data: {
-                fullName,
-                mobile: finalMobile,
-                email: userEmail,
-                gender,
-                role: "MEMBER",
-                status: "ACTIVE",
-                mobileVerified: true,
-                password: null,
-                createdAt: parseDate(row.timestamp) || new Date(),
-              },
-            });
-            userId = newUser.id;
-          } else {
-            let userEmail = existingUser?.email || undefined;
-            if (email && email !== existingUser?.email) {
-              const existingEmailUser = await tx.user.findUnique({ where: { email } });
-              if (!existingEmailUser) userEmail = email;
-            }
-
-            await tx.user.update({
-              where: { id: userId },
-              data: {
-                fullName: fullName || existingUser?.fullName,
-                email: userEmail,
-                mobileVerified: true,
-                status: "ACTIVE",
-              },
-            });
+        // 1. User Account
+        let userId = isSharedMobileApplicant ? undefined : existingUser?.id;
+        if (!userId) {
+          let userEmail: string | undefined = undefined;
+          if (email) {
+            const existingEmailUser = await prisma.user.findUnique({ where: { email } });
+            if (!existingEmailUser) userEmail = email;
           }
 
-          // 2. Profile Creation / Update
-          let websiteProfileId = existingProfile?.profileId;
-          if (!websiteProfileId) {
-            let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-            let idCheck = await tx.profile.findUnique({ where: { profileId: candidateId } });
-            while (idCheck) {
-              candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-              idCheck = await tx.profile.findUnique({ where: { profileId: candidateId } });
-            }
-            websiteProfileId = candidateId;
+          // Ensure final user mobile is 100% unique in database
+          let finalMobile = effectiveMobile;
+          let mobileCollision = await prisma.user.findUnique({ where: { mobile: finalMobile } });
+          if (mobileCollision) {
+            finalMobile = `${finalMobile}_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
           }
 
-          const profileData: any = {
-            firstName: fullName.split(" ")[0] || fullName,
-            lastName: fullName.split(" ").slice(1).join(" ") || null,
-            dateOfBirth,
-            height,
-            maritalStatus,
-            birthPlace,
-            birthTime,
-            diet,
-            manglik,
-            contactPerson,
-            consentSocialMedia,
-            consentGeneral,
-            otherMatrimonyInfo,
-            notes,
-            paymentRemark,
-            source: "GOOGLE_FORM",
-            sourceId,
-            legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
-            // Google Form profiles are active, visible and approved on the website
-            isVisible: true,
-            paymentCompleted: true,
-            approvalStatus: "APPROVED",
-            approvedAt: new Date(),
-            isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
-            duplicateNotes: isSharedMobileApplicant
-              ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
-              : existingProfile?.duplicateNotes || null,
-          };
-
-          let profile;
-          if (existingProfile) {
-            profile = await tx.profile.update({
-              where: { id: existingProfile.id },
-              data: profileData,
-            });
-          } else {
-            profile = await tx.profile.create({
-              data: {
-                ...profileData,
-                userId,
-                profileId: websiteProfileId,
-              },
-            });
+          const newUser = await prisma.user.create({
+            data: {
+              fullName,
+              mobile: finalMobile,
+              email: userEmail,
+              gender,
+              role: "MEMBER",
+              status: "ACTIVE",
+              mobileVerified: true,
+              password: null,
+              createdAt: parseDate(row.timestamp) || new Date(),
+            },
+          });
+          userId = newUser.id;
+        } else {
+          let userEmail = existingUser?.email || undefined;
+          if (email && email !== existingUser?.email) {
+            const existingEmailUser = await prisma.user.findUnique({ where: { email } });
+            if (!existingEmailUser) userEmail = email;
           }
 
-          // 3. ProfilePhone: Store all extracted phone numbers
-          for (let pIdx = 0; pIdx < allMobiles.length; pIdx++) {
-            const ph = allMobiles[pIdx];
-            const isPrimary = pIdx === 0;
-            await tx.profilePhone.upsert({
-              where: {
-                profileId_phone: {
-                  profileId: profile.id,
-                  phone: ph,
-                },
-              },
-              create: {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              fullName: fullName || existingUser?.fullName,
+              email: userEmail,
+              mobileVerified: true,
+              status: "ACTIVE",
+            },
+          });
+        }
+
+        // 2. Profile Creation / Update
+        let websiteProfileId = existingProfile?.profileId;
+        if (!websiteProfileId) {
+          let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          let idCheck = await prisma.profile.findUnique({ where: { profileId: candidateId } });
+          while (idCheck) {
+            candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+            idCheck = await prisma.profile.findUnique({ where: { profileId: candidateId } });
+          }
+          websiteProfileId = candidateId;
+        }
+
+        const profileData: any = {
+          firstName: fullName.split(" ")[0] || fullName,
+          lastName: fullName.split(" ").slice(1).join(" ") || null,
+          dateOfBirth,
+          height,
+          maritalStatus,
+          birthPlace,
+          birthTime,
+          diet,
+          manglik,
+          contactPerson,
+          consentSocialMedia,
+          consentGeneral,
+          otherMatrimonyInfo,
+          notes,
+          paymentRemark,
+          source: "GOOGLE_FORM",
+          sourceId,
+          legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
+          // Google Form profiles are active, visible and approved on the website
+          isVisible: true,
+          paymentCompleted: true,
+          approvalStatus: "APPROVED",
+          approvedAt: new Date(),
+          isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
+          duplicateNotes: isSharedMobileApplicant
+            ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
+            : existingProfile?.duplicateNotes || null,
+        };
+
+        let profile;
+        if (existingProfile) {
+          profile = await prisma.profile.update({
+            where: { id: existingProfile.id },
+            data: profileData,
+          });
+        } else {
+          profile = await prisma.profile.create({
+            data: {
+              ...profileData,
+              userId: userId!,
+              profileId: websiteProfileId,
+            },
+          });
+        }
+
+        // 3. ProfilePhone: Store all extracted phone numbers
+        for (let pIdx = 0; pIdx < allMobiles.length; pIdx++) {
+          const ph = allMobiles[pIdx];
+          const isPrimary = pIdx === 0;
+          await prisma.profilePhone.upsert({
+            where: {
+              profileId_phone: {
                 profileId: profile.id,
                 phone: ph,
-                isPrimary,
               },
-              update: {
-                isPrimary,
-              },
-            });
-          }
+            },
+            create: {
+              profileId: profile.id,
+              phone: ph,
+              isPrimary,
+            },
+            update: {
+              isPrimary,
+            },
+          });
+        }
 
-          // 4. Family Details
-          await tx.family.upsert({
+        // 4. Family Details
+        await prisma.family.upsert({
+          where: { profileId: profile.id },
+          create: {
+            profileId: profile.id,
+            fatherName,
+            fatherOccupation,
+            motherName,
+            motherOccupation,
+            brothers,
+            sisters,
+            siblingsDetails,
+            familyStatus,
+            familyType,
+            propertyDetails,
+          },
+          update: {
+            fatherName: fatherName || undefined,
+            fatherOccupation: fatherOccupation || undefined,
+            motherName: motherName || undefined,
+            motherOccupation: motherOccupation || undefined,
+            brothers: brothers || undefined,
+            sisters: sisters || undefined,
+            siblingsDetails: siblingsDetails || undefined,
+            familyStatus: familyStatus || undefined,
+            familyType: familyType || undefined,
+            propertyDetails: propertyDetails || undefined,
+          },
+        });
+
+        // 5. Education
+        if (highestQualification || !existingProfile) {
+          await prisma.education.upsert({
             where: { profileId: profile.id },
             create: {
               profileId: profile.id,
-              fatherName,
-              fatherOccupation,
-              motherName,
-              motherOccupation,
-              brothers,
-              sisters,
-              siblingsDetails,
-              familyStatus,
-              familyType,
-              propertyDetails,
+              highestQualification,
+              occupationField: profession,
             },
             update: {
-              fatherName: fatherName || undefined,
-              fatherOccupation: fatherOccupation || undefined,
-              motherName: motherName || undefined,
-              motherOccupation: motherOccupation || undefined,
-              brothers: brothers || undefined,
-              sisters: sisters || undefined,
-              siblingsDetails: siblingsDetails || undefined,
-              familyStatus: familyStatus || undefined,
-              familyType: familyType || undefined,
-              propertyDetails: propertyDetails || undefined,
+              highestQualification: highestQualification || undefined,
+              occupationField: profession || undefined,
+            },
+          });
+        }
+
+        // 6. Occupation
+        if (profession || annualIncome || !existingProfile) {
+          await prisma.occupation.upsert({
+            where: { profileId: profile.id },
+            create: {
+              profileId: profile.id,
+              profession,
+              annualIncome,
+            },
+            update: {
+              profession: profession || undefined,
+              annualIncome: annualIncome || undefined,
+            },
+          });
+        }
+
+        // 7. Partner Preference
+        if (partnerPrefText) {
+          await prisma.partnerPreference.upsert({
+            where: { profileId: profile.id },
+            create: {
+              profileId: profile.id,
+              preferredCaste: partnerPrefText,
+            },
+            update: {
+              preferredCaste: partnerPrefText,
+            },
+          });
+        }
+
+        // 8. Photos (Idempotent insertion with APPROVED status)
+        if (primaryPhotoUrl) {
+          const existingPrimary = await prisma.profilePhoto.findFirst({
+            where: {
+              profileId: profile.id,
+              imageUrl: primaryPhotoUrl,
             },
           });
 
-          // 5. Education
-          if (highestQualification || !existingProfile) {
-            await tx.education.upsert({
-              where: { profileId: profile.id },
-              create: {
-                profileId: profile.id,
-                highestQualification,
-                occupationField: profession,
-              },
-              update: {
-                highestQualification: highestQualification || undefined,
-                occupationField: profession || undefined,
-              },
-            });
-          }
-
-          // 6. Occupation
-          if (profession || annualIncome || !existingProfile) {
-            await tx.occupation.upsert({
-              where: { profileId: profile.id },
-              create: {
-                profileId: profile.id,
-                profession,
-                annualIncome,
-              },
-              update: {
-                profession: profession || undefined,
-                annualIncome: annualIncome || undefined,
-              },
-            });
-          }
-
-          // 7. Partner Preference
-          if (partnerPrefText) {
-            await tx.partnerPreference.upsert({
-              where: { profileId: profile.id },
-              create: {
-                profileId: profile.id,
-                preferredCaste: partnerPrefText,
-              },
-              update: {
-                preferredCaste: partnerPrefText,
-              },
-            });
-          }
-
-          // 8. Photos (Idempotent insertion with APPROVED status)
-          if (primaryPhotoUrl) {
-            const existingPrimary = await tx.profilePhoto.findFirst({
-              where: {
+          if (!existingPrimary) {
+            await prisma.profilePhoto.create({
+              data: {
                 profileId: profile.id,
                 imageUrl: primaryPhotoUrl,
+                isPrimary: true,
+                status: "APPROVED",
               },
             });
-
-            if (!existingPrimary) {
-              await tx.profilePhoto.create({
-                data: {
-                  profileId: profile.id,
-                  imageUrl: primaryPhotoUrl,
-                  isPrimary: true,
-                  status: "APPROVED",
-                },
-              });
-            } else {
-              await tx.profilePhoto.update({
-                where: { id: existingPrimary.id },
-                data: { isPrimary: true, status: "APPROVED" },
-              });
-            }
+          } else {
+            await prisma.profilePhoto.update({
+              where: { id: existingPrimary.id },
+              data: { isPrimary: true, status: "APPROVED" },
+            });
           }
+        }
 
-          for (const addUrl of additionalPhotoUrls) {
-            const existingPhoto = await tx.profilePhoto.findFirst({
-              where: {
+        for (const addUrl of additionalPhotoUrls) {
+          const existingPhoto = await prisma.profilePhoto.findFirst({
+            where: {
+              profileId: profile.id,
+              imageUrl: addUrl,
+            },
+          });
+
+          if (!existingPhoto) {
+            await prisma.profilePhoto.create({
+              data: {
                 profileId: profile.id,
                 imageUrl: addUrl,
+                isPrimary: false,
+                status: "APPROVED",
               },
             });
-
-            if (!existingPhoto) {
-              await tx.profilePhoto.create({
-                data: {
-                  profileId: profile.id,
-                  imageUrl: addUrl,
-                  isPrimary: false,
-                  status: "APPROVED",
-                },
-              });
-            }
           }
+        }
 
-          // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless Monus Malhotra)
-          const isMonus = (fullName || "").toLowerCase().includes("monus");
-          if (!isMonus && userId) {
-            const existingPayment = await tx.payment.findFirst({
-              where: {
-                OR: [
-                  { profileId: profile.id },
-                  { userId: userId },
-                ],
+        // 9. Payment Record for Google Form Imports (Payment-Exempt ₹0 unless Monus Malhotra)
+        const isMonus = (fullName || "").toLowerCase().includes("monus");
+        if (!isMonus && userId) {
+          const existingPayment = await prisma.payment.findFirst({
+            where: {
+              OR: [
+                { profileId: profile.id },
+                { userId: userId },
+              ],
+            },
+          });
+          if (!existingPayment) {
+            await prisma.payment.create({
+              data: {
+                userId: userId,
+                profileId: profile.id,
+                amount: 0,
+                grossAmount: 0,
+                taxableAmount: 0,
+                gstRate: 0,
+                gstAmount: 0,
+                status: "SUCCESS",
+                paymentGateway: "PAYMENT_EXEMPT",
+                paymentDate: parseDate(row.timestamp) || new Date(),
+                adminNotes: "Imported legacy NNVS profile - Payment Exempt (₹0)",
+                confirmedByAdmin: true,
+                confirmedAt: new Date(),
               },
             });
-            if (!existingPayment) {
-              await tx.payment.create({
-                data: {
-                  userId: userId,
-                  profileId: profile.id,
-                  amount: 0,
-                  grossAmount: 0,
-                  taxableAmount: 0,
-                  gstRate: 0,
-                  gstAmount: 0,
-                  status: "SUCCESS",
-                  paymentGateway: "PAYMENT_EXEMPT",
-                  paymentDate: parseDate(row.timestamp) || new Date(),
-                  adminNotes: "Imported legacy NNVS profile - Payment Exempt (₹0)",
-                  confirmedByAdmin: true,
-                  confirmedAt: new Date(),
-                },
-              });
-            }
           }
-
-          return { userId, profile };
-        });
+        }
 
         if (existingProfile) {
           updatedCount++;
@@ -728,8 +723,8 @@ export async function POST(req: NextRequest) {
         rowResults.push({
           row: rowIndex,
           status: existingProfile ? "UPDATED" : "CREATED",
-          profileId: transactionResult.profile.profileId,
-          legacyProfileId: transactionResult.profile.legacyProfileId,
+          profileId: profile.profileId,
+          legacyProfileId: profile.legacyProfileId,
           mobile,
           allMobiles,
           fullName,
