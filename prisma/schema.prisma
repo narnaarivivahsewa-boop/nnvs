@@ -93,7 +93,7 @@ model Profile {
   profileId String @unique
 
   // Legacy & Integration Identifiers
-  legacyProfileId String? @unique
+  legacyProfileId String?
   source          String? @default("WEBSITE")
   sourceId        String? @unique
 

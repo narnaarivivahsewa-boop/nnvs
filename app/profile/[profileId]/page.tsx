@@ -23,6 +23,7 @@ import {
   Sun,
   HelpCircle,
   Send,
+  FileDown,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -298,8 +299,8 @@ export default function ProfileDetailsPage() {
   return (
     <div className="min-h-screen bg-gray-50/70 py-10">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        {/* Navigation & Share Row */}
-        <div className="flex items-center justify-between mb-6">
+        {/* Navigation & Share / Download Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <button
             onClick={() => router.back()}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
@@ -308,13 +309,27 @@ export default function ProfileDetailsPage() {
             <span>Back</span>
           </button>
 
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
-          >
-            <Share2 className="h-4 w-4 text-[#4A121A]" />
-            <span>Share Profile</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <a
+              href={`/api/profiles/${profile.id}/pdf`}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition"
+              title="Download formatted matrimonial biodata PDF with contact details and verified stamp"
+            >
+              <FileDown className="h-4 w-4" />
+              <span>Download Biodata (PDF)</span>
+            </a>
+
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
+            >
+              <Share2 className="h-4 w-4 text-[#4A121A]" />
+              <span>Share Profile</span>
+            </button>
+          </div>
         </div>
 
         {/* Message Banner */}

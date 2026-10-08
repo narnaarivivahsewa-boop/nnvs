@@ -15,6 +15,7 @@ import {
   ExternalLink,
   MessageCircle,
   Filter,
+  FileDown,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -697,6 +698,18 @@ export default function AdminProfilesPage() {
                         >
                           View
                         </Link>
+
+                        <a
+                          href={`/api/profiles/${profile.id}/pdf`}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-800 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition shadow-xs"
+                          title="Download Biodata PDF"
+                        >
+                          <FileDown className="h-3.5 w-3.5" />
+                          <span>PDF</span>
+                        </a>
 
                         <a
                           href={`https://wa.me/91${candidateMobile}?text=${whatsappMsg}`}

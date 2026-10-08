@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Edit, GraduationCap, Users2, HeartHandshake } from "lucide-react";
+import { ArrowLeft, Edit, GraduationCap, Users2, HeartHandshake, FileDown } from "lucide-react";
 
 type ProfileData = {
   profileId: string;
@@ -106,7 +106,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50/70 py-10">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <Link
             href="/dashboard"
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border hover:bg-gray-50 transition"
@@ -115,13 +115,27 @@ export default function ProfilePage() {
             <span>Dashboard</span>
           </Link>
 
-          <Link
-            href="/profile/edit"
-            className="inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2 text-sm font-bold text-white shadow hover:bg-red-700 transition"
-          >
-            <Edit className="h-4 w-4" />
-            <span>Edit Profile</span>
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <a
+              href={`/api/profiles/${profile.profileId}/pdf`}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-bold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition"
+              title="Download your printable matrimonial biodata with RishteClub verified branding"
+            >
+              <FileDown className="h-4 w-4" />
+              <span>Download Biodata (PDF)</span>
+            </a>
+
+            <Link
+              href="/profile/edit"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border hover:bg-gray-50 transition"
+            >
+              <Edit className="h-4 w-4 text-red-800" />
+              <span>Edit Profile</span>
+            </Link>
+          </div>
         </div>
 
         {/* Master Profile Card */}

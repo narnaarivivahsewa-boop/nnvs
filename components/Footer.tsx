@@ -146,8 +146,44 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Popular Matrimonial Searches / SEO Keyword Matrix */}
+        <div className="mt-10 pt-8 border-t border-[#521822] space-y-4">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#DFBA73] font-serif-luxury">
+            Popular Matrimonial Searches & Rishtey Categories
+          </h4>
+          <div className="flex flex-wrap gap-2 text-[11px] text-[#C8B6AF]">
+            {[
+              { name: "All Marriage Profiles", href: "/profiles" },
+              { name: "Agarwal Matrimony", href: "/profiles?caste=Agarwal" },
+              { name: "Baniya Rishtey", href: "/profiles?caste=Baniya" },
+              { name: "Brahmin Vivah", href: "/profiles?caste=Brahmin" },
+              { name: "Punjabi Matrimony", href: "/profiles?caste=Punjabi" },
+              { name: "Khatri Shaadi Profiles", href: "/profiles?caste=Khatri" },
+              { name: "Arora Rishtey", href: "/profiles?caste=Arora" },
+              { name: "Gupta Matrimony", href: "/profiles?caste=Gupta" },
+              { name: "Jain Vivah", href: "/profiles?caste=Jain" },
+              { name: "Maheshwari Matrimony", href: "/profiles?caste=Maheshwari" },
+              { name: "Free Kundli Milan", href: "/astrology" },
+              { name: "Lal Kitab Remedies", href: "/astrology" },
+              { name: "Wedding Vendors & Services", href: "/services" },
+              { name: "Delhi NCR Marriage Bureau", href: "/profiles" },
+              { name: "Haryana & Punjab Vivah Sewa", href: "/profiles" },
+              { name: "Verified NRI Rishtey", href: "/profiles" },
+              { name: "Register Shaadi Biodata", href: "/register" },
+            ].map((tag) => (
+              <Link
+                key={tag.name}
+                href={tag.href}
+                className="bg-[#24060B] hover:bg-[#4A121A] hover:text-[#DFBA73] px-2.5 py-1 rounded-lg border border-[#521822] transition"
+              >
+                {tag.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {/* Business & Legal Entity Details */}
-        <div className="mt-10 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-1.5">
+        <div className="mt-8 rounded-2xl bg-[#24060B] p-4 sm:p-5 border border-[#4A121A] text-xs text-[#C8B6AF] space-y-1.5">
           <div className="flex items-center gap-2 text-[#DFBA73] font-semibold text-xs uppercase tracking-wider">
             <ShieldCheck className="h-4 w-4" />
             <span>Official Business & Regulatory Information</span>

@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   ShieldCheck,
   X,
+  FileDown,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -442,7 +443,20 @@ export default function AdminProfileViewPage({
             <span>Confirm Pay</span>
           </button>
 
-          {/* 6. Invoice Link */}
+          {/* 6. Download Biodata PDF */}
+          <a
+            href={`/api/profiles/${profile.id}/pdf`}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-800 to-rose-900 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold hover:from-red-700 hover:to-rose-800 transition shadow-sm"
+            title="Download verified printable matrimonial biodata PDF"
+          >
+            <FileDown className="h-4 w-4" />
+            <span>Download Biodata PDF</span>
+          </a>
+
+          {/* 7. Invoice Link */}
           {profile.paymentCompleted ? (
             <Link
               href={`/invoice/${profile.user?.payments?.[0]?.id || profile.profileId}`}

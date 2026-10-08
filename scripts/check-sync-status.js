@@ -8,12 +8,29 @@ async function main() {
   const approvedProfiles = await prisma.profile.count({ where: { approvalStatus: 'APPROVED' } });
   const sourceGoogleForm = await prisma.profile.count({ where: { source: 'GOOGLE_FORM' } });
 
+  const maleCount = await prisma.user.count({ where: { gender: 'MALE' } });
+  const femaleCount = await prisma.user.count({ where: { gender: 'FEMALE' } });
+  const hiddenProfiles = await prisma.profile.count({ where: { isVisible: false } });
+  const unapprovedProfiles = await prisma.profile.count({ where: { approvalStatus: { not: 'APPROVED' } } });
+
+  const gSeriesCount = await prisma.profile.count({ where: { legacyProfileId: { contains: '-G-' } } });
+  const bSeriesCount = await prisma.profile.count({ where: { legacyProfileId: { contains: '-B-' } } });
+  const otherSeriesCount = await prisma.profile.count({ where: { NOT: [{ legacyProfileId: { contains: '-G-' } }, { legacyProfileId: { contains: '-B-' } }] } });
+
+  console.log('--- DATABASE STATUS ---');
   console.log({
     totalProfiles,
-    visibleProfiles,
-    paymentCompletedProfiles,
+    visibleLiveProfiles: visibleProfiles,
+    hiddenProfiles,
     approvedProfiles,
-    sourceGoogleForm
+    unapprovedProfiles,
+    paymentCompletedProfiles,
+    sourceGoogleForm,
+    maleProfiles: maleCount,
+    femaleProfiles: femaleCount,
+    bSeriesCount,
+    gSeriesCount,
+    otherSeriesCount,
   });
 
   const latestProfiles = await prisma.profile.findMany({
