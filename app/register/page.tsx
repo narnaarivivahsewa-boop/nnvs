@@ -201,7 +201,7 @@ export default function RegisterPage() {
 
       setOtpSent(true);
       setMaskedMobile(result.maskedMobile || mobile);
-      setResendTimer(30); // 30s cooldown
+      setResendTimer(90); // 90s cooldown
       setOtpStatus({
         type: "success",
         message: result.message || `OTP sent to ${result.maskedMobile || mobile} via SMS.`,

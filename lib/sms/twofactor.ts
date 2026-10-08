@@ -1,20 +1,23 @@
 /**
- * 2Factor.in SMS Gateway Integration (STRICTLY SMS ONLY - NO VOICE CALLS)
- * Template: "Rishteclub Registration OTP"
- * Sender ID: "Rishte"
- * Approved Template Text: "XXXX is Your OTP Rishteclub. Please do not share this OTP with anyone."
+ * 2Factor.in SMS Gateway - STRICTLY SMS OTP ONLY
+ * Endpoint: https://2factor.in/API/V1/{API_KEY}/SMS/{MOBILE}/{OTP}/{TEMPLATE_NAME}
+ * Sender ID: Rishte
+ * Approved Template: Rishteclub Registration OTP
+ * Template Text: "XXXX is Your OTP Rishteclub. Please do not share this OTP with anyone."
+ * 
+ * NOTE: NO VOICE CALLS, NO VOICE OTP ENDPOINTS, NO VOICE FALLBACK.
  */
 
 export interface SendSMSResult {
   success: boolean;
-  otp?: string;
   sessionId?: string;
   message?: string;
   error?: string;
 }
 
-export async function sendTwoFactorOTP(
-  mobile: string
+export async function sendTwoFactorSMS(
+  mobile: string,
+  otp: string
 ): Promise<SendSMSResult> {
   const apiKey = process.env.TWOFACTOR_API_KEY;
 
@@ -22,22 +25,22 @@ export async function sendTwoFactorOTP(
     console.warn("⚠️ TWOFACTOR_API_KEY is not configured in environment variables.");
     return {
       success: false,
-      error: "SMS service not configured",
+      error: "SMS service not configured on server",
     };
   }
 
-  // Clean 10-digit mobile
+  // Clean 10-digit Indian mobile number
   const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
   if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
     return {
       success: false,
-      error: "Invalid 10-digit Indian mobile number",
+      error: "Please enter a valid 10-digit Indian mobile number",
     };
   }
 
   const templateName = encodeURIComponent("Rishteclub Registration OTP");
-  // AUTOGEN2 is the STRICTLY SMS ONLY endpoint on 2Factor (no voice calls / fallback)
-  const url = `https://2factor.in/API/V1/${apiKey}/SMS/${cleanMobile}/AUTOGEN2/${templateName}`;
+  // Official 2Factor SMS-only endpoint with custom OTP and approved DLT template
+  const url = `https://2factor.in/API/V1/${apiKey}/SMS/${cleanMobile}/${otp}/${templateName}`;
 
   try {
     const controller = new AbortController();
@@ -52,15 +55,14 @@ export async function sendTwoFactorOTP(
 
     const data = await response.json();
 
-    if (data && data.Status === "Success" && data.OTP) {
+    if (data && data.Status === "Success") {
       return {
         success: true,
-        otp: String(data.OTP),
         sessionId: data.Details,
         message: "OTP sent successfully via SMS",
       };
     } else {
-      console.error("2Factor API error response:", data?.Details || data?.Status);
+      console.error("2Factor SMS API error response:", data?.Details || data?.Status);
       return {
         success: false,
         error: data?.Details || "Failed to send SMS OTP",
@@ -68,13 +70,13 @@ export async function sendTwoFactorOTP(
     }
   } catch (err: any) {
     if (err.name === "AbortError") {
-      console.error("2Factor API timeout");
+      console.error("2Factor SMS API timeout");
       return {
         success: false,
         error: "SMS gateway request timed out. Please try again.",
       };
     }
-    console.error("2Factor API fetch error:", err?.message || err);
+    console.error("2Factor SMS API fetch error:", err?.message || err);
     return {
       success: false,
       error: "Unable to reach SMS gateway. Please try again.",

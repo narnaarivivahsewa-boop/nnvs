@@ -135,7 +135,7 @@ export default function LoginPage() {
       }
 
       setOtpSent(true);
-      setResendTimer(30);
+      setResendTimer(90);
       setMessage(data.message || "OTP sent successfully to your mobile number via SMS.");
     } catch {
       setMessage("Something went wrong while sending OTP. Please try again.");

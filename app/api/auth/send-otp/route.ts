@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
-import { sendTwoFactorOTP } from "@/lib/sms/twofactor";
+import { generateOTP, getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
+import { sendTwoFactorSMS } from "@/lib/sms/twofactor";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mobile number already registered. Please proceed to login.",
+            message: "This mobile number is already registered. Please login.",
           },
           { status: 400 }
         );
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 4. Rate Limiting & Cooldown
+    // 4. Rate Limiting & Cooldown (30-60s)
     // ===========================
     const lastOtp = await prisma.oTP.findFirst({
       where: { mobile: cleanMobile },
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: `Please wait ${remaining} seconds before requesting a new OTP.`,
+            message: `Please wait ${remaining} seconds before requesting a new SMS OTP.`,
             cooldownRemaining: remaining,
           },
           { status: 429 }
@@ -126,12 +126,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Send Strictly SMS OTP via 2Factor AUTOGEN2
+    // 5. Generate 6-Digit OTP & Send Strictly via SMS
     // ===========================
-    const smsResult = await sendTwoFactorOTP(cleanMobile);
+    const otp = generateOTP();
 
-    if (!smsResult.success || !smsResult.otp) {
-      console.error("2Factor send OTP failed:", smsResult.error);
+    const smsResult = await sendTwoFactorSMS(cleanMobile, otp);
+
+    if (!smsResult.success) {
+      console.error("2Factor send SMS OTP failed:", smsResult.error);
       return NextResponse.json(
         {
           success: false,
@@ -141,7 +143,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedOTP = hashOTP(smsResult.otp);
+    const hashedOTP = hashOTP(otp);
     const expiresAt = getOTPExpiry();
 
     // ===========================
