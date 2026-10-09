@@ -53,9 +53,12 @@ export async function POST(req: NextRequest) {
     // 3. Login Check & Auto Admin
     // ===========================
     if (otpType === "LOGIN") {
-      let existingUser = await prisma.user.findUnique({
+      let existingUser = await prisma.user.findFirst({
         where: {
-          mobile: cleanMobile,
+          OR: [
+            { mobile: cleanMobile },
+            { profile: { phoneNumbers: { some: { phone: cleanMobile } } } },
+          ],
         },
       });
 
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
         existingUser = await prisma.user.create({
           data: {
             mobile: cleanMobile,
-            fullName: cleanMobile === "9871592002" ? "NNVS Admin" : "Rahul Dhamija",
+            fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
             role: "ADMIN",
             status: "ACTIVE",
             mobileVerified: true,
@@ -76,7 +79,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mobile number not registered. Please register first.",
+            notRegistered: true,
+            message: "Your mobile number is not registered. Please register first.",
           },
           { status: 404 }
         );

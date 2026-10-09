@@ -38,6 +38,7 @@ function LoginContent() {
   // General State
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [isNotRegistered, setIsNotRegistered] = useState(false);
 
   // Countdown timer for Resend OTP
   useEffect(() => {
@@ -56,6 +57,7 @@ function LoginContent() {
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
+    setIsNotRegistered(false);
 
     if (!username.trim()) {
       setMessage("Please enter your registered mobile number or username.");
@@ -109,6 +111,7 @@ function LoginContent() {
   // ==========================================
   const handleSendOTP = async () => {
     setMessage("");
+    setIsNotRegistered(false);
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setMessage("Please enter a valid 10 digit Indian mobile number.");
@@ -130,6 +133,9 @@ function LoginContent() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.notRegistered || res.status === 404) {
+          setIsNotRegistered(true);
+        }
         setMessage(data.message || "Failed to send OTP.");
         return;
       }
@@ -478,7 +484,18 @@ function LoginContent() {
                   : "bg-rose-50 text-rose-800 border border-rose-200"
               }`}
             >
-              {message}
+              <p>{message}</p>
+              {isNotRegistered && (
+                <div className="mt-2.5 pt-2 border-t border-rose-200 flex items-center justify-center">
+                  <Link
+                    href={`/register?mobile=${encodeURIComponent(mobile || username)}`}
+                    className="inline-flex items-center gap-1.5 bg-[#4A121A] text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-[#3A0C13] shadow-sm transition"
+                  >
+                    <span>Click here to Register Candidate</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
