@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
+import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 import {
   ShieldCheck,
   Sparkles,
@@ -13,6 +14,7 @@ import {
   MessageCircle,
   Clock,
   ArrowLeft,
+  CreditCard,
 } from "lucide-react";
 
 function PaymentContent() {
@@ -149,11 +151,40 @@ function PaymentContent() {
           </div>
         </div>
 
-        {/* Authoritative Original QR Code Section */}
-        <div className="mt-6 rounded-2xl border-2 border-dashed border-[#DFBA73] bg-[#FAF8F5] p-6 text-center">
+        {/* 1. RECOMMENDED: Instant Razorpay Online Checkout */}
+        <div className="mt-6 rounded-2xl border-2 border-[#4A121A] bg-[#FAF5EB] p-5 shadow-md">
+          <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-[#4A121A]">
+            <CreditCard className="h-4 w-4 text-[#C5A059]" />
+            <span>Option 1: Instant Online Payment (Recommended)</span>
+          </div>
+
+          <p className="text-xs text-gray-600 mb-4">
+            Pay securely with UPI (Google Pay, PhonePe, Paytm), Debit/Credit Cards, or Netbanking. Automatic instant verification.
+          </p>
+
+          <RazorpayCheckoutButton
+            amountInRupees={totalAmount}
+            profileId={profileId}
+            name={nameParam}
+            description="RishteClub Matrimony Membership"
+            buttonText={`Pay ₹${totalAmount.toFixed(2)} with Razorpay`}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#DACBB4]" />
+          <span className="text-xs font-bold uppercase tracking-wider text-[#7A5835]">
+            OR Manual UPI QR
+          </span>
+          <div className="h-px flex-1 bg-[#DACBB4]" />
+        </div>
+
+        {/* 2. ALTERNATIVE: Authoritative Original QR Code Section */}
+        <div className="rounded-2xl border-2 border-dashed border-[#DFBA73] bg-[#FAF8F5] p-6 text-center">
           <div className="flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#7A5835] mb-3">
             <QrCode className="h-4 w-4 text-[#C5A059]" />
-            <span>Scan to Pay Using Any UPI App</span>
+            <span>Option 2: Scan QR Code & Send Screenshot</span>
           </div>
 
           <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-2xl bg-white p-2 shadow-md border border-gray-200 overflow-hidden">

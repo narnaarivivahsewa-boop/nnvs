@@ -54,8 +54,15 @@ export default function Hero() {
               A trusted matrimonial matchmaking platform. An initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa for genuine and verified matches.
             </p>
 
-            {/* Original Action Buttons */}
+            {/* Action Buttons */}
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+              <Link
+                href="/login"
+                className="w-full sm:w-auto rounded-xl bg-white px-7 py-3.5 text-center text-sm sm:text-base font-bold text-[#4A121A] shadow-lg transition duration-200 hover:bg-[#F2E8D7] active:scale-[0.99]"
+              >
+                Sign In (Password)
+              </Link>
+
               <Link
                 href="/register"
                 className="w-full sm:w-auto rounded-xl bg-[#C5A059] px-7 py-3.5 text-center text-sm sm:text-base font-bold text-white shadow-lg transition duration-200 hover:bg-[#B88E4C] active:scale-[0.99]"
