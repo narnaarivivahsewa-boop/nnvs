@@ -114,28 +114,40 @@ export async function POST(req: NextRequest) {
     }
 
     // Login Flow
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Account not found with this mobile number.",
-        },
-        { status: 404 }
-      );
-    }
-
     const { isPermanentAdmin } = await import("@/lib/admin-auth");
-    const isAdmin = isPermanentAdmin(cleanMobile) || user.role === "ADMIN";
+    const isAdmin = isPermanentAdmin(cleanMobile) || (user && user.role === "ADMIN");
 
-    user = await prisma.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        mobileVerified: true,
-        ...(isAdmin ? { role: "ADMIN", status: "ACTIVE" } : {}),
-      },
-    });
+    if (!user) {
+      if (isAdmin) {
+        user = await prisma.user.create({
+          data: {
+            mobile: cleanMobile,
+            fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
+            role: "ADMIN",
+            status: "ACTIVE",
+            mobileVerified: true,
+          },
+        });
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Account not found with this mobile number.",
+          },
+          { status: 404 }
+        );
+      }
+    } else {
+      user = await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          mobileVerified: true,
+          ...(isAdmin ? { role: "ADMIN", status: "ACTIVE" } : {}),
+        },
+      });
+    }
 
     const roleToAssign = isAdmin ? "ADMIN" : user.role;
 

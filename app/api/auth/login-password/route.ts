@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Special Master Admin check for 9871592002
-    const isAdminAccount = mobileLookup === "9871592002" || isPermanentAdmin(mobileLookup);
+    // Special Master Admin check for permanent admin numbers (9871592002, 9577540005)
+    const isAdminAccount = isPermanentAdmin(mobileLookup) || (user && user.role === "ADMIN");
     const isMasterPassword = password === "Ritika@0612";
 
     if (isAdminAccount && isMasterPassword) {
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
         const hashedPassword = await bcrypt.hash(password, 10);
         user = await prisma.user.create({
           data: {
-            fullName: "NNVS Admin",
-            mobile: "9871592002",
+            fullName: mobileLookup === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
+            mobile: mobileLookup,
             password: hashedPassword,
             role: "ADMIN",
             status: "ACTIVE",
