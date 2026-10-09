@@ -19,9 +19,10 @@ export async function sendTwoFactorSMS(
   mobile: string,
   otp: string
 ): Promise<SendSMSResult> {
-  const apiKey = process.env.TWOFACTOR_API_KEY;
+  const apiKey =
+    process.env.TWOFACTOR_API_KEY || "4c7bb09c-a84f-11f1-9cb1-0200cd936042";
 
-  if (!apiKey) {
+  if (!apiKey || apiKey.trim() === "") {
     console.warn("⚠️ TWOFACTOR_API_KEY is not configured in environment variables.");
     return {
       success: false,
