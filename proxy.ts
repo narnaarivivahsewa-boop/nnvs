@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
-
-const secret = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET!
-);
+import { verifyToken } from "@/lib/jwt";
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -37,10 +33,7 @@ export async function proxy(req: NextRequest) {
     }
 
     try {
-      const { payload } = await jwtVerify(
-        token,
-        secret
-      );
+      const payload = await verifyToken(token);
 
       const payloadMobile = String(payload.mobile || "").replace(/\D/g, "");
       const isPermAdmin = ["9871592002", "9577540005"].some((num) => payloadMobile.endsWith(num));

@@ -91,14 +91,9 @@ function LoginContent() {
       setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
-        if (redirectUrl) {
-          router.push(redirectUrl);
-        } else if (data.role === "ADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
-      }, 400);
+        const dest = redirectUrl || (data.role === "ADMIN" ? "/admin" : "/dashboard");
+        window.location.href = dest;
+      }, 300);
     } catch {
       setMessage("An unexpected error occurred. Please try again.");
     } finally {
@@ -181,14 +176,9 @@ function LoginContent() {
       setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
-        if (redirectUrl) {
-          router.push(redirectUrl);
-        } else if (data.role === "ADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
-      }, 400);
+        const dest = redirectUrl || (data.role === "ADMIN" ? "/admin" : "/dashboard");
+        window.location.href = dest;
+      }, 300);
     } catch {
       setMessage("Something went wrong while verifying OTP.");
     } finally {

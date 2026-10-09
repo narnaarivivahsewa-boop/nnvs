@@ -161,7 +161,8 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "OTP verified successfully.",
       userId: user.id,
-      role: user.role,
+      role: roleToAssign,
+      redirectTo: roleToAssign === "ADMIN" ? "/admin" : "/dashboard",
       isNewUser: false,
     });
 
