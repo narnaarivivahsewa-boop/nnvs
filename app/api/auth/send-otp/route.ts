@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateOTP, getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
-import { sendTwoFactorSMS } from "@/lib/sms/twofactor";
+import { sendFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 export async function POST(req: NextRequest) {
   try {
@@ -130,14 +130,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Generate 6-Digit OTP & Send Strictly via SMS
+    // 5. Send Strictly via Fast2SMS Smart OTP (Authoritative Generation)
     // ===========================
-    const otp = generateOTP();
-
-    const smsResult = await sendTwoFactorSMS(cleanMobile, otp);
+    const smsResult = await sendFast2SmsOTP(cleanMobile);
 
     if (!smsResult.success) {
-      console.error("2Factor send SMS OTP failed:", smsResult.error);
+      console.error("Fast2SMS send SMS OTP failed:", smsResult.error);
       return NextResponse.json(
         {
           success: false,
@@ -147,11 +145,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedOTP = hashOTP(otp);
     const expiresAt = getOTPExpiry();
+    const trackingCode = smsResult.requestId ? `FAST2SMS_${smsResult.requestId}` : "FAST2SMS_SMART_OTP";
 
     // ===========================
-    // 6. Save Hashed OTP in DB
+    // 6. Save Tracking Record in DB
     // ===========================
     await prisma.oTP.deleteMany({
       where: {
@@ -163,7 +161,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: hashedOTP,
+        code: trackingCode,
         type: otpType,
         expiresAt,
         verified: false,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOTP } from "@/lib/auth/otp";
 import { generateToken } from "@/lib/jwt";
+import { verifyFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,24 +68,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify OTP Hash
-    if (otpRecord.code !== hashOTP(otp)) {
+    // 1. Authoritative verification via official Fast2SMS verification endpoint
+    const fast2smsResult = await verifyFast2SmsOTP(cleanMobile, otp);
+    if (!fast2smsResult.success) {
       return NextResponse.json(
         {
           success: false,
-          message: "Incorrect OTP. Please enter the valid code received on SMS.",
+          message: fast2smsResult.error || "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
       );
     }
 
-    // Mark verified in DB
+    // 2. Mark verified in DB and record hash for session audit
     await prisma.oTP.update({
       where: {
         id: otpRecord.id,
       },
       data: {
         verified: true,
+        code: hashOTP(otp),
       },
     });
 
