@@ -91,7 +91,7 @@ function LoginContent() {
       setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
-        const dest = redirectUrl || (data.role === "ADMIN" ? "/admin" : "/dashboard");
+        const dest = redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard");
         window.location.href = dest;
       }, 300);
     } catch {
@@ -176,7 +176,7 @@ function LoginContent() {
       setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
-        const dest = redirectUrl || (data.role === "ADMIN" ? "/admin" : "/dashboard");
+        const dest = redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard");
         window.location.href = dest;
       }, 300);
     } catch {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { RegisterFormData } from "@/types/register";
 
+import PhotosForm from "./components/PhotosForm";
 import PersonalForm from "./components/PersonalForm";
 import FamilyForm from "./components/FamilyForm";
 import EducationForm from "./components/EducationForm";
@@ -17,6 +18,8 @@ export default function EditProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const {
     register,
@@ -37,9 +40,13 @@ export default function EditProfilePage() {
 
         const profile = data.profile;
 
+        if (Array.isArray(profile.photos)) {
+          setPhotos(profile.photos.map((p: any) => p.imageUrl));
+        }
+
         reset({
-          fullName: profile.user.fullName || "",
-          gender: profile.user.gender || "",
+          fullName: profile.user?.fullName || "",
+          gender: profile.user?.gender || "",
           dateOfBirth: profile.dateOfBirth
             ? profile.dateOfBirth.substring(0, 10)
             : "",
@@ -94,7 +101,10 @@ export default function EditProfilePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          photos,
+        }),
       });
 
       const result = await res.json();
@@ -131,6 +141,12 @@ export default function EditProfilePage() {
         </h1>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+          <PhotosForm
+            photos={photos}
+            setPhotos={setPhotos}
+            uploading={uploading}
+            setUploading={setUploading}
+          />
           <PersonalForm register={register} errors={errors} />
           <FamilyForm register={register} errors={errors} />
           <EducationForm register={register} errors={errors} />

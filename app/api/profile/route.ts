@@ -151,6 +151,8 @@ export async function PUT(req: NextRequest) {
       maxHeight,
       preferredReligion,
       preferredCaste,
+
+      photos,
     } = body;
 
     // ===========================
@@ -375,6 +377,27 @@ maxHeight:
           preferredCaste,
         },
       });
+
+      // ===========================
+      // Profile Photos Update
+      // ===========================
+      if (Array.isArray(photos)) {
+        await tx.profilePhoto.deleteMany({
+          where: {
+            profileId: profile.id,
+          },
+        });
+
+        if (photos.length > 0) {
+          await tx.profilePhoto.createMany({
+            data: photos.slice(0, 3).map((photoUrl: string, idx: number) => ({
+              profileId: profile.id,
+              imageUrl: photoUrl,
+              isPrimary: idx === 0,
+            })),
+          });
+        }
+      }
     });
 
     // ===========================

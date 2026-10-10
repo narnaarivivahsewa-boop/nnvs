@@ -160,12 +160,26 @@ export async function POST(req: NextRequest) {
       roleToAssign
     );
 
+    let userProfile = null;
+    if (roleToAssign !== "ADMIN") {
+      userProfile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+        select: { profileId: true, paymentCompleted: true },
+      });
+    }
+
+    const defaultMemberRedirect = (userProfile && !userProfile.paymentCompleted)
+      ? `/payment?profileId=${encodeURIComponent(userProfile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`
+      : "/dashboard";
+
+    const redirectTo = roleToAssign === "ADMIN" ? "/admin" : defaultMemberRedirect;
+
     const response = NextResponse.json({
       success: true,
       message: "OTP verified successfully.",
       userId: user.id,
       role: roleToAssign,
-      redirectTo: roleToAssign === "ADMIN" ? "/admin" : "/dashboard",
+      redirectTo,
       isNewUser: false,
     });
 

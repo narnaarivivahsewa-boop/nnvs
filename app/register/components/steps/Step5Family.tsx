@@ -148,11 +148,15 @@ export default function Step5Family({
         placeholder="Tell us something about yourself..."
         rows={5}
       />
-            <div>
-
-        <label className="mb-2 block font-medium text-gray-700">
-          Profile Photos
-        </label>
+      <div className="rounded-2xl border-2 border-red-100 bg-rose-50/30 p-5 sm:p-6">
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-base font-bold text-gray-900">
+            Profile Photos <span className="text-red-700">*</span>
+          </label>
+          <span className="rounded-full bg-red-100 px-3 py-0.5 text-xs font-bold text-red-900">
+            {photos.length} / 3 Selected
+          </span>
+        </div>
 
         <input
           type="file"
@@ -160,16 +164,16 @@ export default function Step5Family({
           multiple
           onChange={uploadImages}
           disabled={uploading || photos.length >= 3}
-          className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-red-700 focus:ring-2 focus:ring-red-100"
+          className="w-full rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-700 focus:ring-2 focus:ring-red-100 file:mr-4 file:rounded-lg file:border-0 file:bg-red-800 file:px-4 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-red-700 cursor-pointer"
         />
 
-        <p className="mt-2 text-sm text-gray-500">
-          Upload minimum 1 and maximum 3 photos.
+        <p className="mt-2 text-xs font-medium text-gray-600">
+          Upload 1 to 3 clear portrait or biodata photos. High-quality photos get 4x more responses.
         </p>
 
         {uploading && (
-          <p className="mt-3 text-blue-600 font-medium">
-            Uploading photos...
+          <p className="mt-3 text-sm text-red-700 font-bold animate-pulse">
+            ⏳ Uploading photos to secure cloud storage...
           </p>
         )}
 

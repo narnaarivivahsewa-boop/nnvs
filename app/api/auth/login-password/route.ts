@@ -87,13 +87,27 @@ export async function POST(req: NextRequest) {
     // Generate JWT token
     const token = await generateToken(user.id, user.mobile, effectiveRole);
 
+    let userProfile = null;
+    if (effectiveRole !== "ADMIN") {
+      userProfile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+        select: { profileId: true, paymentCompleted: true },
+      });
+    }
+
+    const defaultMemberRedirect = (userProfile && !userProfile.paymentCompleted)
+      ? `/payment?profileId=${encodeURIComponent(userProfile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`
+      : "/dashboard";
+
+    const redirectTo = effectiveRole === "ADMIN" ? "/admin" : defaultMemberRedirect;
+
     const response = NextResponse.json({
       success: true,
       message: "Login successful.",
       userId: user.id,
       fullName: user.fullName,
       role: effectiveRole,
-      redirectTo: effectiveRole === "ADMIN" ? "/admin" : "/dashboard",
+      redirectTo,
     });
 
     response.cookies.set("nnvs_token", token, {

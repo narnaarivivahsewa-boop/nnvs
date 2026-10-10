@@ -148,6 +148,37 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Payment Pending Alert Banner */}
+        {profile && !profile.paymentCompleted && (
+          <div className="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-rose-600 to-red-700 p-0.5 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-[22px] bg-white p-6 sm:p-7">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-800 shadow-sm">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-red-900 mb-1">
+                    <span>Action Required</span>
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                    Membership Activation Pending (₹470.82)
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600 leading-relaxed max-w-2xl">
+                    Registration payment is pending for profile <strong>{profile.profileId}</strong>. Complete payment to activate your official matrimonial listing, biodata generation, and alliance matching.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/payment?profileId=${encodeURIComponent(profile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-900 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-900/20 hover:bg-red-800 hover:shadow-xl transition shrink-0"
+              >
+                <span>Pay ₹470.82 with Razorpay</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Profile Snapshot & Status Card */}
         <div className="mb-10 rounded-3xl bg-white p-6 lg:p-8 shadow-xl border border-gray-100">
           <div className="grid md:grid-cols-12 gap-8 items-center">
@@ -175,6 +206,12 @@ export default function Dashboard() {
                   <Eye className="h-3.5 w-3.5 text-blue-600" />
                   <span>Visibility: {profile?.isVisible ? "Visible" : "Members Only"}</span>
                 </span>
+
+                {profile && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-bold border ${profile.paymentCompleted ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                    <span>Payment: {profile.paymentCompleted ? "Paid & Active" : "Pending (₹470.82)"}</span>
+                  </span>
+                )}
               </div>
             </div>
 
