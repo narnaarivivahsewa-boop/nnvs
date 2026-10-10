@@ -33,10 +33,31 @@ export interface Fast2SmsResendResult {
 }
 
 function getFast2SmsConfig() {
-  const apiKey = (process.env.FAST2SMS_API_KEY || "").replace(/["']/g, "").trim();
-  const otpId = (process.env.FAST2SMS_OTP_ID || "37afc2db63").replace(/["']/g, "").trim();
+  const env = process.env;
+  const apiKeyCandidate =
+    env.FAST2SMS_API_KEY ||
+    env.FAST2SMS_KEY ||
+    env.FAST_2_SMS_API_KEY ||
+    env.FAST2SMS_SECRET ||
+    env.FAST2SMS_AUTH_KEY ||
+    env.fast2sms_api_key ||
+    Object.entries(env).find(([k]) => /^(fast2sms|fast_2_sms)_(api_)?key$/i.test(k))?.[1] ||
+    "";
 
-  return { apiKey, otpId };
+  const apiKey = String(apiKeyCandidate).replace(/["']/g, "").trim();
+
+  const otpIdCandidate =
+    env.FAST2SMS_OTP_ID ||
+    env.FAST2SMS_TEMPLATE_ID ||
+    env.FAST_2_SMS_OTP_ID ||
+    env.fast2sms_otp_id ||
+    "37afc2db63";
+
+  const otpId = String(otpIdCandidate).replace(/["']/g, "").trim();
+
+  const relatedKeyNames = Object.keys(env).filter((k) => /fast2|sms/i.test(k));
+
+  return { apiKey, otpId, relatedKeyNames };
 }
 
 /**
@@ -60,13 +81,16 @@ export async function sendFast2SmsOTP(
   mobile: string,
   customOtp?: string
 ): Promise<Fast2SmsSendResult> {
-  const { apiKey, otpId } = getFast2SmsConfig();
+  const { apiKey, otpId, relatedKeyNames } = getFast2SmsConfig();
 
   if (!apiKey) {
-    console.warn("⚠️ FAST2SMS_API_KEY is not configured in server environment variables.");
+    const diagnostic = relatedKeyNames.length > 0
+      ? ` Found matching keys in runtime: [${relatedKeyNames.join(", ")}]. Ensure FAST2SMS_API_KEY is spelled correctly.`
+      : " No FAST2SMS or SMS variables were found in the Vercel Preview runtime environment.";
+    console.warn(`⚠️ FAST2SMS_API_KEY is not configured in server environment variables.${diagnostic}`);
     return {
       success: false,
-      error: "SMS service not configured on server. Please configure FAST2SMS_API_KEY.",
+      error: `SMS service not configured on server. Please configure FAST2SMS_API_KEY.${diagnostic}`,
     };
   }
 
