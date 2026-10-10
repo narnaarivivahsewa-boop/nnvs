@@ -169,7 +169,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <Link
-                href={`/payment?profileId=${encodeURIComponent(profile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`}
+                href={`/payment?profileId=${encodeURIComponent(profile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}&mobile=${encodeURIComponent(user.mobile)}`}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-900 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-900/20 hover:bg-red-800 hover:shadow-xl transition shrink-0"
               >
                 <span>Pay ₹470.82 with Razorpay</span>

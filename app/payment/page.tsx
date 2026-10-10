@@ -19,11 +19,14 @@ function PaymentContent() {
   const searchParams = useSearchParams();
   const profileId = searchParams.get("profileId") || "";
   const nameParam = searchParams.get("name") || "";
+  const mobileParam = searchParams.get("mobile") || "";
   const genderParam = searchParams.get("gender")?.toUpperCase();
 
   const isFemale = genderParam === "FEMALE";
   const defaultFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
 
+  const [userMobile, setUserMobile] = useState(mobileParam);
+  const [userName, setUserName] = useState(nameParam);
   const [settings, setSettings] = useState<{
     registrationFee: number;
     gstPercentage: number;
@@ -37,7 +40,7 @@ function PaymentContent() {
   });
 
   useEffect(() => {
-    async function loadSettings() {
+    async function loadSettingsAndUser() {
       try {
         const res = await fetch("/api/settings");
         const data = await res.json();
@@ -52,9 +55,24 @@ function PaymentContent() {
       } catch (err) {
         console.error("Error loading payment settings:", err);
       }
+
+      try {
+        const meRes = await fetch("/api/auth/me");
+        const meData = await meRes.json();
+        if (meData.success && meData.user) {
+          if (!userMobile && meData.user.mobile) {
+            setUserMobile(meData.user.mobile);
+          }
+          if (!userName && meData.user.fullName) {
+            setUserName(meData.user.fullName);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading current member details:", err);
+      }
     }
-    loadSettings();
-  }, [defaultFee]);
+    loadSettingsAndUser();
+  }, [defaultFee, userMobile, userName]);
 
   const taxes = calculateGstBreakdown(settings.registrationFee);
   const totalAmount = taxes.totalAmount;
@@ -149,7 +167,8 @@ function PaymentContent() {
           <RazorpayCheckoutButton
             amountInRupees={totalAmount}
             profileId={profileId}
-            name={nameParam}
+            name={userName || nameParam}
+            mobile={userMobile || mobileParam}
             description="RishteClub Matrimonial Membership Fee"
             buttonText={`Pay ₹${totalAmount.toFixed(2)} with Razorpay`}
           />

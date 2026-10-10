@@ -379,7 +379,7 @@ export default function RegisterPage() {
       router.push(
         `/payment?profileId=${encodeURIComponent(
           result.profileId
-        )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(data.gender)}`
+        )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(data.gender)}&mobile=${encodeURIComponent(data.mobile)}`
       );
     } catch (error) {
       console.error(error);
