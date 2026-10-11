@@ -153,22 +153,17 @@ export default function Footer() {
           </h4>
           <div className="flex flex-wrap gap-2 text-[11px] text-[#C8B6AF]">
             {[
+              { name: "Delhi NCR Matrimony", href: "/matrimony/delhi-ncr" },
+              { name: "Gurugram Marriage Bureau", href: "/matrimony/gurugram" },
+              { name: "Haryana Vivah Sewa", href: "/matrimony/haryana" },
+              { name: "Hisar Matrimonial Bureau", href: "/matrimony/hisar" },
+              { name: "Agarwal Matrimony", href: "/matrimony/agarwal" },
+              { name: "Baniya Rishtey", href: "/matrimony/baniya" },
+              { name: "Brahmin Vivah", href: "/matrimony/brahmin" },
+              { name: "Punjabi & Khatri Matrimony", href: "/matrimony/punjabi" },
               { name: "All Marriage Profiles", href: "/profiles" },
-              { name: "Agarwal Matrimony", href: "/profiles?caste=Agarwal" },
-              { name: "Baniya Rishtey", href: "/profiles?caste=Baniya" },
-              { name: "Brahmin Vivah", href: "/profiles?caste=Brahmin" },
-              { name: "Punjabi Matrimony", href: "/profiles?caste=Punjabi" },
-              { name: "Khatri Shaadi Profiles", href: "/profiles?caste=Khatri" },
-              { name: "Arora Rishtey", href: "/profiles?caste=Arora" },
-              { name: "Gupta Matrimony", href: "/profiles?caste=Gupta" },
-              { name: "Jain Vivah", href: "/profiles?caste=Jain" },
-              { name: "Maheshwari Matrimony", href: "/profiles?caste=Maheshwari" },
-              { name: "Free Kundli Milan", href: "/astrology" },
-              { name: "Lal Kitab Remedies", href: "/astrology" },
+              { name: "Free Kundli Milan ✨", href: "/astrology" },
               { name: "Wedding Vendors & Services", href: "/services" },
-              { name: "Delhi NCR Marriage Bureau", href: "/profiles" },
-              { name: "Haryana & Punjab Vivah Sewa", href: "/profiles" },
-              { name: "Verified NRI Rishtey", href: "/profiles" },
               { name: "Register Shaadi Biodata", href: "/register" },
             ].map((tag) => (
               <Link

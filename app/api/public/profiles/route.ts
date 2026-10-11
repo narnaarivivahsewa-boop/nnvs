@@ -18,11 +18,14 @@ export async function GET(req: NextRequest) {
     const limit = limitParam === "all" ? 1000 : Math.min(100, Math.max(1, parseInt(limitParam || "24", 10) || 24));
     const skip = (page - 1) * limit;
 
+    // STRICT VISIBILITY GATE:
+    // A profile can ONLY be visible if APPROVED AND (paymentCompleted OR isPaymentExempted)
     const whereClause: any = {
       isVisible: true,
+      approvalStatus: "APPROVED",
       OR: [
         { paymentCompleted: true },
-        { approvalStatus: "APPROVED" },
+        { isPaymentExempted: true },
       ],
     };
 

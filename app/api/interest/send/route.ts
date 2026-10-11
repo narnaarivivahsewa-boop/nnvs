@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Current User Profile
     // ==========================
 
-    const myProfile = await prisma.profile.findUnique({
+    const myProfile = await prisma.profile.findFirst({
       where: {
         userId: payload.userId,
       },

@@ -6,7 +6,17 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/admin/*", "/api/*", "/dashboard", "/dashboard/*"],
+        disallow: [
+          "/admin",
+          "/admin/*",
+          "/api/*",
+          "/dashboard",
+          "/dashboard/*",
+          "/payment",
+          "/payment/*",
+          "/invoice",
+          "/invoice/*",
+        ],
       },
     ],
     sitemap: "https://www.rishteclub.com/sitemap.xml",

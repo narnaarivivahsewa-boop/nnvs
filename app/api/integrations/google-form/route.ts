@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import cloudinary from "@/lib/cloudinary";
+import bcrypt from "bcryptjs";
+import {
+  extractIndianMobiles,
+  extractDriveFileId,
+  formatGoogleDrivePhotoUrl,
+} from "@/lib/integrations/google-sync-helpers";
 
 const INTEGRATION_KEY_HEADER = "x-integration-key";
 
@@ -29,54 +35,6 @@ function authenticateRequest(req: NextRequest): { authenticated: boolean; error?
   return { authenticated: false, error: "Unauthorized integration request. Invalid or missing secret key." };
 }
 
-// Clean and extract valid 10-digit Indian mobile numbers (handles multiple numbers, labels, delimiters)
-export function extractIndianMobiles(raw: any): { primary: string | null; all: string[]; raw: string } {
-  if (!raw) return { primary: null, all: [], raw: "" };
-  const rawStr = String(raw).trim();
-
-  // Replace delimiters with spaces
-  const cleaned = rawStr.replace(/[\/\,;\n\+\-\(\)\&]/g, " ");
-  const candidates = cleaned.split(/\s+/).filter(Boolean);
-  const matchedMobiles: string[] = [];
-
-  const isValid = (d: string) => d.length === 10 && /^[6-9]\d{9}$/.test(d);
-
-  for (let i = 0; i < candidates.length; i++) {
-    const chunk = candidates[i].replace(/\D/g, "");
-    if (isValid(chunk)) {
-      if (!matchedMobiles.includes(chunk)) matchedMobiles.push(chunk);
-    } else if (chunk.length === 12 && chunk.startsWith("91") && isValid(chunk.slice(2))) {
-      const num = chunk.slice(2);
-      if (!matchedMobiles.includes(num)) matchedMobiles.push(num);
-    } else if (chunk.length === 11 && chunk.startsWith("0") && isValid(chunk.slice(1))) {
-      const num = chunk.slice(1);
-      if (!matchedMobiles.includes(num)) matchedMobiles.push(num);
-    } else if (i + 1 < candidates.length) {
-      // Try combining split consecutive 5-digit pieces e.g. "94160 85772"
-      const combined = (candidates[i] + candidates[i + 1]).replace(/\D/g, "");
-      if (isValid(combined)) {
-        if (!matchedMobiles.includes(combined)) matchedMobiles.push(combined);
-        i++;
-      }
-    }
-  }
-
-  // Fallback regex match across whole raw string
-  if (matchedMobiles.length === 0) {
-    const globalMatches = rawStr.match(/[6-9]\d{9}/g);
-    if (globalMatches) {
-      for (const m of globalMatches) {
-        if (!matchedMobiles.includes(m)) matchedMobiles.push(m);
-      }
-    }
-  }
-
-  return {
-    primary: matchedMobiles[0] || null,
-    all: matchedMobiles,
-    raw: rawStr,
-  };
-}
 
 // Convert height string to standardized feet'inches"
 function normalizeHeight(raw: any): string | null {
@@ -140,47 +98,6 @@ function parseDate(val: any): Date | null {
   const year = d.getUTCFullYear();
   if (year < 1940 || year > 2026) return null;
   return d;
-}
-
-// Extract Google Drive file ID from various Drive URL formats
-export function extractDriveFileId(urlOrText: any): string | null {
-  if (!urlOrText || typeof urlOrText !== "string") return null;
-  const str = urlOrText.trim();
-  const idMatch = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
-  if (idMatch) return idMatch[1];
-  const dMatch = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/i);
-  if (dMatch) return dMatch[1];
-  const fileDMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/i);
-  if (fileDMatch) return fileDMatch[1];
-  const generalMatch = str.match(/^([a-zA-Z0-9_-]{25,})$/);
-  if (generalMatch) return generalMatch[1];
-  return null;
-}
-
-// Formats Google Drive URLs to both direct embeddable link and full Drive view link
-export function formatGoogleDrivePhotoUrl(urlOrText: any): { displayUrl: string; directDriveUrl: string; fileId: string | null } | null {
-  if (!urlOrText || typeof urlOrText !== "string") return null;
-  const trimmed = urlOrText.trim();
-  if (!trimmed) return null;
-
-  const fileId = extractDriveFileId(trimmed);
-  if (fileId) {
-    return {
-      displayUrl: `https://lh3.googleusercontent.com/d/${fileId}`,
-      directDriveUrl: `https://drive.google.com/file/d/${fileId}/view`,
-      fileId,
-    };
-  }
-
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return {
-      displayUrl: trimmed,
-      directDriveUrl: trimmed,
-      fileId: null,
-    };
-  }
-
-  return null;
 }
 
 // Upload base64 image data to Cloudinary
@@ -304,25 +221,43 @@ export async function POST(req: NextRequest) {
       // Check for Existing Records in Database by sourceId (the exact row)
       let existingProfile = null;
 
-      // 1. Match by sourceId
-      existingProfile = await prisma.profile.findUnique({
-        where: { sourceId },
+      // 1. Match by sourceId or oldNnvsId or legacyProfileId
+      existingProfile = await prisma.profile.findFirst({
+        where: {
+          OR: [
+            { sourceId },
+            { oldNnvsId: sourceId },
+            { legacyProfileId: legacyProfileId || undefined },
+          ],
+        },
         include: { user: true, family: true, education: true, occupation: true, partnerPreference: true },
       });
 
       // 2. Check for User Registered Mobile (Column Z)
       const existingUser = await prisma.user.findUnique({
         where: { mobile },
-        include: { profile: { include: { family: true, education: true, occupation: true, partnerPreference: true } } },
+        include: { profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } } },
       });
+
+      // If user exists and has profiles, check if one of their profiles matches candidate name
+      if (!existingProfile && existingUser && existingUser.profiles?.length > 0) {
+        const nameMatch = existingUser.profiles.find((p) => {
+          const candidateFirst = fullName.split(" ")[0].toLowerCase();
+          const pFirst = (p.firstName || "").toLowerCase();
+          const pFull = `${p.firstName || ""} ${p.lastName || ""}`.trim().toLowerCase();
+          return pFirst === candidateFirst || pFull === fullName.toLowerCase() || (p.user?.fullName || "").toLowerCase() === fullName.toLowerCase();
+        });
+        if (nameMatch) {
+          existingProfile = nameMatch as any;
+        }
+      }
 
       let isSharedMobileApplicant = false;
       let effectiveMobile = mobile;
 
       if (!existingProfile && existingUser) {
-        // Create unique user account for this sheet row so every row gets its own full profile
+        // Multi-profile account: 1 Phone = Multiple Profiles (Parent managing siblings)
         isSharedMobileApplicant = true;
-        effectiveMobile = `${mobile}_r${rowIndex}`;
       }
 
       // If DRY RUN: Record analysis and continue without making DB changes
@@ -440,8 +375,8 @@ export async function POST(req: NextRequest) {
         // Partner Preferences (Col AA)
         const partnerPrefText = row.partnerPreferences || null;
 
-        // 1. User Account
-        let userId = isSharedMobileApplicant ? undefined : existingUser?.id;
+        // 1. User Account (1 Mobile = 1 User Account owning multiple profiles)
+        let userId = existingUser?.id;
         if (!userId) {
           let userEmail: string | undefined = undefined;
           if (email) {
@@ -449,23 +384,20 @@ export async function POST(req: NextRequest) {
             if (!existingEmailUser) userEmail = email;
           }
 
-          // Ensure final user mobile is 100% unique in database
-          let finalMobile = effectiveMobile;
-          let mobileCollision = await prisma.user.findUnique({ where: { mobile: finalMobile } });
-          if (mobileCollision) {
-            finalMobile = `${finalMobile}_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
-          }
+          // Initial temporary password for imported members: 'NNVS@RC2026' with mustChangePassword flag
+          const initialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
 
           const newUser = await prisma.user.create({
             data: {
               fullName,
-              mobile: finalMobile,
+              mobile,
               email: userEmail,
               gender,
               role: "MEMBER",
               status: "ACTIVE",
               mobileVerified: true,
-              password: null,
+              password: initialPasswordHash,
+              mustChangePassword: true,
               createdAt: parseDate(row.timestamp) || new Date(),
             },
           });
@@ -480,7 +412,7 @@ export async function POST(req: NextRequest) {
           await prisma.user.update({
             where: { id: userId },
             data: {
-              fullName: fullName || existingUser?.fullName,
+              fullName: existingUser?.fullName || fullName,
               email: userEmail,
               mobileVerified: true,
               status: "ACTIVE",
@@ -500,7 +432,7 @@ export async function POST(req: NextRequest) {
           websiteProfileId = candidateId;
         }
 
-        // All new Google Form submissions require Admin Approval and are NOT live by default
+        // All imported submissions require Admin Approval before going public
         const isLegacyApproved = existingProfile && existingProfile.approvalStatus === "APPROVED" && existingProfile.isVisible;
 
         const profileData: any = {
@@ -523,14 +455,17 @@ export async function POST(req: NextRequest) {
             : (paymentRemark || "Google Form New Submission - Pending Admin Approval & Verification"),
           source: "GOOGLE_FORM",
           sourceId,
+          oldNnvsId: sourceId || legacyProfileId || existingProfile?.oldNnvsId || null,
           legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
           isVisible: isLegacyApproved ? true : false,
-          paymentCompleted: isLegacyApproved ? true : false,
-          approvalStatus: isLegacyApproved ? "APPROVED" : "UNDER_REVIEW",
+          paymentCompleted: true,
+          isPaymentExempted: true,
+          paymentExemptionReason: "Google Form Legacy / Imported Member",
+          approvalStatus: isLegacyApproved ? "APPROVED" : "PENDING_APPROVAL",
           approvedAt: isLegacyApproved ? (existingProfile?.approvedAt || new Date()) : null,
           isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
           duplicateNotes: isSharedMobileApplicant
-            ? `Shares contact number (${mobile}) with candidate '${existingUser?.fullName || "Family member"}'. Both profiles safely preserved.`
+            ? `Multi-profile account: shares phone (${mobile}) with '${existingUser?.fullName || "Family member"}'. Switchable via dashboard.`
             : existingProfile?.duplicateNotes || null,
         };
 
@@ -856,10 +791,10 @@ async function handlePhotoRepair(body: any) {
     if (!existingProfile && mobile) {
       const user = await prisma.user.findUnique({
         where: { mobile },
-        include: { profile: { include: { photos: true } } },
+        include: { profiles: { include: { photos: true } } },
       });
-      if (user?.profile) {
-        existingProfile = user.profile;
+      if (user?.profiles && user.profiles.length > 0) {
+        existingProfile = user.profiles[0];
       }
     }
 

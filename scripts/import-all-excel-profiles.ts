@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
-import { extractIndianMobiles, formatGoogleDrivePhotoUrl } from "@/app/api/integrations/google-form/route";
+import { extractIndianMobiles, formatGoogleDrivePhotoUrl } from "@/lib/integrations/google-sync-helpers";
 
 function parseDate(val: any): Date | null {
   if (!val) return null;

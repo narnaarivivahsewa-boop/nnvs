@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 
 export default function AstrologyPage() {
   // User Birth Form State
@@ -728,7 +729,7 @@ export default function AstrologyPage() {
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleUnlockPayment} className="space-y-5">
+              <div className="space-y-5">
                 <div className="text-center space-y-1">
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF0DC] px-3 py-1 text-xs font-bold text-[#4A121A] border border-[#DACBB4] mb-2">
                     <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
@@ -738,68 +739,45 @@ export default function AstrologyPage() {
                     Unlock Lal Kitab Upaye
                   </h3>
                   <p className="text-xs text-gray-600">
-                    Get customized remedies, dosha nivaran guidelines & unlimited questions.
+                    Get customized remedies, dosha nivaran guidelines & unlimited questions with official GST tax invoice.
                   </p>
                 </div>
 
                 {/* Price Display */}
-                <div className="rounded-2xl bg-[#FAF0DC] border border-[#DACBB4] p-4 text-center">
-                  <span className="text-xs text-gray-600 font-semibold uppercase block">One-Time Fee</span>
+                <div className="rounded-2xl bg-[#FAF0DC] border border-[#DACBB4] p-4 text-center space-y-2">
+                  <span className="text-xs text-gray-600 font-semibold uppercase block">Official Service Fee</span>
                   <div className="flex items-baseline justify-center gap-1 my-0.5">
-                    <span className="font-serif-luxury text-4xl font-extrabold text-[#4A121A]">₹99</span>
-                    <span className="text-xs text-gray-500 line-through">₹499</span>
+                    <span className="font-serif-luxury text-3xl font-extrabold text-[#4A121A]">₹99.00</span>
+                    <span className="text-xs text-gray-500">+ 18% GST</span>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-700">Instant Access & Complete Report</span>
-                </div>
-
-                {/* QR Code */}
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-center space-y-2">
-                  <p className="text-xs font-bold text-gray-700">Scan QR Code via Any UPI App:</p>
-                  <div className="h-44 w-44 mx-auto rounded-xl overflow-hidden border border-gray-300 bg-white p-2">
-                    <img
-                      src="/payment-qr.jpeg"
-                      alt="UPI QR Code"
-                      className="h-full w-full object-contain"
-                    />
+                  <div className="text-[11px] text-gray-600 flex justify-between px-4 border-t border-[#DACBB4]/60 pt-2 font-medium">
+                    <span>Base Fee: ₹99.00</span>
+                    <span>GST (18%): ₹17.82</span>
+                    <span className="font-bold text-[#4A121A]">Total: ₹116.82</span>
                   </div>
-                  <p className="font-mono text-xs font-bold text-[#4A121A]">
-                    UPI ID: narnaarivivahsewa@okicici
-                  </p>
                 </div>
 
-                {/* UPI Direct Link */}
-                <a
-                  href="upi://pay?pa=narnaarivivahsewa@okicici&pn=RishteClub%20Astrology&am=99&cu=INR"
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  <span>Pay ₹99 on GPay / PhonePe / Paytm</span>
-                </a>
+                {/* Instant Razorpay Button */}
+                <RazorpayCheckoutButton
+                  amountInRupees={116.82}
+                  service="ASTROLOGY"
+                  description="RishteClub Lal Kitab Astrology Remedies (₹99 + 18% GST)"
+                  buttonText="Pay ₹116.82 & Unlock Lal Kitab Report"
+                  onSuccess={(data) => {
+                    setIsUpayeUnlocked(true);
+                    setPaymentSuccessMessage(true);
+                    setTimeout(() => {
+                      setShowPaymentModal(false);
+                      setPaymentSuccessMessage(false);
+                    }, 2500);
+                  }}
+                />
 
-                {/* UTR Input */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                    UPI Ref / UTR No. (12 Digits)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value)}
-                    placeholder="Enter 12-digit UTR after payment"
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-xs text-gray-900 focus:border-[#4A121A] focus:outline-none font-mono"
-                  />
+                <div className="text-center text-[11px] text-gray-500">
+                  <p>Supports UPI (GPay, PhonePe, Paytm), Cards & Net Banking</p>
+                  <p className="font-semibold text-gray-600 mt-0.5">Official GST Tax Invoice issued instantly</p>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={verifyingPayment || !utrNumber.trim()}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380D13] transition disabled:opacity-50"
-                >
-                  <Unlock className="h-4 w-4 text-[#DFBA73]" />
-                  <span>{verifyingPayment ? "Verifying..." : "Verify & Unlock Upaye"}</span>
-                </button>
-              </form>
+              </div>
             )}
           </div>
         </div>

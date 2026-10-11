@@ -65,9 +65,6 @@ export const metadata: Metadata = {
     telephone: true,
     email: true,
   },
-  alternates: {
-    canonical: "https://www.rishteclub.com",
-  },
   openGraph: {
     title: "RishteClub – Matrimony & Marriage Profiles | Apno Ke Liye Sahi Rishta",
     description:
@@ -118,8 +115,17 @@ const jsonLd = {
       "@type": "WebSite",
       "@id": "https://www.rishteclub.com/#website",
       "url": "https://www.rishteclub.com",
-      "name": "RishteClub Matrimony",
+      "name": "RishteClub",
+      "alternateName": [
+        "RishteClub Matrimony",
+        "NNVS Matrimony",
+        "Nar Naari Vivah Sewa",
+        "Rishte Club",
+      ],
       "description": "India's trusted matrimonial platform for marriage, shaadi & vivah rishtey.",
+      "publisher": {
+        "@id": "https://www.rishteclub.com/#organization",
+      },
       "potentialAction": {
         "@type": "SearchAction",
         "target": {
@@ -140,13 +146,13 @@ const jsonLd = {
       "logo": "https://www.rishteclub.com/nnvs-logo.png",
       "contactPoint": {
         "@type": "ContactPoint",
-        "telephone": "+91-9416085772",
+        "telephone": "+91-9871592002",
         "contactType": "customer service",
         "areaServed": "IN",
         "availableLanguage": ["Hindi", "English"],
       },
       "sameAs": [
-        "https://wa.me/919416085772",
+        "https://wa.me/919871592002",
       ],
     },
     {
@@ -154,12 +160,16 @@ const jsonLd = {
       "@id": "https://www.rishteclub.com/#localbusiness",
       "name": "RishteClub - Nar Naari Vivah Sewa Matrimonial Bureau",
       "image": "https://www.rishteclub.com/nnvs-logo.png",
-      "telephone": "+91-9416085772",
-      "priceRange": "₹₹",
+      "telephone": "+91-9871592002",
+      "priceRange": "₹399 - ₹799",
+      "taxID": "06APYPD6931J1ZE",
       "address": {
         "@type": "PostalAddress",
-        "addressCountry": "IN",
+        "streetAddress": "6/34, Near Guru Kirpa Bister House, Patel Nagar",
+        "addressLocality": "Hisar",
         "addressRegion": "Haryana",
+        "postalCode": "125001",
+        "addressCountry": "IN",
       },
       "serviceArea": "India",
       "hasOfferCatalog": {

@@ -30,6 +30,7 @@ import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 type Profile = {
   id: string;
   profileId: string;
+  oldNnvsId?: string | null;
   legacyProfileId?: string | null;
   firstName: string;
   lastName?: string | null;
@@ -302,8 +303,9 @@ export default function ProfileDetailsPage() {
         {/* Navigation & Share / Download Row */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
+            type="button"
+            onClick={() => (typeof window !== "undefined" && window.history.length > 1 ? router.back() : router.push("/admin/profiles"))}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition active:scale-95 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
@@ -411,9 +413,9 @@ export default function ProfileDetailsPage() {
                   <span className="rounded-lg bg-[#FAF0DC] px-3 py-1 text-xs font-bold text-[#4A121A] border border-[#E2D4BE]">
                     RishteClub Profile ID: <strong className="font-mono">{profile.profileId}</strong>
                   </span>
-                  {profile.legacyProfileId && (
+                  {(profile.oldNnvsId || profile.legacyProfileId) && (
                     <span className="rounded-lg bg-[#FDE8EC] px-3 py-1 text-xs font-bold text-[#7A1F2D] border border-[#F5C2CB]">
-                      Old NNVS Profile ID: <strong className="font-mono">{profile.legacyProfileId}</strong>
+                      Old NNVS Profile ID: <strong className="font-mono">{profile.oldNnvsId || profile.legacyProfileId}</strong>
                     </span>
                   )}
                   <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-900">

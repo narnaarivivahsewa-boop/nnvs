@@ -1,6 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BUSINESS_INFO } from "@/lib/gst";
 import { ShieldCheck, HeartHandshake, Award } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "About Us | RishteClub – Associated with NNVS Matrimony",
+  description:
+    "Learn about RishteClub and NNVS Matrimony (managed by Trendy Traders, Hisar). A trusted matrimonial matchmaking initiative for genuine alliances.",
+  alternates: {
+    canonical: "/about",
+  },
+  openGraph: {
+    title: "About Us | RishteClub – Associated with NNVS Matrimony",
+    description:
+      "Learn about RishteClub and NNVS Matrimony (managed by Trendy Traders, Hisar). A trusted matrimonial matchmaking initiative for genuine alliances.",
+    url: "https://www.rishteclub.com/about",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 export default function AboutPage() {
   return (

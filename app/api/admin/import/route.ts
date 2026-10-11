@@ -1,9 +1,10 @@
-﻿console.log("ðŸš€ NEW IMPORT ROUTE LOADED");
+console.log("ðŸš€ NEW IMPORT ROUTE LOADED");
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin(req);
@@ -146,7 +147,7 @@ if (existingProfile) {
 }
 
 // =====================================
-// Duplicate User
+// User Lookup or Creation
 // =====================================
 
 const existingUser =
@@ -155,56 +156,37 @@ const existingUser =
       mobile,
     },
   });
-  console.log("existingUser:", existingUser);
-
-console.log(
-  mobile,
-  "existingUser =",
-  existingUser
-);
-
-if (existingUser) {
-  console.log("USER EXISTS");
-  skipped++;
-  skippedRows.push(mobile);
-  continue;
-}
 
       // =====================================
       // Transaction Starts
       // =====================================
 
       try {
-
-  await prisma.$transaction(async (tx) => {
-                   
-          const user = await tx.user.create({
-            data: {
-              fullName,
-
-              mobile,
-
-              email: null,
-
-              password: null,
-
-              gender:
-                String(row["Gender"])
-                  .toLowerCase()
-                  .trim() === "female"
-                  ? "FEMALE"
-                  : "MALE",
-
-              role: "MEMBER",
-
-              status: "ACTIVE",
-
-              mobileVerified: true,
-
-              emailVerified: false,
-              createdAt: parseExcelDate(row["Timestamp"]) || new Date(),
-            },
-          });
+        await prisma.$transaction(async (tx) => {
+          let user = existingUser;
+          if (!user) {
+            const initialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
+            user = await tx.user.create({
+              data: {
+                fullName,
+                mobile,
+                email: null,
+                password: initialPasswordHash,
+                mustChangePassword: true,
+                gender:
+                  String(row["Gender"])
+                    .toLowerCase()
+                    .trim() === "female"
+                    ? "FEMALE"
+                    : "MALE",
+                role: "MEMBER",
+                status: "ACTIVE",
+                mobileVerified: true,
+                emailVerified: false,
+                createdAt: parseExcelDate(row["Timestamp"]) || new Date(),
+              },
+            });
+          }
 
           // =====================================
           // Create Profile
@@ -214,47 +196,38 @@ if (existingUser) {
             await tx.profile.create({
               data: {
                 userId: user.id,
-
                 profileId,
-
+                oldNnvsId: profileId,
                 firstName:
                   fullName.split(" ")[0] ||
                   fullName,
-
                 lastName:
                   fullName
                     .split(" ")
                     .slice(1)
                     .join(" ") || null,
-
                 dateOfBirth:
                   parseExcelDate(
                     row["Date of Birth"]
                   ),
-
                 height: convertHeight(
                   String(
                     row["Height"] || ""
                   )
                 ),
-
                 maritalStatus:
                   row["Marital Status"] ||
                   null,
-
                 religion: null,
-
                 caste:
                   extractCaste(fullName),
-
                 motherTongue: null,
-
-                isVisible: true,
-
+                isVisible: false,
                 paymentCompleted: true,
-
+                isPaymentExempted: true,
+                paymentExemptionReason: "Excel Admin Import",
                 approvalStatus:
-                  "APPROVED",
+                  "PENDING_APPROVAL",
               },
             });
 

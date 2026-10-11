@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function GET(req: NextRequest) {
   try {
-    // ===========================
-    // Get JWT Token
-    // ===========================
-
     const token = req.cookies.get("nnvs_token")?.value;
 
     if (!token) {
@@ -16,27 +13,23 @@ export async function GET(req: NextRequest) {
           success: false,
           message: "Unauthorized",
         },
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
-    // ===========================
-    // Verify Token
-    // ===========================
-
     const payload = await verifyToken(token);
+    const { searchParams } = new URL(req.url);
+    const profileIdParam = searchParams.get("profileId");
 
-    // ===========================
-    // Fetch Profile
-    // ===========================
+    const whereClause: any = profileIdParam
+      ? {
+          OR: [{ id: profileIdParam }, { profileId: profileIdParam }],
+          ...(payload.role === "ADMIN" ? {} : { userId: payload.userId }),
+        }
+      : { userId: payload.userId };
 
-    const profile = await prisma.profile.findUnique({
-      where: {
-        userId: payload.userId,
-      },
-
+    const profile = await prisma.profile.findFirst({
+      where: whereClause,
       include: {
         user: {
           select: {
@@ -49,7 +42,6 @@ export async function GET(req: NextRequest) {
             status: true,
           },
         },
-
         photos: true,
         family: true,
         education: true,
@@ -64,41 +56,28 @@ export async function GET(req: NextRequest) {
           success: false,
           message: "Profile not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
-
-    // ===========================
-    // Success
-    // ===========================
 
     return NextResponse.json({
       success: true,
       profile,
     });
   } catch (error) {
-    console.error("PROFILE API ERROR =>", error);
-
+    console.error("PROFILE API GET ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
 
 export async function PUT(req: NextRequest) {
   try {
-    // ===========================
-    // Verify User
-    // ===========================
-
     const token = req.cookies.get("nnvs_token")?.value;
 
     if (!token) {
@@ -107,22 +86,17 @@ export async function PUT(req: NextRequest) {
           success: false,
           message: "Unauthorized",
         },
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
     const payload = await verifyToken(token);
-
-    // ===========================
-    // Request Body
-    // ===========================
-
     const body = await req.json();
 
     const {
+      profileId: targetProfileId,
       fullName,
+      gender,
       dateOfBirth,
       height,
       maritalStatus,
@@ -153,14 +127,16 @@ export async function PUT(req: NextRequest) {
       preferredCaste,
     } = body;
 
-    // ===========================
-    // Find Profile
-    // ===========================
+    // Find Target Profile
+    const whereProfile: any = targetProfileId
+      ? {
+          OR: [{ id: targetProfileId }, { profileId: targetProfileId }],
+          ...(payload.role === "ADMIN" ? {} : { userId: payload.userId }),
+        }
+      : { userId: payload.userId };
 
-    const profile = await prisma.profile.findUnique({
-      where: {
-        userId: payload.userId,
-      },
+    const profile = await prisma.profile.findFirst({
+      where: whereProfile,
     });
 
     if (!profile) {
@@ -169,51 +145,40 @@ export async function PUT(req: NextRequest) {
           success: false,
           message: "Profile not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
-    // ===========================
-    // Transaction
-    // ===========================
+    // Role-based Restrictions:
+    // Members CANNOT edit name or gender once submitted. Admin has full rights.
+    const isMember = payload.role !== "ADMIN";
 
     await prisma.$transaction(async (tx) => {
-      // ===========================
-      // Update User
-      // ===========================
+      // 1. Update User (Only Admin can modify legal full name and gender)
+      if (!isMember && (fullName || gender)) {
+        await tx.user.update({
+          where: { id: profile.userId },
+          data: {
+            ...(fullName ? { fullName } : {}),
+            ...(gender ? { gender: gender.toUpperCase() } : {}),
+          },
+        });
+      }
 
-      await tx.user.update({
-        where: {
-          id: payload.userId,
-        },
-
-        data: {
-          fullName,
-        },
-      });
-
-      // ===========================
-      // Update Profile
-      // ===========================
-
+      // 2. Update Profile
       await tx.profile.update({
-        where: {
-          id: profile.id,
-        },
-
+        where: { id: profile.id },
         data: {
-          firstName: fullName,
+          // If not member, allow updating firstName/lastName
+          ...(!isMember && fullName
+            ? {
+                firstName: fullName.split(" ")[0] || fullName,
+                lastName: fullName.split(" ").slice(1).join(" ") || null,
+              }
+            : {}),
 
-          dateOfBirth: dateOfBirth
-            ? new Date(dateOfBirth)
-            : null,
-
-          height:
-  height && height !== ""
-    ? String(height)
-    : null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          height: height && height !== "" ? String(height) : null,
           maritalStatus,
           religion,
           caste,
@@ -221,69 +186,36 @@ export async function PUT(req: NextRequest) {
         },
       });
 
-      // ===========================
-      // Family
-      // ===========================
-
+      // 3. Family
       await tx.family.upsert({
-        where: {
-          profileId: profile.id,
-        },
-
+        where: { profileId: profile.id },
         update: {
           fatherName,
           motherName,
-
-          brothers:
-            brothers && brothers !== ""
-              ? parseInt(brothers)
-              : 0,
-
-          sisters:
-            sisters && sisters !== ""
-              ? parseInt(sisters)
-              : 0,
-
+          brothers: brothers && brothers !== "" ? parseInt(brothers) : 0,
+          sisters: sisters && sisters !== "" ? parseInt(sisters) : 0,
           familyType,
           familyStatus,
         },
-
         create: {
           profileId: profile.id,
-
           fatherName,
           motherName,
-
-          brothers:
-            brothers && brothers !== ""
-              ? parseInt(brothers)
-              : 0,
-
-          sisters:
-            sisters && sisters !== ""
-              ? parseInt(sisters)
-              : 0,
-
+          brothers: brothers && brothers !== "" ? parseInt(brothers) : 0,
+          sisters: sisters && sisters !== "" ? parseInt(sisters) : 0,
           familyType,
           familyStatus,
         },
       });
 
-      // ===========================
-      // Education
-      // ===========================
-
+      // 4. Education
       await tx.education.upsert({
-        where: {
-          profileId: profile.id,
-        },
-
+        where: { profileId: profile.id },
         update: {
           highestQualification,
           college,
           occupationField,
         },
-
         create: {
           profileId: profile.id,
           highestQualification,
@@ -292,110 +224,64 @@ export async function PUT(req: NextRequest) {
         },
       });
 
-      // ===========================
-      // Occupation
-      // ===========================
-
+      // 5. Occupation
       await tx.occupation.upsert({
-        where: {
-          profileId: profile.id,
-        },
-
+        where: { profileId: profile.id },
         update: {
           profession,
           company,
-          annualIncome,
+          annualIncome: annualIncome && annualIncome !== "" ? String(annualIncome) : null,
         },
-
         create: {
           profileId: profile.id,
           profession,
           company,
-          annualIncome,
+          annualIncome: annualIncome && annualIncome !== "" ? String(annualIncome) : null,
         },
       });
 
-      // ===========================
-      // Partner Preference
-      // ===========================
-
+      // 6. Partner Preference
       await tx.partnerPreference.upsert({
-        where: {
-          profileId: profile.id,
-        },
-
+        where: { profileId: profile.id },
         update: {
-          minAge:
-            minAge && minAge !== ""
-              ? parseInt(minAge)
-              : null,
-
-          maxAge:
-            maxAge && maxAge !== ""
-              ? parseInt(maxAge)
-              : null,
-
-          minHeight:
-  minHeight && minHeight !== ""
-    ? String(minHeight)
-    : null,
-
-maxHeight:
-  maxHeight && maxHeight !== ""
-    ? String(maxHeight)
-    : null,
+          minAge: minAge && minAge !== "" ? parseInt(minAge) : null,
+          maxAge: maxAge && maxAge !== "" ? parseInt(maxAge) : null,
+          minHeight: minHeight && minHeight !== "" ? String(minHeight) : null,
+          maxHeight: maxHeight && maxHeight !== "" ? String(maxHeight) : null,
           preferredReligion,
           preferredCaste,
         },
-
         create: {
           profileId: profile.id,
-
-          minAge:
-            minAge && minAge !== ""
-              ? parseInt(minAge)
-              : null,
-
-          maxAge:
-            maxAge && maxAge !== ""
-              ? parseInt(maxAge)
-              : null,
-
-          minHeight:
-  minHeight && minHeight !== ""
-    ? String(minHeight)
-    : null,
-
-maxHeight:
-  maxHeight && maxHeight !== ""
-    ? String(maxHeight)
-    : null,
-
+          minAge: minAge && minAge !== "" ? parseInt(minAge) : null,
+          maxAge: maxAge && maxAge !== "" ? parseInt(maxAge) : null,
+          minHeight: minHeight && minHeight !== "" ? String(minHeight) : null,
+          maxHeight: maxHeight && maxHeight !== "" ? String(maxHeight) : null,
           preferredReligion,
           preferredCaste,
         },
       });
     });
 
-    // ===========================
-    // Success Response
-    // ===========================
+    // Event Hook 2: Auto-regenerate and replace the PDF upon profile update
+    autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+      console.error("Auto PDF regeneration on profile update failed:", err);
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Profile updated successfully.",
+      message: isMember
+        ? "Profile updated successfully! Note: Name and Gender cannot be changed by members."
+        : "Profile updated successfully with admin authorization.",
     });
-  } catch (error) {
-    console.error("PROFILE UPDATE ERROR =>", error);
-
+  } catch (error: any) {
+    console.error("PROFILE API PUT ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error",
+        message: error?.message || "Internal Server Error",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

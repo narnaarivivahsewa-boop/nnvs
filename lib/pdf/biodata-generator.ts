@@ -542,15 +542,18 @@ export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Pr
 }
 
 /**
- * Categorizes a profile into one of the 4 requested target folders:
- * 1. Divorced Female (Divorced, Widow, Annulled, Separated)
- * 2. Divorced Male (Divorced, Widower, Annulled, Separated)
- * 3. Never Married Female
- * 4. Never Married Male
+ * Returns structured directory components:
+ * [BASE_DIR]/[Gender]/[MaritalStatus]/[Caste]/[ProfileId].pdf
  */
-export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
+export function getBiodataStructuredPath(profile: BiodataProfileInput): {
+  genderFolder: string;
+  maritalStatusFolder: string;
+  casteFolder: string;
+  fileName: string;
+  relativeDir: string;
+} {
   const legacy = String(profile.legacyProfileId || "").toUpperCase().trim();
-  let isFemale: boolean;
+  let isFemale = false;
 
   if (legacy.includes("-G-") || legacy.startsWith("NNVS-G") || legacy.startsWith("G-") || legacy.startsWith("G0")) {
     isFemale = true;
@@ -561,63 +564,108 @@ export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
     isFemale = gender === "FEMALE";
   }
 
-  const ms = String(profile.maritalStatus || "").toLowerCase().trim();
+  const genderFolder = isFemale ? "Female" : "Male";
 
-  const isDivorcedOrWidowOrAnnulled =
-    ms.includes("divorc") ||
-    ms.includes("widow") ||
-    ms.includes("annul") ||
-    ms.includes("separat");
-
-  if (isDivorcedOrWidowOrAnnulled) {
-    return isFemale ? "Divorced Female" : "Divorced Male";
-  } else {
-    return isFemale ? "Never Married Female" : "Never Married Male";
+  const ms = String(profile.maritalStatus || "").trim().toLowerCase();
+  let maritalStatusFolder = "Never Married";
+  if (ms.includes("divorc")) {
+    maritalStatusFolder = "Divorced";
+  } else if (ms.includes("widow")) {
+    maritalStatusFolder = isFemale ? "Widow" : "Widower";
+  } else if (ms.includes("annul")) {
+    maritalStatusFolder = "Annulled";
+  } else if (ms.includes("separat")) {
+    maritalStatusFolder = "Separated";
   }
+
+  const rawCaste = String(profile.caste || "").trim();
+  const casteFolder = (rawCaste && rawCaste !== "null" && rawCaste !== "undefined" ? rawCaste : "General")
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .trim();
+
+  const code = (profile.profileId || profile.legacyProfileId || profile.id || "candidate")
+    .replace(/[<>:"/\\|?*]/g, "_");
+  const fileName = `${code}.pdf`;
+
+  const relativeDir = path.join(genderFolder, maritalStatusFolder, casteFolder);
+
+  return { genderFolder, maritalStatusFolder, casteFolder, fileName, relativeDir };
 }
 
 /**
- * Saves a copy of the generated PDF automatically to D:\NNVS\Website Bio PDF\[Category Folder]
- * Categories:
- * - D:\NNVS\Website Bio PDF\Divorced Female
- * - D:\NNVS\Website Bio PDF\Divorced Male
- * - D:\NNVS\Website Bio PDF\Never Married Female
- * - D:\NNVS\Website Bio PDF\Never Married Male
- * Falls back to project public backup if D: drive is inaccessible
+ * Saves a copy of the generated PDF automatically to:
+ * [BASE_DIR]/[Gender]/[MaritalStatus]/[Caste]/[ProfileId].pdf
+ * Base folder is configurable via process.env.PDF_STORAGE_DIR (default: ./storage/biodatas/)
  */
 export async function saveBiodataPdfLocally(
   profile: BiodataProfileInput,
   pdfBuffer: Buffer
-): Promise<{ success: boolean; filePath: string; category: string; error?: string }> {
-  const category = getBiodataCategoryFolder(profile);
+): Promise<{ success: boolean; filePath: string; relativePath: string; error?: string }> {
   try {
-    const baseDir = "D:\\NNVS\\Website Bio PDF";
-    let targetDir = path.join(baseDir, category);
+    const baseDir =
+      process.env.PDF_STORAGE_DIR && process.env.PDF_STORAGE_DIR.trim()
+        ? process.env.PDF_STORAGE_DIR.trim()
+        : path.join(process.cwd(), "storage", "biodatas");
 
-    // Check if D: drive or directory can be created
-    try {
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-    } catch {
-      // Fallback to project folder or C: drive
-      const fallbackDir = path.join(process.cwd(), "public", "generated-biodatas", category);
-      if (!fs.existsSync(fallbackDir)) {
-        fs.mkdirSync(fallbackDir, { recursive: true });
-      }
-      targetDir = fallbackDir;
+    const { relativeDir, fileName } = getBiodataStructuredPath(profile);
+    const targetDir = path.join(baseDir, relativeDir);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
-
-    const candidateName = (profile.user?.fullName || profile.firstName || "Candidate").replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_").trim();
-    const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const fileName = `${code ? `${code}_` : ""}${candidateName}.pdf`;
 
     const fullPath = path.join(targetDir, fileName);
     fs.writeFileSync(fullPath, pdfBuffer);
 
-    return { success: true, filePath: fullPath, category };
+    return {
+      success: true,
+      filePath: fullPath,
+      relativePath: path.join(relativeDir, fileName),
+    };
   } catch (err: any) {
-    return { success: false, filePath: "", category, error: err?.message || String(err) };
+    console.error("saveBiodataPdfLocally error:", err);
+    return {
+      success: false,
+      filePath: "",
+      relativePath: "",
+      error: err?.message || String(err),
+    };
+  }
+}
+
+/**
+ * Auto-generates and saves/replaces the biodata PDF for a given profile ID
+ */
+export async function autoGenerateAndSaveBiodataPdf(profileId: string): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const profile = await prisma.profile.findFirst({
+      where: {
+        OR: [{ id: profileId }, { profileId }],
+      },
+      include: {
+        user: true,
+        photos: {
+          orderBy: { isPrimary: "desc" },
+        },
+        family: true,
+        education: true,
+        occupation: true,
+        partnerPreference: true,
+        phoneNumbers: true,
+      },
+    });
+
+    if (!profile) {
+      return { success: false, error: "Profile not found" };
+    }
+
+    const pdfBuffer = await generateBiodataPdfBuffer(profile as any);
+    const result = await saveBiodataPdfLocally(profile as any, pdfBuffer);
+    return result;
+  } catch (err: any) {
+    console.error(`autoGenerateAndSaveBiodataPdf failed for ${profileId}:`, err);
+    return { success: false, error: err?.message || String(err) };
   }
 }
 

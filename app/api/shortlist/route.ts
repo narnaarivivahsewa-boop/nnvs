@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findUnique({
+    const myProfile = await prisma.profile.findFirst({
       where: {
         userId: payload.userId,
       },
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findUnique({
+    const myProfile = await prisma.profile.findFirst({
       where: {
         userId: payload.userId,
       },
@@ -211,7 +211,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findUnique({
+    const myProfile = await prisma.profile.findFirst({
       where: {
         userId: payload.userId,
       },

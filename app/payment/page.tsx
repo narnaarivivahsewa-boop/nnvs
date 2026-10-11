@@ -21,8 +21,9 @@ function PaymentContent() {
   const nameParam = searchParams.get("name") || "";
   const genderParam = searchParams.get("gender")?.toUpperCase();
 
-  const isFemale = genderParam === "FEMALE";
-  const defaultFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+  const [gender, setGender] = useState<string>(genderParam || "MALE");
+  const isFemale = gender === "FEMALE";
+  const applicableFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
 
   const [settings, setSettings] = useState<{
     registrationFee: number;
@@ -30,33 +31,40 @@ function PaymentContent() {
     tradeName: string;
     gstin: string;
   }>({
-    registrationFee: defaultFee,
+    registrationFee: applicableFee,
     gstPercentage: 18,
     tradeName: BUSINESS_INFO.tradeName,
     gstin: BUSINESS_INFO.gstin,
   });
 
   useEffect(() => {
-    async function loadSettings() {
-      try {
-        const res = await fetch("/api/settings");
-        const data = await res.json();
-        if (data.success && data.settings) {
-          setSettings({
-            registrationFee: Number(data.settings.registrationFee || defaultFee),
-            gstPercentage: Number(data.settings.gstPercentage || 18),
-            tradeName: data.settings.tradeName || BUSINESS_INFO.tradeName,
-            gstin: data.settings.gstin || BUSINESS_INFO.gstin,
-          });
+    async function loadProfileAndSettings() {
+      if (profileId) {
+        try {
+          const pRes = await fetch(`/api/profile?profileId=${encodeURIComponent(profileId)}`);
+          if (pRes.ok) {
+            const pData = await pRes.json();
+            const pGender = (pData?.profile?.user?.gender || pData?.profile?.gender || "").toUpperCase();
+            if (pGender === "FEMALE" || pGender === "MALE") {
+              setGender(pGender);
+            }
+          }
+        } catch (e) {
+          console.error("Could not fetch profile gender:", e);
         }
-      } catch (err) {
-        console.error("Error loading payment settings:", err);
       }
     }
-    loadSettings();
-  }, [defaultFee]);
+    loadProfileAndSettings();
+  }, [profileId]);
 
-  const taxes = calculateGstBreakdown(settings.registrationFee);
+  useEffect(() => {
+    setSettings((prev) => ({
+      ...prev,
+      registrationFee: isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male,
+    }));
+  }, [isFemale]);
+
+  const taxes = calculateGstBreakdown(applicableFee);
   const totalAmount = taxes.totalAmount;
 
   return (

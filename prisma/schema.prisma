@@ -30,6 +30,7 @@ enum AccountStatus {
 enum ProfileApprovalStatus {
   DRAFT
   PAYMENT_PENDING
+  PENDING_APPROVAL
   UNDER_REVIEW
   CHANGES_REQUESTED
   APPROVED
@@ -61,10 +62,11 @@ model User {
   role   UserRole      @default(MEMBER)
   status AccountStatus @default(PENDING)
 
-  mobileVerified Boolean @default(false)
-  emailVerified  Boolean @default(false)
+  mobileVerified     Boolean @default(false)
+  emailVerified      Boolean @default(false)
+  mustChangePassword Boolean @default(false)
 
-  profile Profile?
+  profiles Profile[]
 
   loginHistory LoginHistory[]
 
@@ -89,11 +91,12 @@ model User {
 model Profile {
   id String @id @default(cuid())
 
-  userId    String @unique
+  userId    String
   profileId String @unique
 
   // Legacy & Integration Identifiers
   legacyProfileId String?
+  oldNnvsId       String?
   source          String? @default("WEBSITE")
   sourceId        String? @unique
 
@@ -120,8 +123,16 @@ model Profile {
   notes              String?  @db.Text
   paymentRemark      String?
 
-  isVisible        Boolean @default(false)
-  paymentCompleted Boolean @default(false)
+  // AI Matchmaking & Questionnaire fields
+  hobbies            String?
+  interests          String?
+  lifestyle          String?
+  expectations       String?
+
+  isVisible              Boolean @default(false)
+  paymentCompleted       Boolean @default(false)
+  isPaymentExempted      Boolean @default(false)
+  paymentExemptionReason String?
 
   approvalStatus ProfileApprovalStatus @default(DRAFT)
 
@@ -148,7 +159,9 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([userId])
   @@index([legacyProfileId])
+  @@index([oldNnvsId])
   @@index([source])
   @@index([sourceId])
 }
@@ -255,6 +268,15 @@ model PartnerPreference {
 
   preferredReligion String?
   preferredCaste    String?
+
+  // AI Questionnaire Preferences
+  dietPreference    String?
+  lifestyle         String?
+  dressingStyle     String?
+  educationLevel    String?
+  expectations      String?
+  hobbies           String?
+  interests         String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }

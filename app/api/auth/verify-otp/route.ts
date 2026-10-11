@@ -157,12 +157,20 @@ export async function POST(req: NextRequest) {
       roleToAssign
     );
 
+    const mustChange = Boolean(user.mustChangePassword);
+    const redirectTo = mustChange
+      ? "/profile/change-password"
+      : roleToAssign === "ADMIN"
+      ? "/admin"
+      : "/dashboard";
+
     const response = NextResponse.json({
       success: true,
       message: "OTP verified successfully.",
       userId: user.id,
       role: roleToAssign,
-      redirectTo: roleToAssign === "ADMIN" ? "/admin" : "/dashboard",
+      redirectTo,
+      mustChangePassword: mustChange,
       isNewUser: false,
     });
 

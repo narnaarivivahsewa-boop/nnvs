@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   User,
   RotateCcw,
+  Heart,
 } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
 
@@ -32,11 +33,31 @@ type MatchResult = {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  profileId?: string;
+  onComplete?: () => void;
 };
 
-export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
+const HOBBIES_OPTIONS = [
+  "Reading & Literature",
+  "Traveling & Exploring",
+  "Cooking & Food",
+  "Music & Singing",
+  "Yoga & Fitness",
+  "Movies & Cinema",
+  "Art, Craft & Design",
+  "Technology & Gaming",
+  "Nature & Outdoors",
+  "Spirituality & Meditation",
+];
+
+export default function AIMatchmakerModal({
+  isOpen,
+  onClose,
+  profileId,
+  onComplete,
+}: Props) {
   const [step, setStep] = useState(1);
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   // Bot Answers State
   const [lookingFor, setLookingFor] = useState("Bride");
@@ -45,6 +66,13 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
   const [diet, setDiet] = useState("Strict Vegetarian");
   const [dressing, setDressing] = useState("Traditional & Elegant");
   const [lifestyle, setLifestyle] = useState("Traditional");
+  const [selectedHobbies, setSelectedHobbies] = useState<string[]>([
+    "Traveling & Exploring",
+    "Music & Singing",
+  ]);
+  const [expectations, setExpectations] = useState(
+    "Seeking an understanding, cultured and family-oriented partner."
+  );
   const [educationLevel, setEducationLevel] = useState("Open to All");
   const [religionPreference, setReligionPreference] = useState("Open to All");
   const [communityPreference, setCommunityPreference] = useState("Open to All");
@@ -61,6 +89,14 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
   const [results, setResults] = useState<MatchResult[] | null>(null);
 
   if (!isOpen) return null;
+
+  const toggleHobby = (h: string) => {
+    if (selectedHobbies.includes(h)) {
+      setSelectedHobbies(selectedHobbies.filter((item) => item !== h));
+    } else {
+      setSelectedHobbies([...selectedHobbies, h]);
+    }
+  };
 
   const handleNext = () => {
     if (step < totalSteps) {
@@ -84,12 +120,15 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          profileId: profileId || undefined,
           lookingFor,
           minAge,
           maxAge,
           diet,
           lifestyle,
           dressing,
+          hobbies: selectedHobbies.join(", "),
+          expectations,
           educationLevel,
           religionPreference,
           communityPreference,
@@ -99,6 +138,9 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
       const data = await res.json();
       if (data.success) {
         setResults(data.recommendations);
+        if (onComplete) {
+          onComplete();
+        }
       }
     } catch (err) {
       console.error("AI Matchmaker scrutiny failed:", err);
@@ -114,7 +156,7 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-2xl transition-all">
         {/* Modal Top Header */}
         <div className="flex items-center justify-between bg-gradient-to-r from-[#4A121A] via-[#5C1924] to-[#7A1F2D] px-4 sm:px-6 py-3.5 sm:py-4 text-white">
@@ -125,14 +167,14 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-serif-luxury text-sm sm:text-lg font-bold text-white tracking-wide">
-                  RishteClub AI Matchmaker Bot
+                  Post-Payment AI Matchmaking Onboarding
                 </h3>
                 <span className="rounded-full bg-[#DFBA73] px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[9px] sm:text-[10px] font-extrabold text-[#4A121A]">
                   AI 2.0
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-[#E2D2BC]">
-                Smart Scrutiny & Compatibility Assistant
+                Set your partner preferences & activate intelligent match recommendations
               </p>
             </div>
           </div>
@@ -157,10 +199,10 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                   Step {step} of {totalSteps}
                 </span>
                 <div className="flex gap-1.5">
-                  {[1, 2, 3, 4, 5].map((i) => (
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
                     <div
                       key={i}
-                      className={`h-1.5 w-6 rounded-full transition-all ${
+                      className={`h-1.5 w-5 sm:w-6 rounded-full transition-all ${
                         i <= step ? "bg-[#C5A059]" : "bg-[#E8DCC8]"
                       }`}
                     />
@@ -175,15 +217,17 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                 </div>
                 <div className="text-xs sm:text-sm text-[#2D221E] font-medium leading-relaxed">
                   {step === 1 &&
-                    "Namaste! 🙏 मैं आपका AI Matchmaker Bot हूँ। चलिए आपकी पसंद और प्राथमिकताओं को समझते हैं ताकि हम सबसे उपयुक्त प्रोफाइल्स को स्क्रूटिनाइज कर सकें। आप किसके लिए रिश्ता देख रहे हैं?"}
+                    "Namaste! 🙏 Welcome to your personalized onboarding. Please choose whether you are looking for a Bride or Groom, and preferred age range."}
                   {step === 2 &&
-                    "खान-पान (Food Habits & Diet): आपकी और आपके परिवार की भोजन शैली कैसी है?"}
+                    "खान-पान (Food Habits & Diet): What food and dietary preferences are expected from a partner?"}
                   {step === 3 &&
-                    "पहनावा और लाइफस्टाइल (Dressing & Personal Style): आप कैसा पहनावा और जीवनशैली पसंद करते हैं?"}
+                    "पहनावा और लाइफस्टाइल (Dressing & Personal Style): What dressing and lifestyle resonates best?"}
                   {step === 4 &&
-                    "पारिवारिक मूल्य (Family Values): आपके परिवार के संस्कार और सोच किस प्रकार के हैं?"}
+                    "पारिवारिक मूल्य (Family Values): What core family culture and values do you prioritize?"}
                   {step === 5 &&
-                    "शिक्षा, करियर और समाज (Career & Community Preferences): पार्टनर के प्रोफेशन और कम्युनिटी को लेकर आपकी क्या उम्मीदें हैं?"}
+                    "शौक और रुचियां (Hobbies & Interests): Select your hobbies to connect on shared passions."}
+                  {step === 6 &&
+                    "शिक्षा, करियर, समाज और उम्मीदें (Career & Expectations): Set your career preferences and partner expectations."}
                 </div>
               </div>
 
@@ -330,8 +374,42 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                 </div>
               )}
 
-              {/* Step 5: Education & Community */}
+              {/* Step 5: Hobbies & Interests */}
               {step === 5 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#2D221E] mb-1">
+                      Choose Hobbies & Interests:
+                    </label>
+                    <p className="text-[11px] text-[#5A4E48] mb-3">
+                      Select all that apply to connect with candidates with similar lifestyles.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {HOBBIES_OPTIONS.map((h) => {
+                        const selected = selectedHobbies.includes(h);
+                        return (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => toggleHobby(h)}
+                            className={`rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+                              selected
+                                ? "border-[#4A121A] bg-[#4A121A] text-white shadow-xs"
+                                : "border-[#DACBB4] bg-white text-[#5A4E48] hover:bg-[#FAF5EB]"
+                            }`}
+                          >
+                            {selected ? "✓ " : "+ "}
+                            {h}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 6: Education, Community & Partner Expectations */}
+              {step === 6 && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-[#2D221E] mb-1.5">
@@ -392,6 +470,20 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                       ))}
                     </select>
                   </div>
+
+                  {/* Expectations Summary */}
+                  <div>
+                    <label className="block text-xs font-bold text-[#2D221E] mb-1.5">
+                      Partner Expectations (जीवनसाथी से उम्मीदें):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={expectations}
+                      onChange={(e) => setExpectations(e.target.value)}
+                      placeholder="e.g. Caring, understanding and respectful toward family values..."
+                      className="w-full rounded-xl border border-[#DACBB4] bg-white p-3 text-xs text-[#2D221E] outline-none focus:border-[#C5A059]"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -415,7 +507,7 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                   onClick={handleNext}
                   className="flex items-center gap-2 rounded-xl bg-[#4A121A] px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-[#3A0C13] transition active:scale-[0.99]"
                 >
-                  <span>{step === totalSteps ? "Scrutinize & Find Matches ✨" : "Continue"}</span>
+                  <span>{step === totalSteps ? "Save & Find Matches ✨" : "Continue"}</span>
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
@@ -434,10 +526,10 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
 
               <div>
                 <h4 className="font-serif-luxury text-lg font-bold text-[#2D221E]">
-                  AI Scrutiny in Progress...
+                  Saving Preferences & AI Scrutiny in Progress...
                 </h4>
                 <p className="text-xs text-[#5A4E48] max-w-sm mx-auto mt-1">
-                  Comparing your preferences across verified database profiles for lifestyle, diet, career, and family compatibility.
+                  Persisting your answers to your profile and comparing compatibility with verified database members.
                 </p>
               </div>
             </div>
@@ -450,7 +542,7 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                 <div>
                   <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>AI Scrutiny Complete ({results.length} Matches Found)</span>
+                    <span>Preferences Saved & Matches Found ({results.length})</span>
                   </div>
                   <h4 className="font-serif-luxury text-lg font-bold text-[#2D221E] mt-1">
                     Recommended High-Compatibility Profiles
@@ -463,24 +555,24 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                   className="flex items-center gap-1 text-xs font-semibold text-[#4A121A] hover:underline"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Restart AI</span>
+                  <span>Update Preferences</span>
                 </button>
               </div>
 
               {results.length === 0 ? (
                 <div className="rounded-2xl bg-white p-8 text-center border border-[#DACBB4]">
                   <p className="text-sm font-semibold text-[#2D221E]">
-                    No exact profile matches found with these exact filters yet.
+                    Preferences successfully saved to your profile!
                   </p>
                   <p className="text-xs text-[#5A4E48] mt-1">
-                    Try broadening your age or community preference to see more members.
+                    No other approved profiles match these exact filters at this moment. You will be notified as new candidates register.
                   </p>
                   <button
                     type="button"
-                    onClick={resetBot}
-                    className="mt-4 rounded-xl bg-[#C5A059] px-6 py-2 text-xs font-bold text-white shadow"
+                    onClick={onClose}
+                    className="mt-4 rounded-xl bg-[#4A121A] px-6 py-2 text-xs font-bold text-white shadow"
                   >
-                    Adjust Preferences
+                    Close & Go to Dashboard
                   </button>
                 </div>
               ) : (
@@ -541,6 +633,16 @@ export default function AIMatchmakerModal({ isOpen, onClose }: Props) {
                       </Link>
                     </div>
                   ))}
+
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="rounded-xl border border-[#4A121A] px-6 py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                    >
+                      Done & Return to Dashboard
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

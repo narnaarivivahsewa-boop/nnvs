@@ -31,11 +31,14 @@ export async function GET(req: NextRequest) {
         role: true,
         status: true,
         mobileVerified: true,
+        mustChangePassword: true,
 
-        profile: {
+        profiles: {
           select: {
             id: true,
             profileId: true,
+            oldNnvsId: true,
+            legacyProfileId: true,
             profileCompletion: true,
             firstName: true,
             lastName: true,
@@ -47,9 +50,12 @@ export async function GET(req: NextRequest) {
             motherTongue: true,
             isVisible: true,
             paymentCompleted: true,
+            isPaymentExempted: true,
+            paymentExemptionReason: true,
             approvalStatus: true,
             approvedAt: true,
           },
+          orderBy: { createdAt: "desc" },
         },
       },
     });
@@ -66,7 +72,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user,
+      user: {
+        ...user,
+        profile: user.profiles?.[0] || null,
+        profiles: user.profiles || [],
+      },
     });
   } catch (error) {
     console.error("AUTH ME ERROR =>", error);
@@ -74,9 +84,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: "Invalid or expired session.",
+        message: "Internal Server Error",
       },
-      { status: 401 }
+      { status: 500 }
     );
   }
 }

@@ -1,4 +1,23 @@
+import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+
+export const metadata: Metadata = {
+  title: "Frequently Asked Questions | RishteClub Matrimony",
+  description:
+    "Common questions about matrimonial registration, verification, fees, privacy, and matchmaking on RishteClub (NNVS Matrimony).",
+  alternates: {
+    canonical: "/faqs",
+  },
+  openGraph: {
+    title: "Frequently Asked Questions | RishteClub Matrimony",
+    description:
+      "Common questions about matrimonial registration, verification, fees, privacy, and matchmaking on RishteClub (NNVS Matrimony).",
+    url: "https://www.rishteclub.com/faqs",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 const faqs = [
   {
@@ -39,8 +58,25 @@ const faqs = [
 ];
 
 export default function FAQsPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map((f) => ({
+      "@type": "Question",
+      "name": f.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": f.answer,
+      },
+    })),
+  };
+
   return (
     <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
 
         <div className="text-center">

@@ -52,14 +52,14 @@ export async function checkDuplicateRegistration(
   // 1. Check Exact Registered Mobile
   const existingByMobile = await prisma.user.findUnique({
     where: { mobile },
-    include: { profile: true },
+    include: { profiles: true },
   });
 
   if (existingByMobile) {
     return {
       isDuplicate: true,
       confidence: "EXACT_MOBILE",
-      matchedProfileId: existingByMobile.profile?.profileId,
+      matchedProfileId: existingByMobile.profiles?.[0]?.profileId,
       matchedMobileMasked: maskMobileNumber(mobile),
       message: `You have already registered with RishteClub using mobile number ${maskMobileNumber(
         mobile
@@ -71,14 +71,14 @@ export async function checkDuplicateRegistration(
   if (email && email.trim() !== "") {
     const existingByEmail = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
-      include: { profile: true },
+      include: { profiles: true },
     });
 
     if (existingByEmail) {
       return {
         isDuplicate: true,
         confidence: "EXACT_EMAIL",
-        matchedProfileId: existingByEmail.profile?.profileId,
+        matchedProfileId: existingByEmail.profiles?.[0]?.profileId,
         matchedMobileMasked: maskMobileNumber(existingByEmail.mobile),
         message: `An account with this email already exists under registered mobile ${maskMobileNumber(
           existingByEmail.mobile
