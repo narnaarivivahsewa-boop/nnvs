@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -24,12 +24,105 @@ import {
   QrCode,
   X,
   AlertTriangle,
+  LogIn,
+  UserCheck,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 
+// Helper to convert diverse birth time formats to standard 24-hr HH:mm for <input type="time" />
+function to24HourTime(val?: string | null): string {
+  if (!val) return "08:30";
+  const trimmed = String(val).trim();
+  if (!trimmed || trimmed === "-" || trimmed.toLowerCase() === "null") {
+    return "08:30";
+  }
+
+  // 1. Decimal Excel fraction (e.g. 0.5520833333357587)
+  const num = Number(trimmed);
+  if (!isNaN(num) && num > 0 && num < 1) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const h = Math.floor(totalMinutes / 60) % 24;
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  // 2. JavaScript Date string or 1899 date
+  if (trimmed.includes("1899") || /^[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d{4}/i.test(trimmed)) {
+    const timeMatch = trimmed.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2];
+      return `${String(hours).padStart(2, "0")}:${minutes}`;
+    }
+  }
+
+  // 3. 12-hour format with AM/PM (e.g. "1:40 AM", "01:15 PM", "10:25pm")
+  const ampmMatch = trimmed.match(/(\d{1,2})[:.](\d{2})\s*(am|pm)/i);
+  if (ampmMatch) {
+    let hours = parseInt(ampmMatch[1], 10);
+    const minutes = ampmMatch[2];
+    const ampm = ampmMatch[3].toUpperCase();
+    if (ampm === "PM" && hours < 12) hours += 12;
+    if (ampm === "AM" && hours === 12) hours = 0;
+    return `${String(hours).padStart(2, "0")}:${minutes}`;
+  }
+
+  // 4. 24-hour format (e.g. "17:02:00" or "08:30")
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match24) {
+    const hours = parseInt(match24[1], 10);
+    const minutes = match24[2];
+    return `${String(hours).padStart(2, "0")}:${minutes}`;
+  }
+
+  // 5. Generic digits extraction
+  const genericMatch = trimmed.match(/(\d{1,2})[:.](\d{2})/);
+  if (genericMatch) {
+    let hours = parseInt(genericMatch[1], 10);
+    const minutes = genericMatch[2];
+    const lower = trimmed.toLowerCase();
+    if ((lower.includes("pm") || lower.includes("evening") || lower.includes("night")) && hours < 12) {
+      hours += 12;
+    }
+    return `${String(hours).padStart(2, "0")}:${minutes}`;
+  }
+
+  return "08:30";
+}
+
+// Helper to convert date of birth to YYYY-MM-DD for <input type="date" />
+function toDateInputValue(raw?: string | Date | null): string {
+  if (!raw) return "1996-08-15";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return "1996-08-15";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  } catch {
+    return "1996-08-15";
+  }
+}
+
+// Normalize manglik value to allowed select options
+function normalizeManglik(val?: string | null): string {
+  if (!val) return "No";
+  const lower = String(val).toLowerCase();
+  if (lower.includes("anshik") || lower.includes("partial")) return "Anshik";
+  if (lower.includes("yes") || lower === "manglik") return "Yes";
+  if (lower.includes("don't") || lower.includes("dont") || lower.includes("check")) return "Don't Know";
+  return "No";
+}
+
 export default function AstrologyPage() {
+  // Authentication & Profile State
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [registeredProfile, setRegisteredProfile] = useState<any>(null);
+
   // User Birth Form State
   const [userName, setUserName] = useState("My Kundli Profile");
   const [userGender, setUserGender] = useState("MALE");
@@ -67,29 +160,113 @@ export default function AstrologyPage() {
     },
   ]);
 
-  // Load profiles for matching
-  useEffect(() => {
-    async function loadCandidates() {
+  // Load candidate profiles strictly filtered by opposite gender
+  const fetchCandidatesForGender = useCallback(
+    async (activeUserGender: string, excludeProfileId?: string) => {
+      setLoadingCandidates(true);
       try {
         const res = await fetch("/api/ai/astrology", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "profiles-list" }),
+          body: JSON.stringify({
+            type: "profiles-list",
+            userGender: activeUserGender,
+          }),
         });
         const data = await res.json();
-        if (data.success && data.candidates?.length > 0) {
-          setCandidates(data.candidates);
-          // Auto select first candidate
-          setSelectedCandidateId(data.candidates[0].id);
+        if (data.success && Array.isArray(data.candidates)) {
+          // Strict opposite gender enforcement:
+          // Male user -> Female candidate profiles only
+          // Female user -> Male candidate profiles only
+          const expectedTargetGender = activeUserGender === "MALE" ? "FEMALE" : "MALE";
+          const filtered = data.candidates.filter((cand: any) => {
+            if (cand.user?.gender && cand.user.gender !== expectedTargetGender) return false;
+            if (excludeProfileId && (cand.id === excludeProfileId || cand.profileId === excludeProfileId)) {
+              return false;
+            }
+            return true;
+          });
+
+          setCandidates(filtered);
+          if (filtered.length > 0) {
+            setSelectedCandidateId(filtered[0].id);
+          } else {
+            setSelectedCandidateId("");
+            setMatchResult(null);
+          }
         }
       } catch (err) {
         console.error("Failed to load candidates for astrology:", err);
       } finally {
         setLoadingCandidates(false);
       }
+    },
+    []
+  );
+
+  // Initialize: Check Authentication, Auto-fetch User Profile & Load Filtered Candidates
+  useEffect(() => {
+    async function init() {
+      setAuthLoading(true);
+      try {
+        const authRes = await fetch("/api/auth/me", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        const authData = await authRes.json();
+
+        if (authRes.ok && authData.success && authData.user) {
+          setIsAuthenticated(true);
+          const currentUser = authData.user;
+          const userProf = currentUser.profiles?.[0] || currentUser.profile;
+
+          let determinedGender = (currentUser.gender || userProf?.gender || "MALE").toUpperCase();
+          if (determinedGender !== "MALE" && determinedGender !== "FEMALE") {
+            determinedGender = "MALE";
+          }
+
+          const determinedName =
+            [userProf?.firstName, userProf?.lastName].filter(Boolean).join(" ") ||
+            currentUser.fullName ||
+            "My Kundli Profile";
+          const determinedDob = userProf?.dateOfBirth ? toDateInputValue(userProf.dateOfBirth) : "1996-08-15";
+          const determinedBirthTime = userProf?.birthTime ? to24HourTime(userProf.birthTime) : "08:30";
+          const determinedBirthPlace = userProf?.birthPlace || "Delhi, India";
+          const determinedManglik = normalizeManglik(userProf?.manglik);
+
+          setUserName(determinedName);
+          setUserGender(determinedGender);
+          setUserDob(determinedDob);
+          setUserBirthTime(determinedBirthTime);
+          setUserBirthPlace(determinedBirthPlace);
+          setUserManglik(determinedManglik);
+          setRegisteredProfile(userProf);
+
+          // Fetch only opposite-gender candidate profiles
+          await fetchCandidatesForGender(determinedGender, userProf?.id);
+        } else {
+          setIsAuthenticated(false);
+          // Fallback preview: load candidates for default gender
+          await fetchCandidatesForGender("MALE");
+        }
+      } catch (err) {
+        console.error("Failed to authenticate & auto-fetch profile for astrology:", err);
+        setIsAuthenticated(false);
+        await fetchCandidatesForGender("MALE");
+      } finally {
+        setAuthLoading(false);
+      }
     }
-    loadCandidates();
-  }, []);
+
+    init();
+  }, [fetchCandidatesForGender]);
+
+  // Handle gender change: dynamically update candidate list to opposite gender
+  const handleGenderChange = (newGender: string) => {
+    setUserGender(newGender);
+    fetchCandidatesForGender(newGender, registeredProfile?.id);
+  };
 
   // Compute Kundli Match
   async function handleComputeMatch(candidateIdToUse?: string) {
@@ -107,6 +284,7 @@ export default function AstrologyPage() {
           userBirthTime,
           userBirthPlace,
           userManglik,
+          userGender,
           candidateProfileId: targetId,
         }),
       });
@@ -154,6 +332,7 @@ export default function AstrologyPage() {
           userBirthTime,
           userBirthPlace,
           userManglik,
+          userGender,
           candidateProfileId: selectedCandidateId,
           question: q,
         }),
@@ -219,23 +398,69 @@ export default function AstrologyPage() {
       <main className="flex-1 py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-10">
           
+          {/* Unauthenticated Members Gate Notice */}
+          {!authLoading && !isAuthenticated && (
+            <div className="rounded-3xl bg-amber-50/90 border border-amber-300/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-5 animate-fadeIn">
+              <div className="flex items-start sm:items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#4A121A] to-[#6A1A26] text-[#DFBA73] flex items-center justify-center shrink-0 shadow">
+                  <Lock className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
+                    Registered Members Feature: AI Kundli & Lal Kitab
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-700 leading-relaxed max-w-2xl">
+                    Apne registered account se login karein. Aapki profile details automatically fetch ho jayengi aur aapke liye opposite gender profiles ka 36 Guna Milan & Lal Kitab Upaye turant calculate hoga.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                <Link
+                  href="/login?redirect=/astrology"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-[#380D13] transition"
+                >
+                  <LogIn className="h-4 w-4 text-[#DFBA73]" />
+                  <span>Login to Auto-fetch</span>
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center rounded-xl bg-white border border-[#4A121A] px-4 py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                >
+                  Register Profile
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Top Grid: Your Kundli Inputs + Target Profile Selector */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
             {/* Left Box: Your Birth Details */}
             <div className="lg:col-span-5 rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-md space-y-6">
-              <div className="flex items-center gap-3 border-b border-[#EFE5D6] pb-4">
-                <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
-                  <Sun className="h-5 w-5 text-[#C5A059]" />
+              <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
+                    <Sun className="h-5 w-5 text-[#C5A059]" />
+                  </div>
+                  <div>
+                    <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                      Your Birth & Kundli Details
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      {isAuthenticated && registeredProfile
+                        ? "Auto-fetched from your registered profile"
+                        : "Enter your birth parameters for exact Guna calculation"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
-                    Your Birth & Kundli Details
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    Enter your birth parameters for exact Guna calculation
-                  </p>
-                </div>
+
+                {isAuthenticated && registeredProfile && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-full">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                    <span>Profile: {registeredProfile.profileId}</span>
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -252,17 +477,27 @@ export default function AstrologyPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                    Gender
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                      Gender
+                    </label>
+                    <span className="text-[10px] font-bold text-[#C5A059]">
+                      {userGender === "MALE" ? "Groom" : "Bride"}
+                    </span>
+                  </div>
                   <select
                     value={userGender}
-                    onChange={(e) => setUserGender(e.target.value)}
+                    onChange={(e) => handleGenderChange(e.target.value)}
                     className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
                   >
                     <option value="MALE">Male (Groom)</option>
                     <option value="FEMALE">Female (Bride)</option>
                   </select>
+                  <p className="text-[11px] text-gray-500 mt-1 font-medium">
+                    {userGender === "MALE"
+                      ? "✓ Matches exclusively with Female (Bride) profiles"
+                      : "✓ Matches exclusively with Male (Groom) profiles"}
+                  </p>
                 </div>
 
                 <div>
@@ -342,16 +577,20 @@ export default function AstrologyPage() {
                     </div>
                     <div>
                       <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
-                        Select Matrimony Profile to Match
+                        {userGender === "MALE"
+                          ? "Select Bride Profile to Match (Female)"
+                          : "Select Groom Profile to Match (Male)"}
                       </h2>
                       <p className="text-xs text-gray-500">
-                        Choose any verified member profile from the RishteClub database
+                        {userGender === "MALE"
+                          ? "Showing only verified female profiles from RishteClub database"
+                          : "Showing only verified male profiles from RishteClub database"}
                       </p>
                     </div>
                   </div>
 
                   <span className="text-xs font-bold text-[#4A121A] bg-[#FAF0DC] px-3 py-1 rounded-full border border-[#E2D4BE]">
-                    {candidates.length} Profiles Available
+                    {candidates.length} {userGender === "MALE" ? "Brides" : "Grooms"} Available
                   </span>
                 </div>
 
@@ -359,19 +598,30 @@ export default function AstrologyPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                      Choose Candidate Profile:
+                      Choose {userGender === "MALE" ? "Bride (Female)" : "Groom (Male)"} Profile:
                     </label>
-                    <select
-                      value={selectedCandidateId}
-                      onChange={(e) => setSelectedCandidateId(e.target.value)}
-                      className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-4 py-3 text-sm font-semibold text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                    >
-                      {candidates.map((cand) => (
-                        <option key={cand.id} value={cand.id}>
-                          {cand.user.fullName} ({cand.profileId}) • {cand.user.gender} • {cand.caste || "General"} • {cand.manglik ? `Manglik: ${cand.manglik}` : "Non-Manglik"}
-                        </option>
-                      ))}
-                    </select>
+                    {loadingCandidates ? (
+                      <div className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-[#C5A059]" />
+                        <span>Loading opposite-gender profiles...</span>
+                      </div>
+                    ) : candidates.length > 0 ? (
+                      <select
+                        value={selectedCandidateId}
+                        onChange={(e) => setSelectedCandidateId(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-4 py-3 text-sm font-semibold text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      >
+                        {candidates.map((cand) => (
+                          <option key={cand.id} value={cand.id}>
+                            {cand.user.fullName} ({cand.profileId}) • {cand.user.gender} • {cand.caste || "General"} • {cand.manglik ? `Manglik: ${cand.manglik}` : "Non-Manglik"}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                        No {userGender === "MALE" ? "female (bride)" : "male (groom)"} profiles found in this category.
+                      </div>
+                    )}
                   </div>
 
                   {/* Selected Candidate Preview Card */}

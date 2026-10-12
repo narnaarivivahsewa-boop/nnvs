@@ -56,21 +56,26 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    // Check query params
+    const { searchParams } = new URL(req.url);
+    const isInline = searchParams.get("view") === "inline";
+    const withoutContact =
+      searchParams.get("withoutContact") === "true" ||
+      searchParams.get("hideContact") === "true";
+
     // Generate PDF Buffer
-    const pdfBuffer = await generateBiodataPdfBuffer(profile as any);
+    const pdfBuffer = await generateBiodataPdfBuffer(profile as any, {
+      hideContactDetails: withoutContact,
+    });
 
     // Asynchronously save copy to D:\NNVS\Website Bio PDF
-    saveBiodataPdfLocally(profile as any, pdfBuffer).catch((err) => {
+    saveBiodataPdfLocally(profile as any, pdfBuffer, { withoutContact }).catch((err) => {
       console.error("[PDF Local Save Warning]:", err);
     });
 
-    // Check if user requested inline view or download attachment
-    const { searchParams } = new URL(req.url);
-    const isInline = searchParams.get("view") === "inline";
-
     const candidateName = (profile.user?.fullName || profile.firstName || "Biodata").replace(/[^a-zA-Z0-9_-]/g, "_");
     const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const fileName = `Biodata_${code ? `${code}_` : ""}${candidateName}.pdf`;
+    const fileName = `Biodata_${code ? `${code}_` : ""}${candidateName}${withoutContact ? "_NoContact" : ""}.pdf`;
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,

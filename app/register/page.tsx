@@ -174,7 +174,7 @@ export default function RegisterPage() {
         return;
       }
 
-      // Send OTP via 2Factor backend
+      // Send OTP via Fast2SMS backend
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: {

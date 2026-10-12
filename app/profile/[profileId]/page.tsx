@@ -26,6 +26,7 @@ import {
   FileDown,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import { formatBirthTime } from "@/lib/utils";
 
 type Profile = {
   id: string;
@@ -612,7 +613,7 @@ export default function ProfileDetailsPage() {
                 </div>
                 <div>
                   <p className="text-gray-400">Birth Time</p>
-                  <p className="font-semibold text-gray-800 mt-1">{profile.birthTime || "-"}</p>
+                  <p className="font-semibold text-gray-800 mt-1">{formatBirthTime(profile.birthTime)}</p>
                 </div>
               </div>
             </div>
@@ -663,7 +664,7 @@ export default function ProfileDetailsPage() {
                 <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">
                   <span className="text-[11px] text-gray-500 font-bold uppercase block">Birth Time</span>
                   <span className="font-semibold text-xs text-gray-800 block">
-                    {profile.birthTime || "Standard Chart"}
+                    {profile.birthTime ? formatBirthTime(profile.birthTime) : "Standard Chart"}
                   </span>
                 </div>
                 <div className="rounded-2xl bg-white border border-[#DACBB4] p-3">

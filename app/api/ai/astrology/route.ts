@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyToken } from "@/lib/jwt";
 
 // Vedic Astrology calculation helpers
 const RASHIS = [
@@ -205,8 +206,48 @@ function calculateGunaMilan(
   };
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const token = req.cookies.get("nnvs_token")?.value;
+    let currentUser: any = null;
+    let currentProfile: any = null;
+
+    if (token) {
+      try {
+        const session = await verifyToken(token);
+        if (session?.userId) {
+          currentUser = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: {
+              id: true,
+              fullName: true,
+              gender: true,
+              role: true,
+              profiles: {
+                select: {
+                  id: true,
+                  profileId: true,
+                  firstName: true,
+                  lastName: true,
+                  dateOfBirth: true,
+                  birthPlace: true,
+                  birthTime: true,
+                  manglik: true,
+                },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+            },
+          });
+          if (currentUser && currentUser.profiles.length > 0) {
+            currentProfile = currentUser.profiles[0];
+          }
+        }
+      } catch {
+        // Token expired or invalid
+      }
+    }
+
     const body = await req.json();
     const {
       type = "match", // 'match' | 'qa' | 'profiles-list'
@@ -214,16 +255,47 @@ export async function POST(req: Request) {
       userBirthTime,
       userBirthPlace,
       userManglik,
+      userGender: clientUserGender,
       candidateProfileId,
       question,
     } = body;
 
     if (type === "profiles-list") {
+      // Determine the active user gender (from profile, user record, or client request)
+      const effectiveUserGender =
+        clientUserGender || currentProfile?.user?.gender || currentUser?.gender || null;
+
+      // Gender-based matching rules:
+      // Male user -> Female candidate profiles only
+      // Female user -> Male candidate profiles only
+      let targetGender: "MALE" | "FEMALE" | undefined = undefined;
+      if (effectiveUserGender === "MALE") {
+        targetGender = "FEMALE";
+      } else if (effectiveUserGender === "FEMALE") {
+        targetGender = "MALE";
+      }
+
+      const whereClause: any = {
+        isVisible: true,
+        OR: [{ paymentCompleted: true }, { approvalStatus: "APPROVED" }],
+      };
+
+      // Exclude logged in user's own profile so they cannot match with themselves
+      if (currentUser?.id) {
+        whereClause.userId = {
+          not: currentUser.id,
+        };
+      }
+
+      // Filter candidate pool to opposite gender
+      if (targetGender) {
+        whereClause.user = {
+          gender: targetGender,
+        };
+      }
+
       const candidates = await prisma.profile.findMany({
-        where: {
-          isVisible: true,
-          OR: [{ paymentCompleted: true }, { approvalStatus: "APPROVED" }],
-        },
+        where: whereClause,
         select: {
           id: true,
           profileId: true,
@@ -251,7 +323,38 @@ export async function POST(req: Request) {
         orderBy: { createdAt: "desc" },
       });
 
-      return NextResponse.json({ success: true, candidates });
+      return NextResponse.json({
+        success: true,
+        candidates,
+        userProfile: currentProfile
+          ? {
+              id: currentProfile.id,
+              profileId: currentProfile.profileId,
+              firstName: currentProfile.firstName,
+              lastName: currentProfile.lastName,
+              fullName:
+                [currentProfile.firstName, currentProfile.lastName].filter(Boolean).join(" ") ||
+                currentUser?.fullName ||
+                "My Kundli Profile",
+              gender: currentUser?.gender || null,
+              dateOfBirth: currentProfile.dateOfBirth,
+              birthPlace: currentProfile.birthPlace,
+              birthTime: currentProfile.birthTime,
+              manglik: currentProfile.manglik,
+            }
+          : null,
+        currentUser: currentUser
+          ? {
+              id: currentUser.id,
+              fullName: currentUser.fullName,
+              gender: currentUser.gender,
+              role: currentUser.role,
+            }
+          : null,
+        userGender: effectiveUserGender,
+        targetGender: targetGender || null,
+        isAuthenticated: !!currentUser,
+      });
     }
 
     if (type === "qa") {
@@ -336,11 +439,19 @@ export async function POST(req: Request) {
       });
     }
 
+    const effectiveUserGender = clientUserGender || currentUser?.gender || "MALE";
+    const isUserFemale = effectiveUserGender === "FEMALE" || candidate?.user?.gender === "MALE";
+
+    const boyDob = isUserFemale ? candidate?.dateOfBirth : userDob;
+    const girlDob = isUserFemale ? userDob : candidate?.dateOfBirth;
+    const boyManglik = isUserFemale ? candidate?.manglik : userManglik;
+    const girlManglik = isUserFemale ? userManglik : candidate?.manglik;
+
     const gunaMilan = calculateGunaMilan(
-      userDob,
-      candidate?.dateOfBirth,
-      userManglik,
-      candidate?.manglik
+      boyDob,
+      girlDob,
+      boyManglik,
+      girlManglik
     );
 
     const userAstro = getAstrologicalSign(userDob);

@@ -23,6 +23,7 @@ import {
   FileDown,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import { formatBirthTime } from "@/lib/utils";
 
 export default function AdminProfileViewPage({
   params,
@@ -604,7 +605,7 @@ export default function AdminProfileViewPage({
               <div>
                 <span className="text-gray-500 block">Birth Place & Time</span>
                 <strong className="text-gray-900 text-sm font-semibold">
-                  {profile.birthPlace || "Not specified"} {profile.birthTime ? `at ${profile.birthTime}` : ""}
+                  {profile.birthPlace || "Not specified"} {profile.birthTime ? `at ${formatBirthTime(profile.birthTime)}` : ""}
                 </strong>
               </div>
             </div>
