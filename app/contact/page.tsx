@@ -1,6 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BUSINESS_INFO } from "@/lib/gst";
 import { Mail, Phone, ArrowLeft, MessageSquare } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Contact Us & Helpline | RishteClub Matrimony",
+  description:
+    "Get in touch with RishteClub and NNVS Matrimony support team via WhatsApp helpline +91 9871592002. Head office: Patel Nagar, Hisar, Haryana.",
+  alternates: {
+    canonical: "/contact",
+  },
+  openGraph: {
+    title: "Contact Us & Helpline | RishteClub Matrimony",
+    description:
+      "Get in touch with RishteClub and NNVS Matrimony support team via WhatsApp helpline +91 9871592002. Head office: Patel Nagar, Hisar, Haryana.",
+    url: "https://www.rishteclub.com/contact",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 export default function ContactPage() {
   return (

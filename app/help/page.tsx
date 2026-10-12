@@ -1,5 +1,24 @@
+import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
 import { UserCheck, HelpCircle, ShieldCheck, Mail, Phone } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Help Center & Member Support | RishteClub",
+  description:
+    "Assistance with your matrimonial profile, photo uploads, contact access and account management on RishteClub.",
+  alternates: {
+    canonical: "/help",
+  },
+  openGraph: {
+    title: "Help Center & Member Support | RishteClub",
+    description:
+      "Assistance with your matrimonial profile, photo uploads, contact access and account management on RishteClub.",
+    url: "https://www.rishteclub.com/help",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 export default function HelpPage() {
   return (

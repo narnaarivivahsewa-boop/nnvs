@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build --webpack",
     "postinstall": "prisma generate",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:pdfs:with-contact": "tsx scripts/generate-all-biodata-pdfs.ts",
+    "generate:pdfs:without-contact": "tsx scripts/generate-all-biodata-pdfs-without-contact.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

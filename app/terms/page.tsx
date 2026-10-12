@@ -1,4 +1,23 @@
+import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+
+export const metadata: Metadata = {
+  title: "Terms & Conditions | RishteClub Matrimony",
+  description:
+    "Official terms and conditions, member guidelines and policies for RishteClub, operated by Trendy Traders (Hisar, Haryana).",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms & Conditions | RishteClub Matrimony",
+    description:
+      "Official terms and conditions, member guidelines and policies for RishteClub, operated by Trendy Traders (Hisar, Haryana).",
+    url: "https://www.rishteclub.com/terms",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 export default function TermsPage() {
   return (

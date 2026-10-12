@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
                 { transactionId: { contains: search, mode: "insensitive" } },
                 { user: { fullName: { contains: search, mode: "insensitive" } } },
                 { user: { mobile: { contains: search } } },
-                { user: { profile: { profileId: { contains: search, mode: "insensitive" } } } },
-                { user: { profile: { legacyProfileId: { contains: search, mode: "insensitive" } } } },
+                { user: { profiles: { some: { profileId: { contains: search, mode: "insensitive" } } } } },
+                { user: { profiles: { some: { legacyProfileId: { contains: search, mode: "insensitive" } } } } },
               ],
             }
           : {}),
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
             fullName: true,
             mobile: true,
             email: true,
-            profile: {
+            profiles: {
               select: {
                 id: true,
                 profileId: true,
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         mobile: p.user.mobile,
         email: p.user.email,
       },
-      profile: p.user.profile || null,
+      profile: p.user.profiles?.[0] || null,
     }));
 
     return NextResponse.json({

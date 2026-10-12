@@ -1,11 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 
 function getSecretKey(): Uint8Array {
-  const secretStr =
-    process.env.NEXTAUTH_SECRET ||
-    process.env.JWT_SECRET ||
-    "nnvs-matrimony-production-super-secure-jwt-secret-key-2026-min-32-chars";
-  return new TextEncoder().encode(secretStr);
+  const secretStr = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secretStr || secretStr.trim().length < 32) {
+    throw new Error(
+      "CRITICAL SECURITY CONFIGURATION ERROR: JWT_SECRET environment variable is missing or shorter than 32 characters."
+    );
+  }
+  return new TextEncoder().encode(secretStr.trim());
 }
 
 export async function generateToken(

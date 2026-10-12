@@ -3,8 +3,45 @@ import { prisma } from "@/lib/prisma";
 import { generateOTP, getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
 import { sendFast2SmsOTP } from "@/lib/sms/fast2sms";
 
+// In-memory IP rate limiter (Sliding window: Max 10 requests per 10 minutes per IP)
+const ipRequestTimestamps = new Map<string, number[]>();
+
+function checkIpRateLimit(ip: string): { allowed: boolean; remainingSec: number } {
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const maxRequests = 10;
+
+  const timestamps = (ipRequestTimestamps.get(ip) || []).filter((t) => now - t < windowMs);
+  if (timestamps.length >= maxRequests) {
+    const oldest = timestamps[0];
+    const remainingSec = Math.ceil((oldest + windowMs - now) / 1000);
+    return { allowed: false, remainingSec: Math.max(remainingSec, 1) };
+  }
+
+  timestamps.push(now);
+  ipRequestTimestamps.set(ip, timestamps);
+  return { allowed: true, remainingSec: 0 };
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown-ip";
+
+    // 0. IP Rate Limiting
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Too many requests from this network. Please wait ${ipCheck.remainingSec} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
 
     const rawMobile = String(body.mobile ?? "").trim();
@@ -57,7 +94,7 @@ export async function POST(req: NextRequest) {
         where: {
           OR: [
             { mobile: cleanMobile },
-            { profile: { phoneNumbers: { some: { phone: cleanMobile } } } },
+            { profiles: { some: { phoneNumbers: { some: { phone: cleanMobile } } } } },
           ],
         },
       });
@@ -130,9 +167,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Send Strictly via Fast2SMS Smart OTP (Authoritative Generation)
+    // 5. Generate 6-Digit OTP & Send via Fast2SMS
     // ===========================
-    const smsResult = await sendFast2SmsOTP(cleanMobile);
+    const otp = generateOTP();
+
+    const smsResult = await sendFast2SmsOTP(cleanMobile, otp);
 
     if (!smsResult.success) {
       console.error("Fast2SMS send SMS OTP failed:", smsResult.error);
@@ -145,11 +184,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const hashedOTP = hashOTP(otp);
     const expiresAt = getOTPExpiry();
-    const trackingCode = smsResult.requestId ? `FAST2SMS_${smsResult.requestId}` : "FAST2SMS_SMART_OTP";
 
     // ===========================
-    // 6. Save Tracking Record in DB
+    // 6. Save Hashed OTP in DB
     // ===========================
     await prisma.oTP.deleteMany({
       where: {
@@ -161,7 +200,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: trackingCode,
+        code: hashedOTP,
         type: otpType,
         expiresAt,
         verified: false,

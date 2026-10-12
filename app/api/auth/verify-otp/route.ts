@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOTP } from "@/lib/auth/otp";
 import { generateToken } from "@/lib/jwt";
-import { verifyFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,26 +67,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Authoritative verification via official Fast2SMS verification endpoint
-    const fast2smsResult = await verifyFast2SmsOTP(cleanMobile, otp);
-    if (!fast2smsResult.success) {
+    // Verify OTP Hash
+    if (otpRecord.code !== hashOTP(otp)) {
       return NextResponse.json(
         {
           success: false,
-          message: fast2smsResult.error || "Incorrect OTP. Please enter the valid code received on SMS.",
+          message: "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
       );
     }
 
-    // 2. Mark verified in DB and record hash for session audit
+    // Mark verified in DB
     await prisma.oTP.update({
       where: {
         id: otpRecord.id,
       },
       data: {
         verified: true,
-        code: hashOTP(otp),
       },
     });
 
@@ -160,19 +157,12 @@ export async function POST(req: NextRequest) {
       roleToAssign
     );
 
-    let userProfile = null;
-    if (roleToAssign !== "ADMIN") {
-      userProfile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-        select: { profileId: true, paymentCompleted: true },
-      });
-    }
-
-    const defaultMemberRedirect = (userProfile && !userProfile.paymentCompleted)
-      ? `/payment?profileId=${encodeURIComponent(userProfile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`
+    const mustChange = Boolean(user.mustChangePassword);
+    const redirectTo = mustChange
+      ? "/profile/change-password"
+      : roleToAssign === "ADMIN"
+      ? "/admin"
       : "/dashboard";
-
-    const redirectTo = roleToAssign === "ADMIN" ? "/admin" : defaultMemberRedirect;
 
     const response = NextResponse.json({
       success: true,
@@ -180,6 +170,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       role: roleToAssign,
       redirectTo,
+      mustChangePassword: mustChange,
       isNewUser: false,
     });
 

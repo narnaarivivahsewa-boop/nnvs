@@ -1,9 +1,22 @@
+import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
 
-
-export const metadata = {
-  title: "Refund & Cancellation Policy - RishteClub (Managed by NNVS Matrimony)",
-  description: "Official Refund & Cancellation Policy for RishteClub, operated by Trendy Traders (GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony.",
+export const metadata: Metadata = {
+  title: "Refund & Cancellation Policy | RishteClub Matrimony",
+  description:
+    "Official Refund & Cancellation Policy for RishteClub, operated by Trendy Traders (GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony.",
+  alternates: {
+    canonical: "/refund",
+  },
+  openGraph: {
+    title: "Refund & Cancellation Policy | RishteClub Matrimony",
+    description:
+      "Official Refund & Cancellation Policy for RishteClub, operated by Trendy Traders (GSTIN: 06APYPD6931J1ZE) and managed by NNVS Matrimony.",
+    url: "https://www.rishteclub.com/refund",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
 };
 
 export default function RefundPage() {

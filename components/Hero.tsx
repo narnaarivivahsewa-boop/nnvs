@@ -36,7 +36,7 @@ export default function Hero() {
 
             {/* Main Brand Title */}
             <h1 className="font-serif-luxury text-3xl sm:text-5xl md:text-6xl font-extrabold leading-[1.15] tracking-tight text-white drop-shadow-md">
-              RishteClub
+              RishteClub <span className="block text-xl sm:text-2xl md:text-3xl font-semibold text-[#DFBA73] mt-1 sm:mt-1.5 tracking-normal">Matrimony &amp; Marriage Bureau</span>
             </h1>
 
             {/* Tagline */}

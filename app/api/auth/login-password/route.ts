@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
           { mobile: mobileLookup },
           { mobile: username },
           { email: username.toLowerCase() },
+          { profiles: { some: { phoneNumbers: { some: { phone: mobileLookup } } } } },
         ],
       },
     });

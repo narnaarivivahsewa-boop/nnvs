@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
+import { formatBirthTime } from "../utils";
 
 export interface BiodataProfileInput {
   id: string;
@@ -113,7 +114,10 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
 /**
  * Generates an elegant, high-impact Matrimonial Biodata PDF Buffer
  */
-export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Promise<Buffer> {
+export async function generateBiodataPdfBuffer(
+  profile: BiodataProfileInput,
+  options?: { hideContactDetails?: boolean }
+): Promise<Buffer> {
   // Fetch primary photo buffer if available
   let photoBuffer: Buffer | null = null;
   const primaryPhoto = profile.photos?.find((p) => p.isPrimary) || profile.photos?.[0];
@@ -365,7 +369,7 @@ export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Pr
       currentY = drawSectionHeader("1. Astrological & Birth Details", currentY);
       const halfCol = (contentWidth - 28) / 2;
 
-      drawField("Birth Time", profile.birthTime || "-", margin + 10, currentY, halfCol, 85);
+      drawField("Birth Time", formatBirthTime(profile.birthTime), margin + 10, currentY, halfCol, 85);
       drawField("Birth Place", profile.birthPlace || "-", margin + 10 + halfCol + 8, currentY, halfCol, 85);
       currentY += 15;
 
@@ -434,31 +438,36 @@ export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Pr
       currentY += 5;
 
       // 9. Contact Details (For Direct Family Communication & Group Sharing)
-      currentY = drawSectionHeader("4. Contact Details (For Match Discussion)", currentY);
+      if (!options?.hideContactDetails) {
+        currentY = drawSectionHeader("4. Contact Details (For Match Discussion)", currentY);
 
-      // Extract all phone numbers
-      const allPhones: string[] = [];
-      if (profile.user?.mobile) allPhones.push(profile.user.mobile);
-      if (profile.phoneNumbers && profile.phoneNumbers.length > 0) {
-        for (const p of profile.phoneNumbers) {
-          if (p.phone && !allPhones.includes(p.phone)) allPhones.push(p.phone);
+        // Extract all phone numbers
+        const allPhones: string[] = [];
+        if (profile.user?.mobile) allPhones.push(profile.user.mobile);
+        if (profile.phoneNumbers && profile.phoneNumbers.length > 0) {
+          for (const p of profile.phoneNumbers) {
+            if (p.phone && !allPhones.includes(p.phone)) allPhones.push(p.phone);
+          }
         }
-      }
-      const phoneText = allPhones.length > 0 ? allPhones.join(" / ") : "-";
+        const phoneText = allPhones.length > 0 ? allPhones.join(" / ") : "-";
 
-      drawField("Contact Person", profile.contactPerson || "Family / Self", margin + 10, currentY, halfCol, 95);
-      drawField("Mobile Number", phoneText, margin + 10 + halfCol + 8, currentY, halfCol, 85);
-      currentY += 15;
-
-      if (profile.user?.email) {
-        drawField("Email ID", profile.user.email, margin + 10, currentY, contentWidth - 28, 95);
+        drawField("Contact Person", profile.contactPerson || "Family / Self", margin + 10, currentY, halfCol, 95);
+        drawField("Mobile Number", phoneText, margin + 10 + halfCol + 8, currentY, halfCol, 85);
         currentY += 15;
+
+        if (profile.user?.email) {
+          drawField("Email ID", profile.user.email, margin + 10, currentY, contentWidth - 28, 95);
+          currentY += 15;
+        }
+        currentY += 5;
       }
-      currentY += 5;
 
       // 10. Partner Preferences (if any)
       if (profile.partnerPreference) {
-        currentY = drawSectionHeader("5. Partner Expectations", currentY);
+        const prefTitle = options?.hideContactDetails
+          ? "4. Partner Expectations"
+          : "5. Partner Expectations";
+        currentY = drawSectionHeader(prefTitle, currentY);
         const prefAge =
           profile.partnerPreference.minAge || profile.partnerPreference.maxAge
             ? `${profile.partnerPreference.minAge || "Any"} to ${profile.partnerPreference.maxAge || "Any"} Yrs`
@@ -550,7 +559,7 @@ export async function generateBiodataPdfBuffer(profile: BiodataProfileInput): Pr
  */
 export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
   const legacy = String(profile.legacyProfileId || "").toUpperCase().trim();
-  let isFemale: boolean;
+  let isFemale = false;
 
   if (legacy.includes("-G-") || legacy.startsWith("NNVS-G") || legacy.startsWith("G-") || legacy.startsWith("G0")) {
     isFemale = true;
@@ -561,15 +570,14 @@ export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
     isFemale = gender === "FEMALE";
   }
 
-  const ms = String(profile.maritalStatus || "").toLowerCase().trim();
-
-  const isDivorcedOrWidowOrAnnulled =
+  const ms = String(profile.maritalStatus || "").trim().toLowerCase();
+  const isDivorcedOrWidow =
     ms.includes("divorc") ||
     ms.includes("widow") ||
     ms.includes("annul") ||
     ms.includes("separat");
 
-  if (isDivorcedOrWidowOrAnnulled) {
+  if (isDivorcedOrWidow) {
     return isFemale ? "Divorced Female" : "Divorced Male";
   } else {
     return isFemale ? "Never Married Female" : "Never Married Male";
@@ -577,47 +585,150 @@ export function getBiodataCategoryFolder(profile: BiodataProfileInput): string {
 }
 
 /**
- * Saves a copy of the generated PDF automatically to D:\NNVS\Website Bio PDF\[Category Folder]
- * Categories:
- * - D:\NNVS\Website Bio PDF\Divorced Female
- * - D:\NNVS\Website Bio PDF\Divorced Male
- * - D:\NNVS\Website Bio PDF\Never Married Female
- * - D:\NNVS\Website Bio PDF\Never Married Male
- * Falls back to project public backup if D: drive is inaccessible
+ * Returns structured directory components:
+ * [BASE_DIR]/[Gender]/[MaritalStatus]/[Caste]/[ProfileId].pdf
+ */
+export function getBiodataStructuredPath(profile: BiodataProfileInput): {
+  genderFolder: string;
+  maritalStatusFolder: string;
+  casteFolder: string;
+  fileName: string;
+  relativeDir: string;
+} {
+  const legacy = String(profile.legacyProfileId || "").toUpperCase().trim();
+  let isFemale = false;
+
+  if (legacy.includes("-G-") || legacy.startsWith("NNVS-G") || legacy.startsWith("G-") || legacy.startsWith("G0")) {
+    isFemale = true;
+  } else if (legacy.includes("-B-") || legacy.startsWith("NNVS-B") || legacy.startsWith("B-") || legacy.startsWith("B0")) {
+    isFemale = false;
+  } else {
+    const gender = String(profile.user?.gender || "MALE").toUpperCase().trim();
+    isFemale = gender === "FEMALE";
+  }
+
+  const genderFolder = isFemale ? "Female" : "Male";
+
+  const ms = String(profile.maritalStatus || "").trim().toLowerCase();
+  let maritalStatusFolder = "Never Married";
+  if (ms.includes("divorc")) {
+    maritalStatusFolder = "Divorced";
+  } else if (ms.includes("widow")) {
+    maritalStatusFolder = isFemale ? "Widow" : "Widower";
+  } else if (ms.includes("annul")) {
+    maritalStatusFolder = "Annulled";
+  } else if (ms.includes("separat")) {
+    maritalStatusFolder = "Separated";
+  }
+
+  const rawCaste = String(profile.caste || "").trim();
+  const casteFolder = (rawCaste && rawCaste !== "null" && rawCaste !== "undefined" ? rawCaste : "General")
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .trim();
+
+  const candidateName = (profile.user?.fullName || profile.firstName || "Candidate")
+    .replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_")
+    .trim();
+  const code = (profile.legacyProfileId || profile.profileId || profile.id || "candidate")
+    .replace(/[<>:"/\\|?*]/g, "_");
+  const fileName = `${code ? `${code}_` : ""}${candidateName}.pdf`;
+
+  const relativeDir = path.join(genderFolder, maritalStatusFolder, casteFolder);
+
+  return { genderFolder, maritalStatusFolder, casteFolder, fileName, relativeDir };
+}
+
+/**
+ * Saves a copy of the generated PDF automatically to:
+ * [BASE_DIR]/[Category]/[ProfileId]_[Name].pdf
+ * Target defaults to D:\NNVS\Website Bio PDF on systems with D: drive,
+ * with fallback to ./storage/biodatas/ or process.env.PDF_STORAGE_DIR.
  */
 export async function saveBiodataPdfLocally(
   profile: BiodataProfileInput,
-  pdfBuffer: Buffer
-): Promise<{ success: boolean; filePath: string; category: string; error?: string }> {
-  const category = getBiodataCategoryFolder(profile);
+  pdfBuffer: Buffer,
+  options?: { withoutContact?: boolean; customCategoryFolder?: string }
+): Promise<{ success: boolean; filePath: string; category: string; relativePath?: string; error?: string }> {
+  let category = getBiodataCategoryFolder(profile);
+  if (options?.withoutContact) {
+    category = `${category} without contact`;
+  } else if (options?.customCategoryFolder) {
+    category = options.customCategoryFolder;
+  }
   try {
-    const baseDir = "D:\\NNVS\\Website Bio PDF";
-    let targetDir = path.join(baseDir, category);
+    const defaultDDir = "D:\\NNVS\\Website Bio PDF";
+    const baseDir =
+      process.env.PDF_STORAGE_DIR && process.env.PDF_STORAGE_DIR.trim()
+        ? process.env.PDF_STORAGE_DIR.trim()
+        : fs.existsSync("D:\\")
+        ? defaultDDir
+        : path.join(process.cwd(), "storage", "biodatas");
 
-    // Check if D: drive or directory can be created
-    try {
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-    } catch {
-      // Fallback to project folder or C: drive
-      const fallbackDir = path.join(process.cwd(), "public", "generated-biodatas", category);
-      if (!fs.existsSync(fallbackDir)) {
-        fs.mkdirSync(fallbackDir, { recursive: true });
-      }
-      targetDir = fallbackDir;
+    const targetDir = path.join(baseDir, category);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const candidateName = (profile.user?.fullName || profile.firstName || "Candidate").replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_").trim();
-    const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const candidateName = (profile.user?.fullName || profile.firstName || "Candidate")
+      .replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_")
+      .trim();
+    const code = (profile.legacyProfileId || profile.profileId || profile.id || "").replace(/[^a-zA-Z0-9_-]/g, "_");
     const fileName = `${code ? `${code}_` : ""}${candidateName}.pdf`;
 
     const fullPath = path.join(targetDir, fileName);
     fs.writeFileSync(fullPath, pdfBuffer);
 
-    return { success: true, filePath: fullPath, category };
+    return {
+      success: true,
+      filePath: fullPath,
+      category,
+      relativePath: path.join(category, fileName),
+    };
   } catch (err: any) {
-    return { success: false, filePath: "", category, error: err?.message || String(err) };
+    console.error("saveBiodataPdfLocally error:", err);
+    return {
+      success: false,
+      filePath: "",
+      category,
+      error: err?.message || String(err),
+    };
+  }
+}
+
+/**
+ * Auto-generates and saves/replaces the biodata PDF for a given profile ID
+ */
+export async function autoGenerateAndSaveBiodataPdf(profileId: string): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const profile = await prisma.profile.findFirst({
+      where: {
+        OR: [{ id: profileId }, { profileId }],
+      },
+      include: {
+        user: true,
+        photos: {
+          orderBy: { isPrimary: "desc" },
+        },
+        family: true,
+        education: true,
+        occupation: true,
+        partnerPreference: true,
+        phoneNumbers: true,
+      },
+    });
+
+    if (!profile) {
+      return { success: false, error: "Profile not found" };
+    }
+
+    const pdfBuffer = await generateBiodataPdfBuffer(profile as any);
+    const result = await saveBiodataPdfLocally(profile as any, pdfBuffer);
+    return result;
+  } catch (err: any) {
+    console.error(`autoGenerateAndSaveBiodataPdf failed for ${profileId}:`, err);
+    return { success: false, error: err?.message || String(err) };
   }
 }
 

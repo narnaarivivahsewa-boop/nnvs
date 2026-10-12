@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { profileId } = await req.json();
 
@@ -11,15 +18,13 @@ export async function POST(req: NextRequest) {
           success: false,
           message: "Profile ID is required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    const profile = await prisma.profile.findUnique({
+    const profile = await prisma.profile.findFirst({
       where: {
-        id: profileId,
+        OR: [{ id: profileId }, { profileId: profileId }],
       },
     });
 
@@ -29,16 +34,12 @@ export async function POST(req: NextRequest) {
           success: false,
           message: "Profile not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
-    await prisma.profile.update({
-      where: {
-        id: profileId,
-      },
+    const updated = await prisma.profile.update({
+      where: { id: profile.id },
       data: {
         approvalStatus: "APPROVED",
         isVisible: true,
@@ -46,22 +47,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      message: "Profile approved successfully.",
+    // Event Hook 1: Auto-generate & persist PDF to caste folder upon admin approval
+    autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+      console.error("Auto PDF generation on approval failed:", err);
     });
 
-  } catch (error) {
+    return NextResponse.json({
+      success: true,
+      message: "Profile approved successfully. Biodata PDF auto-generated.",
+      profile: updated,
+    });
+  } catch (error: any) {
     console.error("APPROVE PROFILE ERROR =>", error);
-
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error",
+        message: error?.message || "Internal Server Error",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

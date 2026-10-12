@@ -12,6 +12,7 @@ declare global {
 
 interface RazorpayCheckoutButtonProps {
   amountInRupees: number; // e.g. 470.82 or 399
+  service?: string;
   profileId?: string;
   name?: string;
   email?: string;
@@ -26,6 +27,7 @@ interface RazorpayCheckoutButtonProps {
 
 export default function RazorpayCheckoutButton({
   amountInRupees,
+  service,
   profileId,
   name = "",
   email = "",
@@ -82,8 +84,11 @@ export default function RazorpayCheckoutButton({
         body: JSON.stringify({
           amount: amountInPaise,
           currency: "INR",
-          receipt: `rcpt_${profileId || "nnvs"}_${Date.now()}`,
+          service: service || undefined,
+          profileId: profileId || undefined,
+          receipt: `rcpt_${profileId || (service ? service.toLowerCase() : "nnvs")}_${Date.now()}`,
           notes: {
+            service: service || "MEMBERSHIP",
             profileId: profileId || "N/A",
             customerName: name || "Member",
             customerMobile: mobile || "N/A",
@@ -142,6 +147,7 @@ export default function RazorpayCheckoutButton({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 profileId: profileId,
+                service: service || undefined,
                 promoCode: promoCode,
                 amount: orderData.amount,
               }),
@@ -161,12 +167,12 @@ export default function RazorpayCheckoutButton({
               onSuccess(verifyData);
             } else {
               setTimeout(() => {
-                if (verifyData.invoiceUrl) {
-                  router.push(verifyData.invoiceUrl);
+                if (service === "ASTROLOGY") {
+                  router.push("/astrology?paid=true");
                 } else if (profileId) {
-                  router.push(`/dashboard?payment=success&profileId=${profileId}`);
+                  router.push(`/dashboard?payment=success&onboarding=true&profileId=${profileId}`);
                 } else {
-                  router.push("/dashboard?payment=success");
+                  router.push("/dashboard?payment=success&onboarding=true");
                 }
               }, 1200);
             }

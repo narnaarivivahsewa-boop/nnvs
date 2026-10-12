@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
               mobile: true,
               email: true,
               gender: true,
-              profile: {
+              profiles: {
                 select: {
                   id: true,
                   profileId: true,
@@ -108,7 +108,13 @@ export async function GET(req: NextRequest) {
       success: true,
       confirmedCount: confirmedPayments.length,
       pendingCount: pendingProfiles.length,
-      confirmedPayments,
+      confirmedPayments: confirmedPayments.map((cp) => ({
+        ...cp,
+        user: {
+          ...cp.user,
+          profile: cp.user.profiles?.[0] || null,
+        },
+      })),
       pendingProfiles: pendingProfiles.map((p) => {
         const isFemale = p.user.gender === "FEMALE";
         const expectedFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
@@ -171,7 +177,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: paymentId },
       include: {
         user: {
-          include: { profile: true },
+          include: { profiles: true },
         },
       },
     });
@@ -226,11 +232,14 @@ export async function PATCH(req: NextRequest) {
         });
 
         // 2. Ensure Profile remains Live and Approved
-        if (existingPayment.user?.profile?.id) {
+        const targetProfile = existingPayment.user?.profiles?.[0];
+        if (targetProfile?.id) {
           await tx.profile.update({
-            where: { id: existingPayment.user.profile.id },
+            where: { id: targetProfile.id },
             data: {
               paymentCompleted: true,
+              isPaymentExempted: true,
+              paymentExemptionReason: reason || "Admin exemption",
               isVisible: true,
               approvalStatus: "APPROVED",
             },
@@ -246,7 +255,7 @@ export async function PATCH(req: NextRequest) {
             details: JSON.stringify({
               paymentId,
               candidateName: existingPayment.user?.fullName || "Candidate",
-              profileId: existingPayment.user?.profile?.profileId || existingPayment.profileId,
+              profileId: targetProfile?.profileId || existingPayment.profileId,
               previous: {
                 grossAmount: oldGrossAmount,
                 taxableAmount: oldTaxableAmount,
@@ -320,7 +329,7 @@ export async function PATCH(req: NextRequest) {
             paymentId,
             invoiceNumber: existingPayment.invoiceNumber,
             candidateName: existingPayment.user?.fullName || "Candidate",
-            profileId: existingPayment.user?.profile?.profileId || existingPayment.profileId,
+            profileId: existingPayment.user?.profiles?.[0]?.profileId || existingPayment.profileId,
             previous: {
               grossAmount: oldGrossAmount,
               taxableAmount: oldTaxableAmount,

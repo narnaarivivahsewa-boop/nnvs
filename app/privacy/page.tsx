@@ -1,4 +1,23 @@
+import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy | RishteClub Matrimony",
+  description:
+    "How RishteClub and NNVS Matrimony safeguard and protect member personal biodata, photographs, and contact privacy.",
+  alternates: {
+    canonical: "/privacy",
+  },
+  openGraph: {
+    title: "Privacy Policy | RishteClub Matrimony",
+    description:
+      "How RishteClub and NNVS Matrimony safeguard and protect member personal biodata, photographs, and contact privacy.",
+    url: "https://www.rishteclub.com/privacy",
+    siteName: "RishteClub Matrimony",
+    locale: "en_IN",
+    type: "website",
+  },
+};
 
 export default function PrivacyPolicyPage() {
   return (

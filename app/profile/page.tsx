@@ -6,6 +6,8 @@ import { ArrowLeft, Edit, GraduationCap, Users2, HeartHandshake, FileDown } from
 
 type ProfileData = {
   profileId: string;
+  oldNnvsId?: string | null;
+  legacyProfileId?: string | null;
   religion?: string | null;
   caste?: string | null;
   motherTongue?: string | null;
@@ -150,8 +152,15 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex-1 space-y-3">
-              <div className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-900">
-                {profile.profileId}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-900">
+                  Profile ID: {profile.profileId}
+                </span>
+                {(profile.oldNnvsId || profile.legacyProfileId) && (
+                  <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 border border-amber-300">
+                    Old NNVS ID: {profile.oldNnvsId || profile.legacyProfileId}
+                  </span>
+                )}
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900">

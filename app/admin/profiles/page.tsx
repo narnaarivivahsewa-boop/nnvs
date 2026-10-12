@@ -16,6 +16,8 @@ import {
   MessageCircle,
   Filter,
   FileDown,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -86,6 +88,52 @@ export default function AdminProfilesPage() {
   const [transactionId, setTransactionId] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+
+  // Matchmaking State
+  const [matchModalOpen, setMatchModalOpen] = useState(false);
+  const [matchTarget, setMatchTarget] = useState<Profile | null>(null);
+  const [matchCandidates, setMatchCandidates] = useState<any[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [matchMinAge, setMatchMinAge] = useState("");
+  const [matchMaxAge, setMatchMaxAge] = useState("");
+  const [matchCaste, setMatchCaste] = useState("");
+
+  const openMatchModal = async (profile: Profile) => {
+    setMatchTarget(profile);
+    setMatchModalOpen(true);
+    setLoadingMatches(true);
+    try {
+      const res = await fetch(`/api/admin/matches?profileId=${profile.id}`);
+      const data = await res.json();
+      if (data.success) {
+        setMatchCandidates(data.matches || []);
+      }
+    } catch (e) {
+      console.error("Match error:", e);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
+  const recomputeMatches = async () => {
+    if (!matchTarget) return;
+    setLoadingMatches(true);
+    try {
+      const params = new URLSearchParams({ profileId: matchTarget.id });
+      if (matchMinAge) params.append("minAge", matchMinAge);
+      if (matchMaxAge) params.append("maxAge", matchMaxAge);
+      if (matchCaste) params.append("caste", matchCaste);
+      const res = await fetch(`/api/admin/matches?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) {
+        setMatchCandidates(data.matches || []);
+      }
+    } catch (e) {
+      console.error("Match error:", e);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -256,6 +304,16 @@ export default function AdminProfilesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <a
+            href="/api/admin/profiles/export"
+            download="nnvs-all-profiles.csv"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-800 transition active:scale-95 cursor-pointer"
+            title="Download CSV spreadsheet of all registered profiles"
+          >
+            <FileDown className="h-4 w-4" />
+            <span>📥 Export All Profiles (CSV)</span>
+          </a>
+
           <button
             type="button"
             onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
@@ -480,6 +538,16 @@ export default function AdminProfilesPage() {
 
                 {/* Touch-Friendly Action Buttons Row */}
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => openMatchModal(profile)}
+                    className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#4A121A] to-[#681925] py-2.5 text-xs font-bold text-[#DFBA73] hover:text-white shadow-sm border border-[#C5A059]/40 transition active:scale-95 cursor-pointer"
+                    title="Find Compatible Candidate Matches"
+                  >
+                    <Sparkles className="h-4 w-4 text-[#DFBA73]" />
+                    <span>🔍 Find Matches</span>
+                  </button>
+
                   <Link
                     href={`/profile/${profile.profileId}`}
                     target="_blank"
@@ -490,10 +558,21 @@ export default function AdminProfilesPage() {
                   </Link>
 
                   <a
+                    href={`/api/profiles/${profile.id}/pdf`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1 rounded-xl bg-red-800 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition"
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    <span>PDF</span>
+                  </a>
+
+                  <a
                     href={`https://wa.me/91${candidateMobile}?text=${whatsappMsg}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1 rounded-xl bg-[#25D366] py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#1EBE5D] transition"
+                    className="col-span-2 flex items-center justify-center gap-1 rounded-xl bg-[#25D366] py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#1EBE5D] transition"
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
                     <span>WhatsApp</span>
@@ -690,6 +769,16 @@ export default function AdminProfilesPage() {
 
                     <td className="px-4 py-3.5 text-center">
                       <div className="flex flex-wrap items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openMatchModal(profile)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-amber-700 transition shadow-xs cursor-pointer"
+                          title="Find Compatible Candidate Matches"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>🔍 Find Matches</span>
+                        </button>
+
                         <Link
                           href={`/profile/${profile.profileId}`}
                           target="_blank"
@@ -952,6 +1041,206 @@ export default function AdminProfilesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Matchmaking Drawer / Modal */}
+      {matchModalOpen && matchTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-scaleUp">
+            {/* Header */}
+            <div className="bg-[#4A121A] p-5 text-white flex items-center justify-between">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-[#DFBA73] mb-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Admin Compatibility Matchmaker</span>
+                </div>
+                <h3 className="text-xl font-bold font-serif-luxury">
+                  Candidate Matches for: {matchTarget.user.fullName || matchTarget.firstName} ({matchTarget.profileId})
+                </h3>
+                <p className="text-xs text-white/70">
+                  Target: {matchTarget.user.gender} • Mobile: {matchTarget.user.mobile}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/admin/matches?profileId=${matchTarget.id}&minAge=${matchMinAge}&maxAge=${matchMaxAge}&caste=${encodeURIComponent(matchCaste)}&format=csv`}
+                  download
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-600 transition shadow"
+                  title="Export Matches as CSV"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  <span>Export Matches (CSV)</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setMatchModalOpen(false)}
+                  className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="bg-[#FAF5EB] p-4 border-b border-[#DACBB4] flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-700">Min Age:</span>
+                <input
+                  type="number"
+                  placeholder="e.g. 21"
+                  value={matchMinAge}
+                  onChange={(e) => setMatchMinAge(e.target.value)}
+                  className="w-18 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-700">Max Age:</span>
+                <input
+                  type="number"
+                  placeholder="e.g. 35"
+                  value={matchMaxAge}
+                  onChange={(e) => setMatchMaxAge(e.target.value)}
+                  className="w-18 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-700">Caste:</span>
+                <input
+                  type="text"
+                  placeholder="e.g. Arora, Punjabi"
+                  value={matchCaste}
+                  onChange={(e) => setMatchCaste(e.target.value)}
+                  className="w-32 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={recomputeMatches}
+                disabled={loadingMatches}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#4A121A] px-4 py-1.5 font-bold text-white hover:bg-[#350d13] transition disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3 w-3 ${loadingMatches ? "animate-spin" : ""}`} />
+                <span>Apply Filter</span>
+              </button>
+
+              <span className="ml-auto font-bold text-gray-600">
+                {matchCandidates.length} compatible candidates found
+              </span>
+            </div>
+
+            {/* Matches List */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {loadingMatches ? (
+                <div className="py-16 text-center text-gray-500 font-semibold">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4A121A] border-t-transparent mx-auto mb-2" />
+                  Calculating compatibility scores and fetching candidates...
+                </div>
+              ) : matchCandidates.length === 0 ? (
+                <div className="py-16 text-center text-gray-500">
+                  <Users className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                  <p className="font-bold">No candidates match current criteria.</p>
+                  <p className="text-xs">Try broadening the age or community filter above.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {matchCandidates.map((cand) => (
+                    <div
+                      key={cand.id}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-xs hover:border-[#4A121A] transition flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-gray-900 text-sm">{cand.fullName}</h4>
+                            <span className="font-mono text-[11px] font-bold text-gray-500">
+                              {cand.profileId}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {cand.gender} • {cand.age ? `${cand.age} Yrs` : "Age N/A"} • {cand.caste}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800">
+                            {cand.score}% Match
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-600 space-y-1 bg-gray-50 p-2.5 rounded-xl">
+                        <p><strong>Education:</strong> {cand.qualification}</p>
+                        <p><strong>Profession:</strong> {cand.profession}</p>
+                        <p><strong>Mobile:</strong> {cand.mobile}</p>
+                      </div>
+
+                      {cand.matchReasons?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {cand.matchReasons.map((r: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="rounded-md bg-[#FAF0DC] px-2 py-0.5 text-[10px] font-bold text-[#7A1F2D]"
+                            >
+                              ✓ {r}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <Link
+                          href={`/profile/${cand.profileId}`}
+                          target="_blank"
+                          className="flex-1 text-center rounded-lg bg-gray-100 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200"
+                        >
+                          View Biodata
+                        </Link>
+                        <a
+                          href={`https://wa.me/91${cand.mobile}?text=${encodeURIComponent(`Namaste! RishteClub found a potential match between ${matchTarget.user.fullName} (${matchTarget.profileId}) and ${cand.fullName} (${cand.profileId}).`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 text-center rounded-lg bg-[#25D366] py-1.5 text-xs font-bold text-white hover:bg-[#1EBE5D]"
+                        >
+                          WhatsApp
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 p-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-gray-500">
+                Compatibility engine evaluates Age, Caste, Religion, Education, and Marital Status.
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/admin/matches?profileId=${matchTarget.id}&minAge=${matchMinAge}&maxAge=${matchMaxAge}&caste=${encodeURIComponent(matchCaste)}&format=csv`}
+                  download={`matches-${matchTarget.profileId}.csv`}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-600 transition shadow cursor-pointer"
+                  title="Export Matches as CSV"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  <span>Export Matches (CSV)</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setMatchModalOpen(false)}
+                  className="rounded-xl border border-gray-300 px-5 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

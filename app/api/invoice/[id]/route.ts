@@ -24,7 +24,7 @@ export async function GET(
       include: {
         user: {
           include: {
-            profile: true,
+            profiles: true,
           },
         },
       },
@@ -42,7 +42,7 @@ export async function GET(
                 orderBy: { createdAt: "desc" },
                 take: 1,
               },
-              profile: true,
+              profiles: true,
             },
           },
         },
@@ -131,7 +131,7 @@ export async function GET(
         name: payment.user.fullName || "Member",
         mobile: payment.user.mobile,
         email: payment.user.email || "N/A",
-        profileId: payment.user.profile?.profileId || "N/A",
+        profileId: payment.user.profiles?.[0]?.profileId || "N/A",
         state: "Haryana",
       },
 
