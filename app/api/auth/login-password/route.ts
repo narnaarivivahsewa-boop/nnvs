@@ -90,9 +90,10 @@ export async function POST(req: NextRequest) {
 
     let userProfile = null;
     if (effectiveRole !== "ADMIN") {
-      userProfile = await prisma.profile.findUnique({
+      userProfile = await prisma.profile.findFirst({
         where: { userId: user.id },
         select: { profileId: true, paymentCompleted: true },
+        orderBy: { createdAt: "desc" },
       });
     }
 
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Password Login Error:", error);
     return NextResponse.json(
-      { success: false, message: "An unexpected error occurred during login." },
+      { success: false, message: error?.message || "An unexpected error occurred during login." },
       { status: 500 }
     );
   }
