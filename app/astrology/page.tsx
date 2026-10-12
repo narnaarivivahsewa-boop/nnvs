@@ -26,6 +26,8 @@ import {
   AlertTriangle,
   LogIn,
   UserCheck,
+  Edit3,
+  ExternalLink,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
@@ -107,6 +109,34 @@ function toDateInputValue(raw?: string | Date | null): string {
   }
 }
 
+// Helper for formatted display date (e.g. 15 Aug 1996)
+function formatDisplayDate(raw?: string | Date | null): string {
+  if (!raw) return "Recorded in Profile";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return String(raw);
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return String(raw);
+  }
+}
+
+// Helper for formatted display time (e.g. 08:30 AM)
+function formatDisplayTime(raw?: string | null): string {
+  if (!raw) return "Recorded in Profile";
+  const t24 = to24HourTime(raw);
+  const parts = t24.split(":");
+  if (parts.length === 2) {
+    let h = parseInt(parts[0], 10);
+    const m = parts[1];
+    const ampm = h >= 12 ? "PM" : "AM";
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
+  }
+  return String(raw);
+}
+
 // Normalize manglik value to allowed select options
 function normalizeManglik(val?: string | null): string {
   if (!val) return "No";
@@ -123,7 +153,7 @@ export default function AstrologyPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [registeredProfile, setRegisteredProfile] = useState<any>(null);
 
-  // User Birth Form State
+  // User Birth Form State (Used for calculation)
   const [userName, setUserName] = useState("My Kundli Profile");
   const [userGender, setUserGender] = useState("MALE");
   const [userDob, setUserDob] = useState("1996-08-15");
@@ -148,8 +178,6 @@ export default function AstrologyPage() {
 
   const [isUpayeUnlocked, setIsUpayeUnlocked] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [utrNumber, setUtrNumber] = useState("");
-  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState(false);
 
   const [qaHistory, setQaHistory] = useState<Array<{ q: string; a: string; time: string }>>([
@@ -162,11 +190,12 @@ export default function AstrologyPage() {
 
   // Load candidate profiles strictly filtered by opposite gender
   const fetchCandidatesForGender = useCallback(
-    async (activeUserGender: string, excludeProfileId?: string) => {
+    async (activeUserGender: string, excludeProfileId?: string, excludeUserId?: string) => {
       setLoadingCandidates(true);
       try {
         const res = await fetch("/api/ai/astrology", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             type: "profiles-list",
@@ -182,6 +211,9 @@ export default function AstrologyPage() {
           const filtered = data.candidates.filter((cand: any) => {
             if (cand.user?.gender && cand.user.gender !== expectedTargetGender) return false;
             if (excludeProfileId && (cand.id === excludeProfileId || cand.profileId === excludeProfileId)) {
+              return false;
+            }
+            if (excludeUserId && (cand.userId === excludeUserId || cand.user?.id === excludeUserId)) {
               return false;
             }
             return true;
@@ -243,11 +275,11 @@ export default function AstrologyPage() {
           setUserManglik(determinedManglik);
           setRegisteredProfile(userProf);
 
-          // Fetch only opposite-gender candidate profiles
-          await fetchCandidatesForGender(determinedGender, userProf?.id);
+          // Fetch only opposite-gender candidate profiles excluding self
+          await fetchCandidatesForGender(determinedGender, userProf?.id, currentUser?.id);
         } else {
           setIsAuthenticated(false);
-          // Fallback preview: load candidates for default gender
+          // Fallback preview: load candidates for default male user (female candidates)
           await fetchCandidatesForGender("MALE");
         }
       } catch (err) {
@@ -262,7 +294,7 @@ export default function AstrologyPage() {
     init();
   }, [fetchCandidatesForGender]);
 
-  // Handle gender change: dynamically update candidate list to opposite gender
+  // Handle guest gender change: dynamically update candidate list to opposite gender
   const handleGenderChange = (newGender: string) => {
     setUserGender(newGender);
     fetchCandidatesForGender(newGender, registeredProfile?.id);
@@ -277,6 +309,7 @@ export default function AstrologyPage() {
     try {
       const res = await fetch("/api/ai/astrology", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "match",
@@ -325,6 +358,7 @@ export default function AstrologyPage() {
     try {
       const res = await fetch("/api/ai/astrology", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "qa",
@@ -353,21 +387,6 @@ export default function AstrologyPage() {
     } finally {
       setAnswering(false);
     }
-  }
-
-  // Handle ₹99 Payment Unlock
-  function handleUnlockPayment(e: React.FormEvent) {
-    e.preventDefault();
-    setVerifyingPayment(true);
-    setTimeout(() => {
-      setVerifyingPayment(false);
-      setIsUpayeUnlocked(true);
-      setPaymentSuccessMessage(true);
-      setTimeout(() => {
-        setShowPaymentModal(false);
-        setPaymentSuccessMessage(false);
-      }, 2000);
-    }, 1500);
   }
 
   const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId);
@@ -407,7 +426,7 @@ export default function AstrologyPage() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
-                    Registered Members Feature: AI Kundli & Lal Kitab
+                    Registered Members: Auto-fetch Your Kundli
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-700 leading-relaxed max-w-2xl">
                     Apne registered account se login karein. Aapki profile details automatically fetch ho jayengi aur aapke liye opposite gender profiles ka 36 Guna Milan & Lal Kitab Upaye turant calculate hoga.
@@ -433,141 +452,288 @@ export default function AstrologyPage() {
             </div>
           )}
 
-          {/* Top Grid: Your Kundli Inputs + Target Profile Selector */}
+          {/* Top Grid: Your Kundli Profile Card + Target Candidate Selector */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* Left Box: Your Birth Details */}
+            {/* Left Box: Your Registered Profile Card (Read-Only for Logged-In Users) */}
             <div className="lg:col-span-5 rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-md space-y-6">
-              <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
-                    <Sun className="h-5 w-5 text-[#C5A059]" />
-                  </div>
-                  <div>
-                    <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
-                      Your Birth & Kundli Details
-                    </h2>
-                    <p className="text-xs text-gray-500">
-                      {isAuthenticated && registeredProfile
-                        ? "Auto-fetched from your registered profile"
-                        : "Enter your birth parameters for exact Guna calculation"}
-                    </p>
-                  </div>
-                </div>
+              
+              {isAuthenticated && registeredProfile ? (
+                /* Verified Read-Only Summary Card for Logged-In User */
+                <div className="space-y-6">
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-11 w-11 rounded-2xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A] shadow-xs">
+                        <UserCheck className="h-6 w-6 text-[#4A121A]" />
+                      </div>
+                      <div>
+                        <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                          Your Registered Profile
+                        </h2>
+                        <p className="text-xs text-gray-500">
+                          Auto-loaded verified birth & Kundli parameters
+                        </p>
+                      </div>
+                    </div>
 
-                {isAuthenticated && registeredProfile && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-full">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                    <span>Profile: {registeredProfile.profileId}</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                    Your Name / Identity
-                  </label>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
-                      Gender
-                    </label>
-                    <span className="text-[10px] font-bold text-[#C5A059]">
-                      {userGender === "MALE" ? "Groom" : "Bride"}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full shadow-xs">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>{registeredProfile.profileId || "Verified"}</span>
                     </span>
                   </div>
-                  <select
-                    value={userGender}
-                    onChange={(e) => handleGenderChange(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+
+                  {/* Summary Grid */}
+                  <div className="space-y-3.5">
+                    {/* Full Name & Gender Banner */}
+                    <div className="rounded-2xl bg-gradient-to-r from-[#FAF8F5] to-[#FAF5EB] border border-[#EFE5D6] p-4 flex items-center justify-between shadow-xs">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                          Registered Name
+                        </span>
+                        <span className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
+                          {userName}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                          Kundli Role
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-[#4A121A] bg-[#FAF0DC] border border-[#DACBB4] px-3 py-1 rounded-full">
+                          {userGender === "MALE" ? "Groom (Male)" : "Bride (Female)"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Date of Birth & Birth Time */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl bg-[#FAF8F5] border border-[#EFE5D6] p-3.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 mb-1">
+                          <Calendar className="h-3 w-3 text-[#C5A059]" />
+                          <span>Date of Birth</span>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 block">
+                          {formatDisplayDate(userDob)}
+                        </span>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#FAF8F5] border border-[#EFE5D6] p-3.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 mb-1">
+                          <Clock className="h-3 w-3 text-[#C5A059]" />
+                          <span>Birth Time</span>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 block">
+                          {formatDisplayTime(userBirthTime)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Birth City & Manglik Status */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl bg-[#FAF8F5] border border-[#EFE5D6] p-3.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 mb-1">
+                          <MapPin className="h-3 w-3 text-[#C5A059]" />
+                          <span>Birth City / Place</span>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 truncate block" title={userBirthPlace}>
+                          {userBirthPlace || "Delhi, India"}
+                        </span>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#FAF8F5] border border-[#EFE5D6] p-3.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 mb-1">
+                          <ShieldCheck className="h-3 w-3 text-[#C5A059]" />
+                          <span>Manglik Status</span>
+                        </span>
+                        <span
+                          className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                            userManglik === "Yes"
+                              ? "bg-rose-100 text-rose-800 border border-rose-200"
+                              : userManglik === "Anshik"
+                              ? "bg-amber-100 text-amber-800 border border-amber-200"
+                              : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          }`}
+                        >
+                          {userManglik === "Yes"
+                            ? "Manglik"
+                            : userManglik === "Anshik"
+                            ? "Anshik Manglik"
+                            : "Non-Manglik"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Derived Vedic Astrological Details */}
+                    {matchResult?.userAstro && (
+                      <div className="rounded-2xl bg-gradient-to-r from-[#FAF0DC] to-[#F5E6CA] border border-[#DACBB4] p-4 flex items-center justify-between text-xs shadow-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-[#7A5835] block mb-0.5">
+                            Moon Sign (Rashi)
+                          </span>
+                          <span className="font-serif-luxury font-bold text-sm text-[#4A121A]">
+                            {matchResult.userAstro.rashi}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-[#7A5835] block mb-0.5">
+                            Birth Nakshatra
+                          </span>
+                          <span className="font-serif-luxury font-bold text-sm text-[#4A121A]">
+                            {matchResult.userAstro.nakshatra}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit in Profile Notice & Action */}
+                  <div className="pt-4 border-t border-[#EFE5D6] flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <p className="text-[11px] text-gray-500 text-center sm:text-left leading-relaxed">
+                      Birth details are locked to your registered profile for authentic calculation.
+                    </p>
+                    <Link
+                      href="/profile/edit"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-[#4A121A] px-4 py-2 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition shadow-xs shrink-0"
+                    >
+                      <Edit3 className="h-3.5 w-3.5 text-[#C5A059]" />
+                      <span>Edit in Profile →</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                /* Guest Input Form for Unauthenticated Visitors */
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A]">
+                        <Sun className="h-5 w-5 text-[#C5A059]" />
+                      </div>
+                      <div>
+                        <h2 className="font-serif-luxury text-lg font-bold text-[#4A121A]">
+                          Guest Birth Parameters
+                        </h2>
+                        <p className="text-xs text-gray-500">
+                          Login to auto-fetch or enter parameters manually
+                        </p>
+                      </div>
+                    </div>
+
+                    <Link
+                      href="/login?redirect=/astrology"
+                      className="text-xs font-bold text-[#4A121A] bg-[#FAF0DC] hover:bg-[#F3E3C3] px-3 py-1 rounded-full border border-[#DACBB4] transition"
+                    >
+                      Login →
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
+                        Your Name
+                      </label>
+                      <input
+                        type="text"
+                        value={userName}
+                        onChange={(e) => setUserName(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                          Gender
+                        </label>
+                        <span className="text-[10px] font-bold text-[#C5A059]">
+                          {userGender === "MALE" ? "Groom" : "Bride"}
+                        </span>
+                      </div>
+                      <select
+                        value={userGender}
+                        onChange={(e) => handleGenderChange(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      >
+                        <option value="MALE">Male (Groom)</option>
+                        <option value="FEMALE">Female (Bride)</option>
+                      </select>
+                      <p className="text-[11px] text-gray-500 mt-1 font-medium">
+                        {userGender === "MALE"
+                          ? "✓ Shows verified Female (Bride) profiles"
+                          : "✓ Shows verified Male (Groom) profiles"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-[#C5A059]" />
+                        <span>Date of Birth</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={userDob}
+                        onChange={(e) => setUserDob(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-[#C5A059]" />
+                        <span>Time of Birth</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={userBirthTime}
+                        onChange={(e) => setUserBirthTime(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-[#C5A059]" />
+                        <span>Birth City / Place</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={userBirthPlace}
+                        onChange={(e) => setUserBirthPlace(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
+                        Manglik Status
+                      </label>
+                      <select
+                        value={userManglik}
+                        onChange={(e) => setUserManglik(e.target.value)}
+                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                      >
+                        <option value="No">Non-Manglik</option>
+                        <option value="Yes">Manglik</option>
+                        <option value="Anshik">Anshik / Partial Manglik</option>
+                        <option value="Don't Know">Don&apos;t Know / Check via AI</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleComputeMatch()}
+                    disabled={calculating}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#380D13] transition disabled:opacity-60"
                   >
-                    <option value="MALE">Male (Groom)</option>
-                    <option value="FEMALE">Female (Bride)</option>
-                  </select>
-                  <p className="text-[11px] text-gray-500 mt-1 font-medium">
-                    {userGender === "MALE"
-                      ? "✓ Matches exclusively with Female (Bride) profiles"
-                      : "✓ Matches exclusively with Male (Groom) profiles"}
-                  </p>
+                    <RefreshCw className={`h-4 w-4 text-[#DFBA73] ${calculating ? "animate-spin" : ""}`} />
+                    <span>{calculating ? "Calculating Kundli..." : "Calculate AI Match"}</span>
+                  </button>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
-                    <Calendar className="h-3 w-3 text-[#C5A059]" />
-                    <span>Date of Birth</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={userDob}
-                    onChange={(e) => setUserDob(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-[#C5A059]" />
-                    <span>Time of Birth</span>
-                  </label>
-                  <input
-                    type="time"
-                    value={userBirthTime}
-                    onChange={(e) => setUserBirthTime(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
-                    <MapPin className="h-3 w-3 text-[#C5A059]" />
-                    <span>Birth City / Place</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={userBirthPlace}
-                    onChange={(e) => setUserBirthPlace(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                    Manglik Status
-                  </label>
-                  <select
-                    value={userManglik}
-                    onChange={(e) => setUserManglik(e.target.value)}
-                    className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
-                  >
-                    <option value="No">Non-Manglik</option>
-                    <option value="Yes">Manglik</option>
-                    <option value="Anshik">Anshik / Partial Manglik</option>
-                    <option value="Don't Know">Don&apos;t Know / Check via AI</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleComputeMatch()}
-                disabled={calculating}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#380D13] transition disabled:opacity-60"
-              >
-                <RefreshCw className={`h-4 w-4 text-[#DFBA73] ${calculating ? "animate-spin" : ""}`} />
-                <span>{calculating ? "Recalculating Kundli..." : "Recalculate AI Match"}</span>
-              </button>
             </div>
 
-            {/* Right Box: Target Candidate Profile Selector */}
+            {/* Right Box: Target Candidate Profile Selector (Strictly Opposite Gender) */}
             <div className="lg:col-span-7 rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-md flex flex-col justify-between space-y-6">
               <div>
                 <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4 mb-4">
@@ -583,8 +749,8 @@ export default function AstrologyPage() {
                       </h2>
                       <p className="text-xs text-gray-500">
                         {userGender === "MALE"
-                          ? "Showing only verified female profiles from RishteClub database"
-                          : "Showing only verified male profiles from RishteClub database"}
+                          ? "Strictly verified female profiles from RishteClub database"
+                          : "Strictly verified male profiles from RishteClub database"}
                       </p>
                     </div>
                   </div>
@@ -613,7 +779,7 @@ export default function AstrologyPage() {
                       >
                         {candidates.map((cand) => (
                           <option key={cand.id} value={cand.id}>
-                            {cand.user.fullName} ({cand.profileId}) • {cand.user.gender} • {cand.caste || "General"} • {cand.manglik ? `Manglik: ${cand.manglik}` : "Non-Manglik"}
+                            {cand.user.fullName} ({cand.profileId}) • {cand.user.gender === "FEMALE" ? "Bride" : "Groom"} • {cand.caste || "General"} • {cand.manglik ? `Manglik: ${cand.manglik}` : "Non-Manglik"}
                           </option>
                         ))}
                       </select>
@@ -680,9 +846,9 @@ export default function AstrologyPage() {
               <div className="flex items-center justify-between text-xs text-gray-500 border-t border-[#EFE5D6] pt-3">
                 <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
                   <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  100% Vedic Astrological Guna Computation
+                  Authentic Vedic Ashtakoota 36 Guna Algorithm
                 </span>
-                <span className="text-gray-400 font-mono">Algorithm: Ashtakoota v2.4</span>
+                <span className="text-gray-400 font-mono">Engine: Lahiri Ayanamsha</span>
               </div>
             </div>
           </div>
@@ -830,7 +996,7 @@ export default function AstrologyPage() {
                               </div>
                             ) : (
                               <div className="relative overflow-hidden rounded-xl border border-[#E2D4BE] bg-[#FAF8F5] p-4 text-center">
-                                {/* Blurred Fake Content */}
+                                {/* Blurred Placeholder Content */}
                                 <div className="filter blur-xs select-none opacity-40 text-xs space-y-1 text-left">
                                   <p>• Neem ke ped ki jad me kacha doodh arpit karein aur shanti mantra jaap karein...</p>
                                   <p>• Chandi ka bina jod wala chhalla dharan karein aur mangalwar ko daan karein...</p>
@@ -1013,7 +1179,7 @@ export default function AstrologyPage() {
                   service="ASTROLOGY"
                   description="RishteClub Lal Kitab Astrology Remedies (₹99 + 18% GST)"
                   buttonText="Pay ₹116.82 & Unlock Lal Kitab Report"
-                  onSuccess={(data) => {
+                  onSuccess={() => {
                     setIsUpayeUnlocked(true);
                     setPaymentSuccessMessage(true);
                     setTimeout(() => {
