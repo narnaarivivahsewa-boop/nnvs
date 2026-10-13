@@ -1,9 +1,13 @@
 // RishteClub Lightweight PWA Service Worker
-const CACHE_NAME = "rishteclub-shell-v1";
+const CACHE_NAME = "rishteclub-shell-v2";
 const STATIC_ASSETS = [
   "/nnvs-logo.png",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
   "/favicon.ico",
   "/manifest.webmanifest",
+  "/manifest.json",
   "/payment-qr.jpeg",
 ];
 

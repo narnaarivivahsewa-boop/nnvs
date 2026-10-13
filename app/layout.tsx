@@ -3,6 +3,7 @@ import { Playfair_Display, Cinzel, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import PwaRegister from "@/components/PwaRegister";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -92,12 +93,25 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "RishteClub",
   },
   icons: {
-    icon: "/favicon.ico",
-    apple: "/nnvs-logo.png",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/nnvs-logo.png" },
+    ],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "RishteClub",
   },
 };
 
@@ -215,6 +229,10 @@ export default function RootLayout({
       className={`${playfair.variable} ${cinzel.variable} ${jakarta.variable} h-full antialiased overflow-x-hidden`}
     >
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="RishteClub" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -225,6 +243,7 @@ export default function RootLayout({
         className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden"
       >
         <PwaRegister />
+        <PWAInstallPrompt />
         <Navbar />
         {children}
       </body>
