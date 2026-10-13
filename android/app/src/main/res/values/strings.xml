@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RishteClub Matrimony</string>
+    <string name="title_activity_main">RishteClub Matrimony</string>
+    <string name="package_name">com.nnvs.rishteclub</string>
+    <string name="custom_url_scheme">com.nnvs.rishteclub</string>
+</resources>
