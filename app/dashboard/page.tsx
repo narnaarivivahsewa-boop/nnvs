@@ -42,6 +42,7 @@ type UserData = {
   status: string;
   mobileVerified: boolean;
   mustChangePassword?: boolean;
+  activeProfile?: UserProfile | null;
   profile: UserProfile | null;
   profiles: UserProfile[];
 };
@@ -87,7 +88,11 @@ function DashboardContent() {
               )
             : null;
 
-          setSelectedProfileId(matchedProfile ? matchedProfile.id : data.user.profiles[0].id);
+          const chosenId =
+            matchedProfile?.id ||
+            data.user.activeProfile?.id ||
+            data.user.profiles[0].id;
+          setSelectedProfileId(chosenId);
         }
 
         // Auto trigger AI Matchmaking onboarding modal if redirected after payment or onboarding flag
@@ -107,6 +112,35 @@ function DashboardContent() {
 
     loadUser();
   }, [router, searchParams]);
+
+  // Synchronize if profile switched from Navbar or other component
+  useEffect(() => {
+    function handleSwitchEvent(e: any) {
+      if (e.detail?.profileId) {
+        setSelectedProfileId(e.detail.profileId);
+      }
+    }
+    window.addEventListener("nnvs:profile-switched", handleSwitchEvent);
+    return () =>
+      window.removeEventListener("nnvs:profile-switched", handleSwitchEvent);
+  }, []);
+
+  const handleSwitchProfile = async (targetId: string) => {
+    setSelectedProfileId(targetId);
+    try {
+      await fetch("/api/auth/select-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ profileId: targetId }),
+      });
+      window.dispatchEvent(
+        new CustomEvent("nnvs:profile-switched", { detail: { profileId: targetId } })
+      );
+    } catch (err) {
+      console.error("Dashboard switch profile error:", err);
+    }
+  };
 
   async function logout() {
     try {
@@ -205,7 +239,7 @@ function DashboardContent() {
                 <span className="text-xs font-bold text-gray-700 whitespace-nowrap">Switch Profile:</span>
                 <select
                   value={profile?.id || ""}
-                  onChange={(e) => setSelectedProfileId(e.target.value)}
+                  onChange={(e) => handleSwitchProfile(e.target.value)}
                   className="bg-transparent text-xs font-bold text-[#4A121A] focus:outline-none cursor-pointer"
                 >
                   {profilesList.map((p, idx) => (

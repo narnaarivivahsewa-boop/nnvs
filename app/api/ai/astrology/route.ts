@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { getActiveProfileId } from "@/lib/auth/active-profile";
 import {
   calculateAuthenticGunaMilan,
   getAstrologicalSign,
@@ -11,10 +12,12 @@ export async function POST(req: NextRequest) {
     const token = req.cookies.get("nnvs_token")?.value;
     let currentUser: any = null;
     let currentProfile: any = null;
+    let sessionProfileId: string | undefined = undefined;
 
     if (token) {
       try {
         const session = await verifyToken(token);
+        sessionProfileId = session?.activeProfileId;
         if (session?.userId) {
           currentUser = await prisma.user.findUnique({
             where: { id: session.userId },
@@ -33,15 +36,14 @@ export async function POST(req: NextRequest) {
                   birthPlace: true,
                   birthTime: true,
                   manglik: true,
+                  user: {
+                    select: { gender: true },
+                  },
                 },
                 orderBy: { createdAt: "desc" },
-                take: 1,
               },
             },
           });
-          if (currentUser && currentUser.profiles.length > 0) {
-            currentProfile = currentUser.profiles[0];
-          }
         }
       } catch {
         // Token expired or invalid
@@ -58,12 +60,28 @@ export async function POST(req: NextRequest) {
       userGender: clientUserGender,
       candidateProfileId,
       question,
+      profileId: requestedProfileId,
     } = body;
+
+    // Resolve activeProfile strictly
+    const activeCookieOrSessionId = getActiveProfileId(req, sessionProfileId);
+    const targetLookupId = requestedProfileId || activeCookieOrSessionId;
+
+    if (currentUser && currentUser.profiles?.length > 0) {
+      if (targetLookupId) {
+        currentProfile =
+          currentUser.profiles.find(
+            (p: any) => p.id === targetLookupId || p.profileId === targetLookupId
+          ) || currentUser.profiles[0];
+      } else {
+        currentProfile = currentUser.profiles[0];
+      }
+    }
 
     if (type === "profiles-list") {
       // Determine the active user gender (from profile, user record, or client request)
       const effectiveUserGender =
-        (currentUser?.gender || clientUserGender || currentProfile?.user?.gender || "MALE").toUpperCase();
+        (currentProfile?.user?.gender || currentUser?.gender || clientUserGender || "MALE").toUpperCase();
 
       // Strict Gender-based matching rules:
       // Male user -> Female candidate profiles only
@@ -182,7 +200,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, message: "Candidate profile not found." }, { status: 404 });
       }
 
-      const effectiveUserGender = (currentUser?.gender || clientUserGender || "MALE").toUpperCase();
+      const effectiveUserGender = (currentProfile?.user?.gender || currentUser?.gender || clientUserGender || "MALE").toUpperCase();
       const isUserFemale = effectiveUserGender === "FEMALE" || candidate?.user?.gender === "MALE";
 
       const boyDob = isUserFemale ? candidate.dateOfBirth : userDob;
@@ -263,7 +281,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const effectiveUserGender = (currentUser?.gender || clientUserGender || "MALE").toUpperCase();
+    const effectiveUserGender = (currentProfile?.user?.gender || currentUser?.gender || clientUserGender || "MALE").toUpperCase();
     const isUserFemale = effectiveUserGender === "FEMALE" || candidate?.user?.gender === "MALE";
 
     const boyDob = isUserFemale ? candidate?.dateOfBirth : userDob;

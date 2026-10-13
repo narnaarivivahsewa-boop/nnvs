@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
+import { getActiveProfileId } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,10 +21,12 @@ export async function GET(req: NextRequest) {
     const payload = await verifyToken(token);
     const { searchParams } = new URL(req.url);
     const profileIdParam = searchParams.get("profileId");
+    const activeProfileId = getActiveProfileId(req, payload.activeProfileId);
+    const targetLookupId = profileIdParam || activeProfileId;
 
-    const whereClause: any = profileIdParam
+    const whereClause: any = targetLookupId
       ? {
-          OR: [{ id: profileIdParam }, { profileId: profileIdParam }],
+          OR: [{ id: targetLookupId }, { profileId: targetLookupId }],
           ...(payload.role === "ADMIN" ? {} : { userId: payload.userId }),
         }
       : { userId: payload.userId };
@@ -130,9 +133,11 @@ export async function PUT(req: NextRequest) {
     } = body;
 
     // Find Target Profile
-    const whereProfile: any = targetProfileId
+    const effectiveTargetId = targetProfileId || getActiveProfileId(req, payload.activeProfileId);
+
+    const whereProfile: any = effectiveTargetId
       ? {
-          OR: [{ id: targetProfileId }, { profileId: targetProfileId }],
+          OR: [{ id: effectiveTargetId }, { profileId: effectiveTargetId }],
           ...(payload.role === "ADMIN" ? {} : { userId: payload.userId }),
         }
       : { userId: payload.userId };

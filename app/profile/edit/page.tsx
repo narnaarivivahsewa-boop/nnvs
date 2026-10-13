@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Users, User, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 import { RegisterFormData } from "@/types/register";
 
@@ -14,12 +16,24 @@ import OccupationForm from "./components/OccupationForm";
 import PartnerPreferenceForm from "./components/PartnerPreferenceForm";
 import SaveButton from "./components/SaveButton";
 
-export default function EditProfilePage() {
+interface ProfileSummary {
+  id: string;
+  profileId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
+function EditProfileContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryProfileId = searchParams.get("profileId");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<ProfileSummary | null>(null);
+  const [allProfiles, setAllProfiles] = useState<ProfileSummary[]>([]);
 
   const {
     register,
@@ -29,9 +43,32 @@ export default function EditProfilePage() {
   } = useForm<RegisterFormData>();
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadData() {
       try {
-        const res = await fetch("/api/profile");
+        setLoading(true);
+
+        // 1. Load account profiles for switcher
+        const meRes = await fetch("/api/auth/me", { cache: "no-store", credentials: "include" });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.success && meData.user?.profiles) {
+            setAllProfiles(
+              meData.user.profiles.map((p: any) => ({
+                id: p.id,
+                profileId: p.profileId,
+                firstName: p.firstName,
+                lastName: p.lastName,
+              }))
+            );
+          }
+        }
+
+        // 2. Load target profile
+        const targetUrl = queryProfileId
+          ? `/api/profile?profileId=${encodeURIComponent(queryProfileId)}`
+          : "/api/profile";
+
+        const res = await fetch(targetUrl, { cache: "no-store", credentials: "include" });
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -39,6 +76,12 @@ export default function EditProfilePage() {
         }
 
         const profile = data.profile;
+        setActiveProfile({
+          id: profile.id,
+          profileId: profile.profileId,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+        });
 
         if (Array.isArray(profile.photos)) {
           setPhotos(profile.photos.map((p: any) => p.imageUrl));
@@ -89,8 +132,25 @@ export default function EditProfilePage() {
       }
     }
 
-    loadProfile();
-  }, [reset]);
+    loadData();
+  }, [reset, queryProfileId]);
+
+  async function handleSwitchProfileToEdit(newProfileId: string) {
+    try {
+      await fetch("/api/auth/select-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ profileId: newProfileId }),
+      });
+      window.dispatchEvent(
+        new CustomEvent("nnvs:profile-switched", { detail: { profileId: newProfileId } })
+      );
+      router.push(`/profile/edit?profileId=${encodeURIComponent(newProfileId)}`);
+    } catch (e) {
+      console.error("Failed to switch profile to edit:", e);
+    }
+  }
 
   async function onSubmit(data: RegisterFormData) {
     try {
@@ -101,8 +161,10 @@ export default function EditProfilePage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
           ...data,
+          profileId: activeProfile?.profileId || activeProfile?.id,
           photos,
         }),
       });
@@ -115,7 +177,7 @@ export default function EditProfilePage() {
       }
 
       alert("Profile updated successfully ✅");
-      router.push("/profile");
+      router.push(activeProfile?.profileId ? `/profile/${activeProfile.profileId}` : "/dashboard");
     } catch (error) {
       console.error(error);
       alert("Unable to update profile.");
@@ -136,9 +198,50 @@ export default function EditProfilePage() {
   return (
     <div className="min-h-screen bg-gray-100 py-10">
       <div className="mx-auto max-w-6xl rounded-3xl bg-white p-8 shadow-xl">
-        <h1 className="mb-8 text-3xl font-bold text-red-800">
-          Edit Biodata & Preferences
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-red-800 transition"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back to Dashboard</span>
+              </Link>
+            </div>
+            <h1 className="text-3xl font-bold text-red-800">
+              Edit Biodata & Preferences
+            </h1>
+            {activeProfile && (
+              <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                Currently editing profile for:{" "}
+                <span className="font-bold text-gray-900">
+                  {activeProfile.firstName || activeProfile.profileId}
+                </span>{" "}
+                (<span className="font-mono text-red-900">{activeProfile.profileId}</span>)
+              </p>
+            )}
+          </div>
+
+          {/* If user owns multiple profiles, allow switching which one to edit */}
+          {allProfiles.length > 1 && (
+            <div className="flex items-center gap-2 rounded-2xl bg-[#FAF5EB] border-2 border-[#4A121A] px-3.5 py-2 shadow-sm">
+              <Users className="h-4 w-4 text-[#C5A059]" />
+              <span className="text-xs font-bold text-gray-700 whitespace-nowrap">Edit Profile:</span>
+              <select
+                value={activeProfile?.id || activeProfile?.profileId || ""}
+                onChange={(e) => handleSwitchProfileToEdit(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[#4A121A] focus:outline-none cursor-pointer"
+              >
+                {allProfiles.map((p, idx) => (
+                  <option key={p.id} value={p.id}>
+                    {p.firstName ? `${p.firstName} (${p.profileId})` : `Profile #${idx + 1} (${p.profileId})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
           <PhotosForm
@@ -156,5 +259,20 @@ export default function EditProfilePage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function EditProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[70vh] items-center justify-center bg-gray-50">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-red-800 border-t-transparent mb-3" />
+          <h2 className="text-lg font-bold text-gray-700 ml-3">Loading Biodata...</h2>
+        </div>
+      }
+    >
+      <EditProfileContent />
+    </Suspense>
   );
 }

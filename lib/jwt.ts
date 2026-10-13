@@ -11,13 +11,20 @@ function getSecretKey(): Uint8Array {
 export async function generateToken(
   userId: string,
   mobile: string,
-  role: string
+  role: string,
+  activeProfileId?: string | null
 ) {
-  return await new SignJWT({
+  const payload: Record<string, any> = {
     userId,
     mobile,
     role,
-  })
+  };
+
+  if (activeProfileId) {
+    payload.activeProfileId = activeProfileId;
+  }
+
+  return await new SignJWT(payload)
     .setProtectedHeader({
       alg: "HS256",
     })
@@ -33,5 +40,6 @@ export async function verifyToken(token: string) {
     userId: String(payload.userId),
     mobile: String(payload.mobile),
     role: String(payload.role),
+    activeProfileId: payload.activeProfileId ? String(payload.activeProfileId) : undefined,
   };
 }

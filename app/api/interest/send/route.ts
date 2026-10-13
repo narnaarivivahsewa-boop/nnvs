@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,14 +44,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================
-    // Current User Profile
+    // Current User Active Profile
     // ==========================
 
-    const myProfile = await prisma.profile.findFirst({
-      where: {
-        userId: payload.userId,
-      },
-    });
+    const myProfile = await getActiveProfileForUser(
+      req,
+      payload.userId,
+      payload.activeProfileId
+    );
 
     if (!myProfile) {
       return NextResponse.json(

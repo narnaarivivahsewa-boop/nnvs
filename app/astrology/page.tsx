@@ -28,6 +28,7 @@ import {
   UserCheck,
   Edit3,
   ExternalLink,
+  Users,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
@@ -152,6 +153,8 @@ export default function AstrologyPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [registeredProfile, setRegisteredProfile] = useState<any>(null);
+  const [accountProfiles, setAccountProfiles] = useState<any[]>([]);
+  const [switchingProfile, setSwitchingProfile] = useState(false);
 
   // User Birth Form State (Used for calculation)
   const [userName, setUserName] = useState("My Kundli Profile");
@@ -251,9 +254,10 @@ export default function AstrologyPage() {
         if (authRes.ok && authData.success && authData.user) {
           setIsAuthenticated(true);
           const currentUser = authData.user;
-          const userProf = currentUser.profiles?.[0] || currentUser.profile;
+          const userProf = currentUser.activeProfile || currentUser.profile || currentUser.profiles?.[0];
+          setAccountProfiles(currentUser.profiles || []);
 
-          let determinedGender = (currentUser.gender || userProf?.gender || "MALE").toUpperCase();
+          let determinedGender = (userProf?.gender || currentUser.gender || "MALE").toUpperCase();
           if (determinedGender !== "MALE" && determinedGender !== "FEMALE") {
             determinedGender = "MALE";
           }
@@ -293,6 +297,82 @@ export default function AstrologyPage() {
 
     init();
   }, [fetchCandidatesForGender]);
+
+  // Handle switching between account candidate profiles in Astrology view
+  const handleSwitchAstrologyProfile = async (targetProfileId: string) => {
+    try {
+      setSwitchingProfile(true);
+      const res = await fetch("/api/auth/select-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ profileId: targetProfileId }),
+      });
+
+      if (res.ok) {
+        const found = accountProfiles.find(
+          (p) => p.id === targetProfileId || p.profileId === targetProfileId
+        );
+
+        if (found) {
+          setRegisteredProfile(found);
+          let determinedGender = (found.gender || "MALE").toUpperCase();
+          if (determinedGender !== "MALE" && determinedGender !== "FEMALE") {
+            determinedGender = "MALE";
+          }
+
+          const determinedName =
+            [found.firstName, found.lastName].filter(Boolean).join(" ") ||
+            found.profileId ||
+            "My Kundli Profile";
+          const determinedDob = found.dateOfBirth
+            ? toDateInputValue(found.dateOfBirth)
+            : "1996-08-15";
+          const determinedBirthTime = found.birthTime
+            ? to24HourTime(found.birthTime)
+            : "08:30";
+          const determinedBirthPlace = found.birthPlace || "Delhi, India";
+          const determinedManglik = normalizeManglik(found.manglik);
+
+          setUserName(determinedName);
+          setUserGender(determinedGender);
+          setUserDob(determinedDob);
+          setUserBirthTime(determinedBirthTime);
+          setUserBirthPlace(determinedBirthPlace);
+          setUserManglik(determinedManglik);
+
+          setSelectedCandidateId("");
+          setMatchResult(null);
+
+          // Re-fetch candidates strictly for this profile's opposite gender
+          await fetchCandidatesForGender(determinedGender, found.id);
+
+          window.dispatchEvent(
+            new CustomEvent("nnvs:profile-switched", { detail: { profileId: targetProfileId } })
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Failed to switch astrology profile:", err);
+    } finally {
+      setSwitchingProfile(false);
+    }
+  };
+
+  // Sync if profile switched in Navbar
+  useEffect(() => {
+    function handleGlobalSwitch(e: any) {
+      if (e.detail?.profileId && accountProfiles.length > 0) {
+        const targetId = e.detail.profileId;
+        if (targetId !== registeredProfile?.id) {
+          handleSwitchAstrologyProfile(targetId);
+        }
+      }
+    }
+    window.addEventListener("nnvs:profile-switched", handleGlobalSwitch);
+    return () =>
+      window.removeEventListener("nnvs:profile-switched", handleGlobalSwitch);
+  }, [accountProfiles, registeredProfile]);
 
   // Handle guest gender change: dynamically update candidate list to opposite gender
   const handleGenderChange = (newGender: string) => {
@@ -462,7 +542,7 @@ export default function AstrologyPage() {
                 /* Verified Read-Only Summary Card for Logged-In User */
                 <div className="space-y-6">
                   {/* Card Header */}
-                  <div className="flex items-center justify-between border-b border-[#EFE5D6] pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#EFE5D6] pb-4 gap-3">
                     <div className="flex items-center gap-3">
                       <div className="h-11 w-11 rounded-2xl bg-[#FAF0DC] border border-[#C5A059]/40 flex items-center justify-center text-[#4A121A] shadow-xs">
                         <UserCheck className="h-6 w-6 text-[#4A121A]" />
@@ -477,10 +557,30 @@ export default function AstrologyPage() {
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full shadow-xs">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>{registeredProfile.profileId || "Verified"}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {accountProfiles.length > 1 && (
+                        <div className="flex items-center gap-1.5 rounded-xl bg-[#FAF5EB] border border-[#C5A059] px-2.5 py-1 text-xs shadow-xs">
+                          <Users className="h-3.5 w-3.5 text-[#C5A059]" />
+                          <select
+                            value={registeredProfile.id || ""}
+                            disabled={switchingProfile}
+                            onChange={(e) => handleSwitchAstrologyProfile(e.target.value)}
+                            className="bg-transparent text-xs font-bold text-[#4A121A] focus:outline-none cursor-pointer"
+                          >
+                            {accountProfiles.map((p, idx) => (
+                              <option key={p.id} value={p.id}>
+                                {p.firstName ? `${p.firstName} (${p.profileId})` : `Profile #${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full shadow-xs">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>{registeredProfile.profileId || "Verified"}</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Summary Grid */}

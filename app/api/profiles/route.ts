@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get current user to determine matching requirements
+    // Get current user and active profile to determine matching requirements
     const currentUser = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: { id: true, gender: true, role: true },
@@ -51,15 +52,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const activeProfile = await getActiveProfileForUser(req, payload.userId, payload.activeProfileId, {
+      select: { id: true, user: { select: { gender: true } } },
+    });
+
     // Gender-based matching rule:
-    // Male user -> Female profiles
-    // Female user -> Male profiles
+    // Male user / active profile -> Female profiles
+    // Female user / active profile -> Male profiles
     // Admin -> All profiles
     let targetGender: "MALE" | "FEMALE" | undefined = undefined;
     if (currentUser.role !== "ADMIN") {
-      if (currentUser.gender === "MALE") {
+      const effectiveGender = activeProfile?.user?.gender || currentUser.gender;
+      if (effectiveGender === "MALE") {
         targetGender = "FEMALE";
-      } else if (currentUser.gender === "FEMALE") {
+      } else if (effectiveGender === "FEMALE") {
         targetGender = "MALE";
       }
     }

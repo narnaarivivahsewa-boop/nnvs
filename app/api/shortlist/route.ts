@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,11 +34,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findFirst({
-      where: {
-        userId: payload.userId,
-      },
-    });
+    const myProfile = await getActiveProfileForUser(
+      req,
+      payload.userId,
+      payload.activeProfileId
+    );
 
     if (!myProfile) {
       return NextResponse.json(
@@ -101,11 +102,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findFirst({
-      where: {
-        userId: payload.userId,
-      },
-    });
+    const myProfile = await getActiveProfileForUser(
+      req,
+      payload.userId,
+      payload.activeProfileId
+    );
 
     if (!myProfile) {
       return NextResponse.json(
@@ -211,11 +212,11 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const myProfile = await prisma.profile.findFirst({
-      where: {
-        userId: payload.userId,
-      },
-    });
+    const myProfile = await getActiveProfileForUser(
+      req,
+      payload.userId,
+      payload.activeProfileId
+    );
 
     if (!myProfile) {
       return NextResponse.json(

@@ -151,24 +151,82 @@ export async function POST(req: NextRequest) {
 
     const roleToAssign = isAdmin ? "ADMIN" : user.role;
 
+    let profiles: any[] = [];
+    let activeProfileId: string | null = null;
+    let requiresProfileSelection = false;
+    const mustChange = Boolean(user.mustChangePassword);
+    let redirectTo = "/dashboard";
+
+    if (mustChange) {
+      redirectTo = "/profile/change-password";
+    } else if (roleToAssign === "ADMIN") {
+      redirectTo = "/admin";
+    } else {
+      const userProfiles = await prisma.profile.findMany({
+        where: { userId: user.id },
+        select: {
+          id: true,
+          profileId: true,
+          firstName: true,
+          lastName: true,
+          dateOfBirth: true,
+          paymentCompleted: true,
+          approvalStatus: true,
+          photos: {
+            select: { imageUrl: true, isPrimary: true },
+            take: 1,
+          },
+          user: {
+            select: { gender: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      profiles = userProfiles.map((p) => ({
+        id: p.id,
+        profileId: p.profileId,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        gender: p.user?.gender || user.gender || null,
+        photo: p.photos?.[0]?.imageUrl || null,
+        dateOfBirth: p.dateOfBirth,
+        paymentCompleted: p.paymentCompleted,
+        approvalStatus: p.approvalStatus,
+      }));
+
+      if (profiles.length === 1) {
+        activeProfileId = profiles[0].id;
+        redirectTo = !profiles[0].paymentCompleted
+          ? `/payment?profileId=${encodeURIComponent(profiles[0].profileId)}&name=${encodeURIComponent(
+              user.fullName || ""
+            )}&gender=${encodeURIComponent(user.gender || "")}`
+          : "/dashboard";
+      } else if (profiles.length > 1) {
+        requiresProfileSelection = true;
+        redirectTo = "/select-profile";
+      } else {
+        redirectTo = "/dashboard";
+      }
+    }
+
     const token = await generateToken(
       user.id,
       user.mobile,
-      roleToAssign
+      roleToAssign,
+      activeProfileId
     );
-
-    const mustChange = Boolean(user.mustChangePassword);
-    const redirectTo = mustChange
-      ? "/profile/change-password"
-      : roleToAssign === "ADMIN"
-      ? "/admin"
-      : "/dashboard";
 
     const response = NextResponse.json({
       success: true,
-      message: "OTP verified successfully.",
+      message: requiresProfileSelection
+        ? "Please select which profile to manage."
+        : "OTP verified successfully.",
       userId: user.id,
       role: roleToAssign,
+      requiresProfileSelection,
+      activeProfileId,
+      profiles,
       redirectTo,
       mustChangePassword: mustChange,
       isNewUser: false,
@@ -181,6 +239,21 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
+
+    if (activeProfileId) {
+      response.cookies.set("activeProfileId", activeProfileId, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    } else if (requiresProfileSelection) {
+      response.cookies.set("activeProfileId", "", {
+        path: "/",
+        maxAge: 0,
+      });
+    }
 
     return response;
   } catch (error) {

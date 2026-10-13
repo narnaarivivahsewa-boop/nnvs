@@ -85,30 +85,76 @@ export async function POST(req: NextRequest) {
 
     const effectiveRole = (isAdminAccount || user.role === "ADMIN") ? "ADMIN" : user.role;
 
-    // Generate JWT token
-    const token = await generateToken(user.id, user.mobile, effectiveRole);
+    let profiles: any[] = [];
+    let activeProfileId: string | null = null;
+    let requiresProfileSelection = false;
+    let redirectTo = "/dashboard";
 
-    let userProfile = null;
-    if (effectiveRole !== "ADMIN") {
-      userProfile = await prisma.profile.findFirst({
+    if (effectiveRole === "ADMIN") {
+      redirectTo = "/admin";
+    } else {
+      const userProfiles = await prisma.profile.findMany({
         where: { userId: user.id },
-        select: { profileId: true, paymentCompleted: true },
+        select: {
+          id: true,
+          profileId: true,
+          firstName: true,
+          lastName: true,
+          dateOfBirth: true,
+          paymentCompleted: true,
+          approvalStatus: true,
+          photos: {
+            select: { imageUrl: true, isPrimary: true },
+            take: 1,
+          },
+          user: {
+            select: { gender: true },
+          },
+        },
         orderBy: { createdAt: "desc" },
       });
+
+      profiles = userProfiles.map((p) => ({
+        id: p.id,
+        profileId: p.profileId,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        gender: p.user?.gender || user.gender || null,
+        photo: p.photos?.[0]?.imageUrl || null,
+        dateOfBirth: p.dateOfBirth,
+        paymentCompleted: p.paymentCompleted,
+        approvalStatus: p.approvalStatus,
+      }));
+
+      if (profiles.length === 1) {
+        activeProfileId = profiles[0].id;
+        redirectTo = !profiles[0].paymentCompleted
+          ? `/payment?profileId=${encodeURIComponent(profiles[0].profileId)}&name=${encodeURIComponent(
+              user.fullName || ""
+            )}&gender=${encodeURIComponent(user.gender || "")}`
+          : "/dashboard";
+      } else if (profiles.length > 1) {
+        requiresProfileSelection = true;
+        redirectTo = "/select-profile";
+      } else {
+        redirectTo = "/dashboard";
+      }
     }
 
-    const defaultMemberRedirect = (userProfile && !userProfile.paymentCompleted)
-      ? `/payment?profileId=${encodeURIComponent(userProfile.profileId)}&name=${encodeURIComponent(user.fullName || "")}&gender=${encodeURIComponent(user.gender || "")}`
-      : "/dashboard";
-
-    const redirectTo = effectiveRole === "ADMIN" ? "/admin" : defaultMemberRedirect;
+    // Generate JWT token
+    const token = await generateToken(user.id, user.mobile, effectiveRole, activeProfileId);
 
     const response = NextResponse.json({
       success: true,
-      message: "Login successful.",
+      message: requiresProfileSelection
+        ? "Please select which profile to manage."
+        : "Login successful.",
       userId: user.id,
       fullName: user.fullName,
       role: effectiveRole,
+      requiresProfileSelection,
+      activeProfileId,
+      profiles,
       redirectTo,
     });
 
@@ -119,6 +165,21 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
+
+    if (activeProfileId) {
+      response.cookies.set("activeProfileId", activeProfileId, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    } else if (requiresProfileSelection) {
+      response.cookies.set("activeProfileId", "", {
+        path: "/",
+        maxAge: 0,
+      });
+    }
 
     return response;
   } catch (error: any) {

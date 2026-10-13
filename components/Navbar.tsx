@@ -1,46 +1,148 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, LogOut, LayoutDashboard } from "lucide-react";
+import {
+  Menu,
+  X,
+  LogOut,
+  LayoutDashboard,
+  Users,
+  ChevronDown,
+  Check,
+  User,
+  ArrowRight,
+} from "lucide-react";
 
-type UserType = {
+interface ProfileItem {
+  id: string;
+  profileId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
+  photo?: string | null;
+  dateOfBirth?: string | null;
+  approvalStatus?: string;
+}
+
+interface UserType {
+  id?: string;
   role?: string;
   fullName?: string | null;
-};
+  activeProfile?: ProfileItem | null;
+  profile?: ProfileItem | null;
+  profiles?: ProfileItem[];
+}
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
 
   const [user, setUser] = useState<UserType | null>(null);
+  const [activeProfile, setActiveProfile] = useState<ProfileItem | null>(null);
+  const [profiles, setProfiles] = useState<ProfileItem[]>([]);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [switchingProfile, setSwitchingProfile] = useState(false);
 
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const res = await fetch("/api/auth/me", {
-          cache: "no-store",
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.user) {
-            setUser(data.user);
-          }
-        }
-      } catch {
-        setUser(null);
-      } finally {
-        setCheckingAuth(false);
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setProfileDropdownOpen(false);
       }
     }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
+  async function checkAuth() {
+    try {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          setUser(data.user);
+          setActiveProfile(data.user.activeProfile || data.user.profile || null);
+          setProfiles(data.user.profiles || []);
+        } else {
+          setUser(null);
+          setActiveProfile(null);
+          setProfiles([]);
+        }
+      } else {
+        setUser(null);
+        setActiveProfile(null);
+        setProfiles([]);
+      }
+    } catch {
+      setUser(null);
+      setActiveProfile(null);
+      setProfiles([]);
+    } finally {
+      setCheckingAuth(false);
+    }
+  }
+
+  useEffect(() => {
     checkAuth();
   }, [pathname]);
+
+  // Synchronize on profile switched event
+  useEffect(() => {
+    function handleProfileSwitchEvent() {
+      checkAuth();
+    }
+    window.addEventListener("nnvs:profile-switched", handleProfileSwitchEvent);
+    return () =>
+      window.removeEventListener("nnvs:profile-switched", handleProfileSwitchEvent);
+  }, []);
+
+  async function handleSwitchProfile(profileId: string) {
+    if (switchingProfile || profileId === activeProfile?.id) {
+      setProfileDropdownOpen(false);
+      return;
+    }
+
+    try {
+      setSwitchingProfile(true);
+      const res = await fetch("/api/auth/select-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ profileId }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const matched = profiles.find((p) => p.id === profileId);
+        if (matched) setActiveProfile(matched);
+        setProfileDropdownOpen(false);
+
+        window.dispatchEvent(
+          new CustomEvent("nnvs:profile-switched", { detail: { profileId } })
+        );
+
+        router.refresh();
+      }
+    } catch (err) {
+      console.error("Failed to switch profile:", err);
+    } finally {
+      setSwitchingProfile(false);
+    }
+  }
 
   async function logout() {
     try {
@@ -50,6 +152,8 @@ export default function Navbar() {
       });
     } finally {
       setUser(null);
+      setActiveProfile(null);
+      setProfiles([]);
       setLoggingOut(false);
       setMobileMenuOpen(false);
       router.push("/");
@@ -122,7 +226,7 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Desktop Action Buttons */}
+          {/* Desktop Action Buttons & Profile Switcher */}
           <div className="hidden lg:flex items-center gap-3">
             {!checkingAuth && !user && (
               <>
@@ -142,10 +246,103 @@ export default function Navbar() {
             )}
 
             {!checkingAuth && user && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                {/* 1-Click Multi-Profile Switcher Dropdown */}
+                {profiles.length > 1 && (
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                      className="flex items-center gap-2 rounded-xl border border-[#C5A059] bg-[#FAF5EB] px-3.5 py-2 text-xs font-bold text-[#4A121A] hover:bg-[#F2E8D7] transition shadow-sm cursor-pointer"
+                      title="Switch active candidate profile"
+                    >
+                      <Users className="h-4 w-4 text-[#C5A059]" />
+                      <span className="max-w-[120px] truncate">
+                        {activeProfile?.firstName || activeProfile?.profileId || "Switch Profile"}
+                      </span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-[#C5A059] transition-transform ${
+                          profileDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {profileDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white p-2 shadow-2xl border border-[#DACBB4] z-50 animate-in fade-in zoom-in-95">
+                        <div className="px-3 py-2 border-b border-[#F0E6D6] mb-1 flex items-center justify-between">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A7972]">
+                            Switch Active Profile ({profiles.length})
+                          </p>
+                          <span className="text-[10px] text-[#C5A059] font-bold">1-Click</span>
+                        </div>
+
+                        <div className="space-y-1 max-h-60 overflow-y-auto">
+                          {profiles.map((p) => {
+                            const isCurrent = activeProfile?.id === p.id;
+                            const name =
+                              [p.firstName, p.lastName].filter(Boolean).join(" ") ||
+                              p.profileId;
+
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleSwitchProfile(p.id)}
+                                disabled={switchingProfile}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
+                                  isCurrent
+                                    ? "bg-[#FAF5EB] text-[#4A121A] font-bold border border-[#DACBB4]"
+                                    : "text-[#5A4E48] hover:bg-[#F7F2E7] hover:text-[#2D221E]"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {p.photo ? (
+                                    <img
+                                      src={p.photo}
+                                      alt={name}
+                                      className="h-7 w-7 rounded-full object-cover border border-[#C5A059] flex-shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="h-7 w-7 rounded-full bg-[#F0E6D6] flex items-center justify-center font-bold text-[#4A121A] text-xs flex-shrink-0">
+                                      {p.firstName ? p.firstName[0].toUpperCase() : <User className="h-3.5 w-3.5" />}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-xs truncate leading-snug">
+                                      {name}
+                                    </p>
+                                    <p className="text-[10px] text-[#8A7972] font-mono leading-none">
+                                      {p.profileId}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {isCurrent && (
+                                  <Check className="h-4 w-4 text-[#4A121A] flex-shrink-0 ml-2" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-2 pt-2 border-t border-[#F0E6D6]">
+                          <Link
+                            href="/select-profile"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center justify-center gap-1.5 w-full py-1.5 text-[11px] font-bold text-[#4A121A] hover:underline"
+                          >
+                            <span>Profile Selector Screen</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <Link
                   href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
-                  className="flex items-center gap-2 rounded-lg border border-[#C5A059] bg-[#FAF5EB] px-4 py-2 text-sm font-semibold text-[#4A121A] transition hover:bg-[#F2E8D7]"
+                  className="flex items-center gap-2 rounded-xl border border-[#C5A059] bg-[#FAF5EB] px-4 py-2 text-sm font-semibold text-[#4A121A] transition hover:bg-[#F2E8D7]"
                 >
                   <LayoutDashboard className="h-4 w-4 text-[#C5A059]" />
                   <span>{user.role === "ADMIN" ? "Admin Panel" : "Dashboard"}</span>
@@ -155,7 +352,7 @@ export default function Navbar() {
                   type="button"
                   onClick={logout}
                   disabled={loggingOut}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#4A121A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#3A0C13] disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded-xl bg-[#4A121A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#3A0C13] disabled:opacity-60 cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>{loggingOut ? "..." : "Logout"}</span>
@@ -184,6 +381,39 @@ export default function Navbar() {
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-[#E8DCC8] bg-[#FAF6EF] px-6 py-6 space-y-4 shadow-xl">
+            {/* Quick Profile Switcher in Mobile Drawer */}
+            {user && profiles.length > 1 && (
+              <div className="rounded-2xl bg-white border border-[#DACBB4] p-3 shadow-sm mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-[#4A121A] flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-[#C5A059]" />
+                    <span>Active Profile:</span>
+                  </span>
+                  <Link
+                    href="/select-profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-[11px] font-bold text-[#C5A059] hover:underline"
+                  >
+                    View All →
+                  </Link>
+                </div>
+                <select
+                  value={activeProfile?.id || ""}
+                  onChange={(e) => {
+                    handleSwitchProfile(e.target.value);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full rounded-xl border border-[#DACBB4] bg-[#FAF5EB] px-3 py-2 text-xs font-bold text-[#4A121A] focus:outline-none"
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName ? `${p.firstName} (${p.profileId})` : p.profileId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex flex-col space-y-2">
               {navLinks.map((link) => {
                 const isActive = pathname === link.href;
