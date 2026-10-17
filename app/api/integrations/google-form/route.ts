@@ -100,6 +100,68 @@ function parseDate(val: any): Date | null {
   return d;
 }
 
+// Normalize candidate name for matching
+function normalizeCandidateName(str?: string | null): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/^(mr\.|mrs\.|ms\.|shri|smt\.|dr\.)\s+/i, "")
+    .replace(/\s*\([^)]*\)/g, "") // remove notes like (my son), (daughter), (puniyani), etc.
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
+// Determine if an incoming candidate is genuinely the exact same candidate as an existing profile
+function checkCandidateDuplicate(
+  cand: { fullName: string; gender: "MALE" | "FEMALE"; dateOfBirth: Date | null },
+  p: any
+): boolean {
+  const pFullName = `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.user?.fullName || "";
+  const candNorm = normalizeCandidateName(cand.fullName);
+  const pNorm = normalizeCandidateName(pFullName);
+  const pUserNorm = normalizeCandidateName(p.user?.fullName);
+
+  // Name check:
+  const nameMatches =
+    candNorm.length >= 3 &&
+    pNorm.length >= 3 &&
+    (candNorm === pNorm || candNorm === pUserNorm);
+
+  if (!nameMatches) {
+    return false;
+  }
+
+  // Gender check:
+  const pLegacy = (p.legacyProfileId || p.oldNnvsId || "").toUpperCase();
+  let pGender: "MALE" | "FEMALE" | null = null;
+  if (pLegacy.includes("-G-") || pLegacy.startsWith("NNVS-G") || pLegacy.startsWith("G-") || pLegacy.startsWith("G0")) {
+    pGender = "FEMALE";
+  } else if (pLegacy.includes("-B-") || pLegacy.startsWith("NNVS-B") || pLegacy.startsWith("B-") || pLegacy.startsWith("B0")) {
+    pGender = "MALE";
+  } else if (p.user?.gender) {
+    pGender = p.user.gender as "MALE" | "FEMALE";
+  }
+
+  // Opposite genders are NEVER duplicates (e.g. Brother & Sister sharing phone)
+  if (pGender && cand.gender && pGender !== cand.gender) {
+    return false;
+  }
+
+  // DOB check:
+  if (cand.dateOfBirth && p.dateOfBirth) {
+    const candDob = new Date(cand.dateOfBirth);
+    const pDob = new Date(p.dateOfBirth);
+    if (!isNaN(candDob.getTime()) && !isNaN(pDob.getTime())) {
+      // If DOB differs by 1 year or more, they are siblings or different individuals
+      if (Math.abs(candDob.getFullYear() - pDob.getFullYear()) >= 1) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 // Upload base64 image data to Cloudinary
 async function uploadToCloudinary(base64Data: string, folder: string = "nnvs-matrimony/profile-photos"): Promise<string | null> {
   try {
@@ -218,6 +280,10 @@ export async function POST(req: NextRequest) {
         gender = genderStr === "female" ? "FEMALE" : "MALE";
       }
 
+
+      // Exact Field Extractions from Payload needed early for matching
+      const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
+
       // Check for Existing Records in Database by sourceId (the exact row)
       let existingProfile = null;
 
@@ -233,31 +299,51 @@ export async function POST(req: NextRequest) {
         include: { user: true, family: true, education: true, occupation: true, partnerPreference: true },
       });
 
-      // 2. Check for User Registered Mobile (Column Z)
-      const existingUser = await prisma.user.findUnique({
+      // 2. Check for User Registered Mobile (Column Z) or via ProfilePhone
+      let existingUser = await prisma.user.findUnique({
         where: { mobile },
         include: { profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } } },
       });
 
-      // If user exists and has profiles, check if one of their profiles matches candidate name
-      if (!existingProfile && existingUser && existingUser.profiles?.length > 0) {
-        const nameMatch = existingUser.profiles.find((p) => {
-          const candidateFirst = fullName.split(" ")[0].toLowerCase();
-          const pFirst = (p.firstName || "").toLowerCase();
-          const pFull = `${p.firstName || ""} ${p.lastName || ""}`.trim().toLowerCase();
-          return pFirst === candidateFirst || pFull === fullName.toLowerCase() || (p.user?.fullName || "").toLowerCase() === fullName.toLowerCase();
+      if (!existingUser) {
+        const phoneMatch = await prisma.profilePhone.findFirst({
+          where: { phone: mobile },
+          include: {
+            profile: {
+              include: {
+                user: {
+                  include: {
+                    profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } },
+                  },
+                },
+              },
+            },
+          },
         });
-        if (nameMatch) {
-          existingProfile = nameMatch as any;
+        if (phoneMatch?.profile?.user) {
+          existingUser = phoneMatch.profile.user as any;
         }
       }
 
-      let isSharedMobileApplicant = false;
-      let effectiveMobile = mobile;
+      // 3. Sibling / Multi-Profile & Genuine Duplicate Detection
+      // Check if any existing profile under this user/phone is genuinely the EXACT SAME CANDIDATE
+      let duplicateCandidateMatch: any = null;
+      if (existingUser && existingUser.profiles?.length > 0) {
+        duplicateCandidateMatch = existingUser.profiles.find((p) => {
+          if (existingProfile && p.id === existingProfile.id) return false;
+          return checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p);
+        });
+      }
 
-      if (!existingProfile && existingUser) {
-        // Multi-profile account: 1 Phone = Multiple Profiles (Parent managing siblings)
-        isSharedMobileApplicant = true;
+      // Only flag as duplicate if genuinely matching name and gender/DOB under the same contact
+      const isDuplicateCandidate = Boolean(duplicateCandidateMatch);
+      const duplicateMatchedProfileId = duplicateCandidateMatch?.profileId || null;
+      const duplicateNotes = isDuplicateCandidate
+        ? `Duplicate candidate submission: matches profile ${duplicateCandidateMatch.profileId} (${duplicateCandidateMatch.firstName || ""} ${duplicateCandidateMatch.lastName || ""}) with same contact number ${mobile}.`
+        : null;
+
+      if (isDuplicateCandidate) {
+        duplicateFlaggedCount++;
       }
 
       // If DRY RUN: Record analysis and continue without making DB changes
@@ -283,7 +369,8 @@ export async function POST(req: NextRequest) {
             mobile,
             allMobiles,
             fullName,
-            isSharedMobile: isSharedMobileApplicant,
+            isSiblingAccount: Boolean(existingUser),
+            isDuplicate: isDuplicateCandidate,
           });
         }
         continue;
@@ -341,7 +428,7 @@ export async function POST(req: NextRequest) {
 
         // Exact Field Extractions from Payload
         const email = row.email ? String(row.email).trim() : null;
-        const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
+        // dateOfBirth already parsed above for candidate duplicate checking
         const height = normalizeHeight(row.height);
         const maritalStatus = row.maritalStatus || null;
         const birthPlace = row.birthPlace || null;
@@ -463,17 +550,19 @@ export async function POST(req: NextRequest) {
           paymentExemptionReason: "Google Form Legacy / Imported Member",
           approvalStatus: isLegacyApproved ? "APPROVED" : "PENDING_APPROVAL",
           approvedAt: isLegacyApproved ? (existingProfile?.approvedAt || new Date()) : null,
-          isDuplicateFlagged: isSharedMobileApplicant || existingProfile?.isDuplicateFlagged || false,
-          duplicateNotes: isSharedMobileApplicant
-            ? `Multi-profile account: shares phone (${mobile}) with '${existingUser?.fullName || "Family member"}'. Switchable via dashboard.`
-            : existingProfile?.duplicateNotes || null,
+          isDuplicateFlagged: isDuplicateCandidate,
+          duplicateMatchedProfileId: isDuplicateCandidate ? duplicateMatchedProfileId : null,
+          duplicateNotes: isDuplicateCandidate ? duplicateNotes : null,
         };
 
         let profile;
         if (existingProfile) {
           profile = await prisma.profile.update({
             where: { id: existingProfile.id },
-            data: profileData,
+            data: {
+              ...profileData,
+              userId: userId!,
+            },
           });
         } else {
           profile = await prisma.profile.create({
@@ -684,6 +773,7 @@ export async function POST(req: NextRequest) {
           mobile,
           allMobiles,
           fullName,
+          isDuplicateFlagged: profile.isDuplicateFlagged,
         });
       } catch (rowErr: any) {
         console.error(`Error processing row ${rowIndex}:`, rowErr);

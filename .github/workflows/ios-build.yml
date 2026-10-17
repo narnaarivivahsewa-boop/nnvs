@@ -1,0 +1,90 @@
+name: Build iOS App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: 'Build destination'
+        required: false
+        default: 'generic/platform=iOS'
+        type: choice
+        options:
+          - 'generic/platform=iOS'
+          - 'generic/platform=iOS Simulator'
+
+jobs:
+  build-ios:
+    name: Build iOS (Capacitor)
+    runs-on: macos-latest
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build web project
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Build iOS app with xcodebuild
+        run: |
+          DEST="${{ github.event.inputs.destination || 'generic/platform=iOS' }}"
+          echo "Building for destination: $DEST"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination "$DEST" \
+            -derivedDataPath ios/App/build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Package iOS build artifacts
+        run: |
+          BUILD_DIR=$(find ios/App/build/Build/Products -maxdepth 1 -name "Release-*" | head -n 1)
+          echo "Found build directory: $BUILD_DIR"
+          cd "$BUILD_DIR"
+          if [ -d "App.app" ]; then
+            echo "Creating unsigned IPA package..."
+            mkdir -p Payload
+            cp -R App.app Payload/
+            zip -r App-unsigned.ipa Payload
+            echo "Zipping App.app bundle..."
+            zip -r App.app.zip App.app
+          else
+            echo "App.app not found in $BUILD_DIR"
+            exit 1
+          fi
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-release
+          path: |
+            ios/App/build/Build/Products/Release-*/App-unsigned.ipa
+            ios/App/build/Build/Products/Release-*/App.app.zip
+            ios/App/build/Build/Products/Release-*/App.app
+          retention-days: 14
