@@ -11,6 +11,8 @@
     "generate:pdfs:with-contact": "tsx scripts/generate-all-biodata-pdfs.ts",
     "generate:pdfs:without-contact": "tsx scripts/generate-all-biodata-pdfs-without-contact.ts",
     "cap:sync": "cap sync",
+    "cap:sync:ios": "cap sync ios",
+    "cap:assets": "node scripts/generate-capacitor-assets.js",
     "cap:open": "cap open android"
   },
   "prisma": {
@@ -42,6 +44,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/postcss": "^4",
     "@types/formidable": "^3.5.1",
     "@types/node": "^20",

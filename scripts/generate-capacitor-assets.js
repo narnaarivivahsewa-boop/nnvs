@@ -67,7 +67,7 @@ async function generate() {
     console.log('Generated icons for', dir);
   }
 
-  // 2. Generate Splash Screens
+  // 2. Generate Android Splash Screens
   const splashScreens = [
     { dir: 'drawable', w: 480, h: 320, logoSize: 150 },
     { dir: 'drawable-land-mdpi', w: 480, h: 320, logoSize: 150 },
@@ -96,6 +96,87 @@ async function generate() {
     .toFile(targetFile);
 
     console.log('Generated splash for', dir);
+  }
+
+  // 3. Generate iOS Assets
+  const iosIconDir = 'ios/App/App/Assets.xcassets/AppIcon.appiconset';
+  const iosSplashDir = 'ios/App/App/Assets.xcassets/Splash.imageset';
+
+  if (fs.existsSync(iosIconDir)) {
+    // 1024x1024 universal icon with safe zone (no alpha channel for App Store validation)
+    const masterLogo = fs.existsSync('public/nnvs-logo_original_raw.png')
+      ? 'public/nnvs-logo_original_raw.png'
+      : sourceIcon;
+
+    const iosLogoBuf = await sharp(masterLogo)
+      .resize(820, 820, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .toBuffer();
+
+    await sharp({
+      create: { width: 1024, height: 1024, channels: 3, background: { r: 255, g: 255, b: 255 } }
+    })
+    .composite([{ input: iosLogoBuf, gravity: 'centre' }])
+    .png()
+    .toFile(iosIconDir + '/AppIcon-512@2x.png');
+
+    const appIconContents = {
+      images: [
+        {
+          idiom: 'universal',
+          size: '1024x1024',
+          filename: 'AppIcon-512@2x.png',
+          platform: 'ios',
+        },
+      ],
+      info: {
+        author: 'xcode',
+        version: 1,
+      },
+    };
+    fs.writeFileSync(iosIconDir + '/Contents.json', JSON.stringify(appIconContents, null, 2));
+    console.log('Generated iOS AppIcon (1024x1024 universal)');
+  }
+
+  if (fs.existsSync(iosSplashDir)) {
+    // 2732x2732 universal splash screens for 1x, 2x, 3x scales
+    const masterLogo = fs.existsSync('public/nnvs-logo_original_raw.png')
+      ? 'public/nnvs-logo_original_raw.png'
+      : sourceIcon;
+
+    const iosSplashLogo = await sharp(masterLogo)
+      .resize(900, 900, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .toBuffer();
+
+    const splashImg = await sharp({
+      create: { width: 2732, height: 2732, channels: 4, background: white }
+    })
+    .composite([{ input: iosSplashLogo, gravity: 'centre' }])
+    .png()
+    .toBuffer();
+
+    const splashNames = [
+      'Default@1x~universal~anyany.png',
+      'Default@2x~universal~anyany.png',
+      'Default@3x~universal~anyany.png',
+    ];
+
+    for (const name of splashNames) {
+      fs.writeFileSync(iosSplashDir + '/' + name, splashImg);
+    }
+
+    const splashContents = {
+      images: [
+        { idiom: 'universal', filename: 'Default@1x~universal~anyany.png', scale: '1x' },
+        { idiom: 'universal', filename: 'Default@2x~universal~anyany.png', scale: '2x' },
+        { idiom: 'universal', filename: 'Default@3x~universal~anyany.png', scale: '3x' },
+      ],
+      info: {
+        version: 1,
+        author: 'xcode',
+      },
+    };
+    fs.writeFileSync(iosSplashDir + '/Contents.json', JSON.stringify(splashContents, null, 2));
+    console.log('Generated iOS Splash screens (1x, 2x, 3x universal)');
   }
 }
 
