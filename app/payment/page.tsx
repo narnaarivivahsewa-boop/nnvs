@@ -318,7 +318,7 @@ function PaymentContent() {
                   setCouponInput(e.target.value.toUpperCase());
                   setCouponError("");
                 }}
-                placeholder="Enter coupon code (e.g. Samiksha251)"
+                placeholder="Enter Coupon Code"
                 className="flex-1 rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs font-mono font-semibold uppercase tracking-wider text-gray-900 focus:border-[#4A121A] focus:outline-none"
               />
               <button
