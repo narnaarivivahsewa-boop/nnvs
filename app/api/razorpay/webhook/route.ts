@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
         if (matchedProfile) {
           await prisma.$transaction(async (tx) => {
-            await tx.payment.create({
+            const payment = await tx.payment.create({
               data: {
                 userId: matchedProfile.userId,
                 profileId: matchedProfile.id,
@@ -98,6 +98,35 @@ export async function POST(req: NextRequest) {
                 isVisible: matchedProfile.approvalStatus === "APPROVED",
               },
             });
+
+            // Burn promo code if present in notes
+            const promoCodeFromNotes = notes.promoCode;
+            if (promoCodeFromNotes && promoCodeFromNotes !== "NONE") {
+              const cleanCode = String(promoCodeFromNotes).trim().toUpperCase();
+              const promo = await tx.promoCode.findUnique({
+                where: { code: cleanCode },
+              });
+              if (promo && promo.status === "ACTIVE") {
+                await tx.promoCode.update({
+                  where: { id: promo.id },
+                  data: {
+                    status: "USED",
+                    usedAt: new Date(),
+                    usedPaymentId: payment.id,
+                    assignedProfileId: matchedProfile.id,
+                  },
+                });
+
+                try {
+                  await tx.coupon.updateMany({
+                    where: { code: cleanCode },
+                    data: { isActive: false },
+                  });
+                } catch {
+                  // Ignore secondary table
+                }
+              }
+            }
           });
 
           console.log(`✓ Webhook captured payment for Profile ${matchedProfile.profileId} (₹${grossAmount})`);

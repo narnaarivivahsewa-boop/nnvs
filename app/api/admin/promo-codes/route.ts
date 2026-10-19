@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
+      customCode,
       discount,
       profileId,
       email,
@@ -71,11 +72,12 @@ export async function POST(req: NextRequest) {
     // VALIDATE DISCOUNT
     // ==========================
 
-    if (![20, 50, 100].includes(Number(discount))) {
+    const discountNum = Number(discount);
+    if (isNaN(discountNum) || discountNum < 1 || discountNum > 100) {
       return NextResponse.json(
         {
           success: false,
-          message: "Discount must be 20%, 50% or 100%.",
+          message: "Discount must be between 1% and 100%.",
         },
         {
           status: 400,
@@ -84,32 +86,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================
-    // AT LEAST ONE ASSIGNMENT
-    // ==========================
-
-    if (!profileId && !email && !mobile) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Coupon must be assigned to a Profile ID, email or mobile.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ==========================
-    // VERIFY PROFILE
+    // VERIFY PROFILE (IF PROVIDED)
     // ==========================
 
     let assignedProfileId: string | null = null;
 
-    if (profileId) {
-      const profile = await prisma.profile.findUnique({
+    if (profileId && String(profileId).trim()) {
+      const profile = await prisma.profile.findFirst({
         where: {
-          profileId: String(profileId),
+          OR: [
+            { id: String(profileId).trim() },
+            { profileId: String(profileId).trim() },
+          ],
         },
         select: {
           id: true,
@@ -121,7 +109,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            message: "Profile not found.",
+            message: `Profile '${profileId}' not found. Please verify the Profile ID.`,
           },
           {
             status: 404,
@@ -133,25 +121,41 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================
-    // GENERATE SECURE CODE
+    // DETERMINE CODE STRING
     // ==========================
 
     let code = "";
-    let exists = true;
-
-    while (exists) {
-      code = generatePromoCode(Number(discount));
+    if (customCode && String(customCode).trim()) {
+      code = String(customCode).trim().toUpperCase();
 
       const existing = await prisma.promoCode.findUnique({
-        where: {
-          code,
-        },
-        select: {
-          id: true,
-        },
+        where: { code },
+        select: { id: true },
       });
 
-      exists = !!existing;
+      if (existing) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Promo code '${code}' already exists. Please choose a different code.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+    } else {
+      let exists = true;
+      while (exists) {
+        code = generatePromoCode(discountNum);
+
+        const existing = await prisma.promoCode.findUnique({
+          where: { code },
+          select: { id: true },
+        });
+
+        exists = !!existing;
+      }
     }
 
     // ==========================
@@ -161,30 +165,19 @@ export async function POST(req: NextRequest) {
     const promoCode = await prisma.promoCode.create({
       data: {
         code,
-
         discountType: "PERCENTAGE",
-        discountValue: Number(discount),
-
+        discountValue: discountNum,
         assignedProfileId,
-        assignedEmail: email
-          ? String(email).trim().toLowerCase()
-          : null,
-
-        assignedMobile: mobile
-          ? String(mobile).trim()
-          : null,
-
-        expiresAt: expiresAt
-          ? new Date(expiresAt)
-          : null,
-
+        assignedEmail: email ? String(email).trim().toLowerCase() : null,
+        assignedMobile: mobile ? String(mobile).trim() : null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
         status: "ACTIVE",
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Promo code created successfully.",
+      message: `Promo code ${promoCode.code} created successfully.`,
       promoCode: {
         id: promoCode.id,
         code: promoCode.code,
@@ -198,10 +191,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error(
-      "ADMIN PROMO CODE CREATE ERROR =>",
-      error
-    );
+    console.error("ADMIN PROMO CODE CREATE ERROR =>", error);
 
     return NextResponse.json(
       {
@@ -211,6 +201,83 @@ export async function POST(req: NextRequest) {
       {
         status: 500,
       }
+    );
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const admin = await verifyAdmin(req);
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const promoCodes = await prisma.promoCode.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        assignedProfile: {
+          select: {
+            id: true,
+            profileId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      promoCodes,
+    });
+  } catch (error) {
+    console.error("ADMIN PROMO CODES LIST ERROR =>", error);
+    return NextResponse.json(
+      { success: false, message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const admin = await verifyAdmin(req);
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, message: "Promo code ID is required" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.promoCode.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Promo code deleted successfully.",
+    });
+  } catch (error: any) {
+    console.error("ADMIN PROMO CODE DELETE ERROR =>", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: error?.message || "Failed to delete promo code.",
+      },
+      { status: 500 }
     );
   }
 }

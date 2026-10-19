@@ -34,10 +34,12 @@ export async function POST(req: NextRequest) {
 
     let discountPercent = 0;
     let promoRecord = null;
+    let isSamikshaSpecial = false;
 
     if (promoCode) {
+      const cleanCode = String(promoCode).trim().toUpperCase();
       promoRecord = await prisma.promoCode.findUnique({
-        where: { code: String(promoCode).trim().toUpperCase() },
+        where: { code: cleanCode },
       });
 
       if (
@@ -47,14 +49,23 @@ export async function POST(req: NextRequest) {
         (!promoRecord.assignedProfileId || promoRecord.assignedProfileId === profile.id) &&
         (!promoRecord.assignedMobile || promoRecord.assignedMobile === profile.user.mobile)
       ) {
-        discountPercent = Number(promoRecord.discountValue);
+        if (cleanCode === "SAMIKSHA251" && isFemale) {
+          isSamikshaSpecial = true;
+        } else {
+          discountPercent = Number(promoRecord.discountValue);
+        }
       }
     }
 
-    const discountAmount = Math.round(baseFee * (discountPercent / 100) * 100) / 100;
-    const taxableAmount = Math.max(0, baseFee - discountAmount);
-    const gstBreakdown = calculateGstBreakdown(taxableAmount);
-    const finalTotalAmount = gstBreakdown.totalAmount;
+    let finalTotalAmount: number;
+    if (isSamikshaSpecial) {
+      finalTotalAmount = 251.0;
+    } else {
+      const discountAmount = Math.round(baseFee * (discountPercent / 100) * 100) / 100;
+      const taxableAmount = Math.max(0, baseFee - discountAmount);
+      const gstBreakdown = calculateGstBreakdown(taxableAmount);
+      finalTotalAmount = gstBreakdown.totalAmount;
+    }
 
     const txnId = transactionRef || `RC_TXN_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 

@@ -119,8 +119,9 @@ export async function POST(req: NextRequest) {
               });
 
               if (promoCode) {
+                const cleanCode = String(promoCode).trim().toUpperCase();
                 const promo = await tx.promoCode.findUnique({
-                  where: { code: String(promoCode).trim().toUpperCase() },
+                  where: { code: cleanCode },
                 });
                 if (promo && promo.status === "ACTIVE") {
                   await tx.promoCode.update({
@@ -129,8 +130,18 @@ export async function POST(req: NextRequest) {
                       status: "USED",
                       usedAt: new Date(),
                       usedPaymentId: payment.id,
+                      assignedProfileId: profile.id,
                     },
                   });
+
+                  try {
+                    await tx.coupon.updateMany({
+                      where: { code: cleanCode },
+                      data: { isActive: false },
+                    });
+                  } catch {
+                    // Ignore secondary table update if not present
+                  }
                 }
               }
 

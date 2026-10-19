@@ -86,12 +86,14 @@ export default function RazorpayCheckoutButton({
           currency: "INR",
           service: service || undefined,
           profileId: profileId || undefined,
+          promoCode: promoCode || undefined,
           receipt: `rcpt_${profileId || (service ? service.toLowerCase() : "nnvs")}_${Date.now()}`,
           notes: {
             service: service || "MEMBERSHIP",
             profileId: profileId || "N/A",
             customerName: name || "Member",
             customerMobile: mobile || "N/A",
+            promoCode: promoCode || undefined,
           },
         }),
       });

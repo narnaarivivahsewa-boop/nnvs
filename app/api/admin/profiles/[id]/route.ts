@@ -329,6 +329,15 @@ export async function DELETE(
       where: {
         OR: [{ id }, { profileId: id }],
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            mobile: true,
+          },
+        },
+      },
     });
 
     if (!profile) {
@@ -338,13 +347,57 @@ export async function DELETE(
       );
     }
 
-    await prisma.profile.delete({
-      where: { id: profile.id },
+    const candidateName =
+      `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
+      profile.user?.fullName ||
+      profile.profileId;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Clean up references where this profile is the shortlisted target
+      await tx.shortlist.deleteMany({
+        where: {
+          OR: [
+            { shortlistedProfileId: profile.id },
+            { shortlistedProfileId: profile.profileId },
+          ],
+        },
+      });
+
+      // 2. Clean up blocks where this profile is the blocked target
+      await tx.block.deleteMany({
+        where: {
+          OR: [
+            { blockedProfileId: profile.id },
+            { blockedProfileId: profile.profileId },
+          ],
+        },
+      });
+
+      // 3. Unlink any assigned promo codes so foreign keys don't block deletion
+      await tx.promoCode.updateMany({
+        where: { assignedProfileId: profile.id },
+        data: { assignedProfileId: null },
+      });
+
+      // 4. Delete the profile (cascades to photos, family, education, occupation, partnerPreference, phoneNumbers, interests)
+      await tx.profile.delete({
+        where: { id: profile.id },
+      });
+
+      // 5. Write an Audit Log for tracking
+      await tx.auditLog.create({
+        data: {
+          userId: auth.user?.userId || null,
+          action: "DELETE_PROFILE",
+          module: "PROFILES",
+          details: `Admin deleted profile ${profile.profileId} (${candidateName}, Mobile: ${profile.user?.mobile || "N/A"})`,
+        },
+      });
     });
 
     return NextResponse.json({
       success: true,
-      message: `Profile ${profile.profileId} deleted successfully by Admin.`,
+      message: `Profile ${profile.profileId} (${candidateName}) deleted successfully by Admin.`,
     });
   } catch (error: any) {
     console.error("ADMIN PROFILE DELETE ERROR =>", error);

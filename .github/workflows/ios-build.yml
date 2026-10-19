@@ -22,8 +22,8 @@ jobs:
     runs-on: macos-latest
 
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+      DATABASE_URL: ${{ secrets['DATABASE_URL'] || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+      DIRECT_URL: ${{ secrets['DIRECT_URL'] || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
 
     steps:
       - name: Checkout repository

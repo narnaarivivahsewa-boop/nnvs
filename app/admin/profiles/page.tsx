@@ -18,6 +18,7 @@ import {
   FileDown,
   Sparkles,
   Users,
+  Trash2,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 
@@ -97,6 +98,10 @@ export default function AdminProfilesPage() {
   const [matchMinAge, setMatchMinAge] = useState("");
   const [matchMaxAge, setMatchMaxAge] = useState("");
   const [matchCaste, setMatchCaste] = useState("");
+
+  // Delete Profile State
+  const [profileToDelete, setProfileToDelete] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const openMatchModal = async (profile: Profile) => {
     setMatchTarget(profile);
@@ -287,6 +292,29 @@ export default function AdminProfilesPage() {
       refreshList();
     } catch (error: any) {
       alert(error.message);
+    }
+  }
+
+  async function handleDeleteProfile() {
+    if (!profileToDelete) return;
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/admin/profiles/${profileToDelete.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.message || "Failed to delete profile.");
+        return;
+      }
+      alert(data.message || "Profile deleted successfully.");
+      setProfiles((prev) => prev.filter((p) => p.id !== profileToDelete.id));
+      setProfileToDelete(null);
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      alert(error.message || "Failed to delete profile.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -642,6 +670,16 @@ export default function AdminProfilesPage() {
                       <span>Reject</span>
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setProfileToDelete(profile)}
+                    className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl bg-red-50 text-red-700 border border-red-200 py-2 text-xs font-bold hover:bg-red-600 hover:text-white transition"
+                    title="Permanently Delete Profile"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete Profile</span>
+                  </button>
                 </div>
               </div>
             );
@@ -872,6 +910,16 @@ export default function AdminProfilesPage() {
                             Reject
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => setProfileToDelete(profile)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-50 text-red-700 border border-red-200 px-2.5 py-1.5 text-xs font-bold hover:bg-red-600 hover:text-white transition shadow-xs"
+                          title="Permanently Delete Profile"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Delete</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1240,6 +1288,81 @@ export default function AdminProfilesPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Confirmation Modal */}
+      {profileToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-red-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600 flex-shrink-0">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif-luxury">
+                  Delete Profile Permanently?
+                </h3>
+                <p className="text-xs text-red-600 font-semibold">
+                  This action is permanent and cannot be undone!
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-red-50/70 border border-red-200 p-4 text-xs text-gray-700 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Profile ID:</span>
+                <span className="font-mono font-bold text-[#4A121A]">{profileToDelete.profileId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Candidate Name:</span>
+                <span className="font-bold text-gray-900">
+                  {`${profileToDelete.firstName || ""} ${profileToDelete.lastName || ""}`.trim() || profileToDelete.user.fullName || "Candidate"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Mobile:</span>
+                <span className="font-mono text-gray-900">{profileToDelete.user.mobile}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Gender / Status:</span>
+                <span className="font-bold text-gray-900">{profileToDelete.user.gender} • {profileToDelete.approvalStatus}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Deleting will permanently erase this candidate's biodata, family details, education, partner preferences, uploaded photos, and matching activity records.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setProfileToDelete(null)}
+                disabled={deleting}
+                className="rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteProfile}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 transition disabled:opacity-50 shadow-sm"
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting Profile...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Yes, Permanently Delete</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

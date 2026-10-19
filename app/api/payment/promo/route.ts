@@ -13,66 +13,54 @@ export async function POST(req: NextRequest) {
       code,
       profileId,
       baseFee,
+      gender: clientGender,
     } = body;
 
     // ==========================
     // BASIC VALIDATION
     // ==========================
 
-    if (!code || !profileId) {
+    if (!code) {
       return NextResponse.json(
         {
           success: false,
-          message: "Promo code and Profile ID are required.",
+          message: "Promo code is required.",
         },
         { status: 400 }
       );
     }
 
-    const numericBaseFee = Number(baseFee);
+    const cleanCode = String(code).trim().toUpperCase();
 
-    if (
-      !Number.isFinite(numericBaseFee) ||
-      numericBaseFee <= 0
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid registration fee.",
+    // ==========================
+    // FIND PROFILE (IF PROVIDED)
+    // ==========================
+
+    let profile = null;
+    if (profileId) {
+      profile = await prisma.profile.findFirst({
+        where: {
+          OR: [{ id: String(profileId) }, { profileId: String(profileId) }],
         },
-        { status: 400 }
-      );
-    }
-
-    // ==========================
-    // FIND PROFILE
-    // ==========================
-
-    const profile = await prisma.profile.findUnique({
-      where: {
-        profileId: String(profileId),
-      },
-      select: {
-        id: true,
-        profileId: true,
-        user: {
-          select: {
-            email: true,
-            mobile: true,
+        select: {
+          id: true,
+          profileId: true,
+          user: {
+            select: {
+              email: true,
+              mobile: true,
+              gender: true,
+            },
           },
         },
-      },
-    });
-
-    if (!profile) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Profile not found.",
-        },
-        { status: 404 }
-      );
+      });
     }
+
+    const detectedGender = (
+      profile?.user?.gender ||
+      clientGender ||
+      ""
+    ).toUpperCase();
 
     // ==========================
     // FIND PROMO CODE
@@ -80,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     const promoCode = await prisma.promoCode.findUnique({
       where: {
-        code: String(code).trim().toUpperCase(),
+        code: cleanCode,
       },
     });
 
@@ -116,7 +104,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "This promo code has already been used.",
+          message: "This promo code has already been used and is no longer valid.",
         },
         { status: 400 }
       );
@@ -145,6 +133,7 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedProfileId &&
+      profile &&
       promoCode.assignedProfileId !== profile.id
     ) {
       return NextResponse.json(
@@ -163,8 +152,9 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedEmail &&
+      profile?.user?.email &&
       promoCode.assignedEmail.toLowerCase() !==
-        (profile.user.email || "").toLowerCase()
+        profile.user.email.toLowerCase()
     ) {
       return NextResponse.json(
         {
@@ -182,6 +172,7 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedMobile &&
+      profile?.user?.mobile &&
       promoCode.assignedMobile !== profile.user.mobile
     ) {
       return NextResponse.json(
@@ -194,9 +185,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ==========================================
+    // SPECIAL COUPON: SAMIKSHA251 (Female ₹251)
+    // ==========================================
+
+    if (cleanCode === "SAMIKSHA251") {
+      if (detectedGender && detectedGender !== "FEMALE") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Coupon 'Samiksha251' is strictly applicable only for female registration.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Total ₹251.00 including 18% GST:
+      // Base = 212.71, GST = 38.29 (CGST 19.14 + SGST 19.15)
+      const originalFemaleBase = 399.0;
+      const originalFemaleTotal = 470.82;
+      const totalAmount = 251.0;
+      const baseFee = 212.71;
+      const gstAmount = 38.29;
+      const cgstAmount = 19.14;
+      const sgstAmount = 19.15;
+      const discountAmount = Number((originalFemaleTotal - totalAmount).toFixed(2));
+
+      return NextResponse.json({
+        success: true,
+        message: "Coupon 'Samiksha251' applied! Special female registration fee ₹251 (incl. 18% GST).",
+        promoCode: {
+          code: "SAMIKSHA251",
+          discountType: "FIXED_TOTAL",
+          discountAmount,
+        },
+        calculation: {
+          originalBaseFee: originalFemaleBase,
+          originalTotalAmount: originalFemaleTotal,
+          baseFee,
+          discountAmount,
+          discountedFee: baseFee,
+          gstRate: GST_RATE,
+          cgstAmount,
+          sgstAmount,
+          gstAmount,
+          totalAmount,
+        },
+      });
+    }
+
     // ==========================
-    // DISCOUNT TYPE CHECK
+    // PERCENTAGE DISCOUNT CODES
     // ==========================
+
+    const numericBaseFee = Number(baseFee) || 399;
 
     if (promoCode.discountType !== "PERCENTAGE") {
       return NextResponse.json(
@@ -208,24 +250,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const discountPercent =
-      Number(promoCode.discountValue);
-
-    if (
-      !ALLOWED_DISCOUNTS.includes(discountPercent)
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid promo code discount.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // ==========================
-    // CALCULATE DISCOUNT
-    // ==========================
+    const discountPercent = Number(promoCode.discountValue);
 
     const discountAmount = Number(
       (
@@ -241,10 +266,6 @@ export async function POST(req: NextRequest) {
       ).toFixed(2)
     );
 
-    // ==========================
-    // GST AFTER DISCOUNT
-    // ==========================
-
     const gstAmount = Number(
       (discountedFee * GST_RATE).toFixed(2)
     );
@@ -253,26 +274,21 @@ export async function POST(req: NextRequest) {
       (discountedFee + gstAmount).toFixed(2)
     );
 
-    // ==========================
-    // SUCCESS
-    // ==========================
-
     return NextResponse.json({
       success: true,
-
-      message: "Promo code applied successfully.",
-
+      message: `Promo code applied successfully (${discountPercent}% OFF).`,
       promoCode: {
         code: promoCode.code,
         discountPercent,
       },
-
       calculation: {
         baseFee: numericBaseFee,
         discountPercent,
         discountAmount,
         discountedFee,
         gstRate: GST_RATE,
+        cgstAmount: Number((gstAmount / 2).toFixed(2)),
+        sgstAmount: Number((gstAmount / 2).toFixed(2)),
         gstAmount,
         totalAmount,
       },
