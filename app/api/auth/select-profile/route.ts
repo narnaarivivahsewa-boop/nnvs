@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateToken, verifyToken } from "@/lib/jwt";
+import { generateToken, verifyToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const authHeader = req.headers.get("authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7).trim()
+      : null;
+    const token =
+      req.cookies.get("nnvs_token")?.value ||
+      bearerToken ||
+      req.headers.get("x-nnvs-token");
 
     if (!token) {
       return NextResponse.json(
@@ -87,6 +94,8 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: `Switched active profile to ${profile.firstName || profile.profileId}.`,
+      token: updatedToken,
+      maxAge: AUTH_COOKIE_MAX_AGE,
       activeProfileId: profile.id,
       activeProfile: formattedProfile,
       redirectTo,
@@ -97,7 +106,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     response.cookies.set("nnvs_token", updatedToken, {
@@ -105,7 +114,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     return response;

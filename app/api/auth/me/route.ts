@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const cookieToken = req.cookies.get("nnvs_token")?.value;
+    const authHeader = req.headers.get("authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7).trim()
+      : null;
+    const headerToken = req.headers.get("x-nnvs-token");
+
+    const token = cookieToken || bearerToken || headerToken;
 
     if (!token) {
       return NextResponse.json(
@@ -109,6 +116,8 @@ export async function GET(req: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
+      token,
+      maxAge: AUTH_COOKIE_MAX_AGE,
       user: {
         ...user,
         activeProfile,
@@ -117,13 +126,24 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // If request authenticated via header but cookie was missing, re-hydrate cookie
+    if (!cookieToken && token) {
+      response.cookies.set("nnvs_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: AUTH_COOKIE_MAX_AGE,
+      });
+    }
+
     if (activeProfile && (!cookieActiveId || cookieActiveId !== activeProfile.id)) {
       response.cookies.set("activeProfileId", activeProfile.id, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: AUTH_COOKIE_MAX_AGE,
       });
     }
 

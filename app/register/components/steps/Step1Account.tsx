@@ -83,6 +83,7 @@ export default function Step1Account({
         <InputField
           label="Full Name"
           placeholder="Enter your full name"
+          autoComplete="name"
           required
           registration={register("fullName")}
           error={errors.fullName}
@@ -92,6 +93,7 @@ export default function Step1Account({
           <InputField
             label="Mobile Number (10 digits)"
             type="tel"
+            autoComplete="tel"
             placeholder="e.g. 9876543210"
             required
             registration={register("mobile")}
@@ -209,6 +211,7 @@ export default function Step1Account({
         <InputField
           label="Email Address"
           type="email"
+          autoComplete="email"
           placeholder="Enter your email"
           required
           registration={register("email")}
@@ -227,6 +230,7 @@ export default function Step1Account({
         <InputField
           label="Password"
           type="password"
+          autoComplete="new-password"
           placeholder="Create password"
           required
           registration={register("password")}
@@ -237,6 +241,7 @@ export default function Step1Account({
           <InputField
             label="Confirm Password"
             type="password"
+            autoComplete="new-password"
             placeholder="Confirm password"
             required
             registration={register("confirmPassword")}

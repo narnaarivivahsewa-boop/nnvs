@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
+import { saveAuthSession, clearAuthSession } from "@/lib/auth/session-storage";
 
 interface ProfileItem {
   id: string;
@@ -122,6 +123,10 @@ function SelectProfileContent() {
         return;
       }
 
+      if (data.token) {
+        await saveAuthSession(data.token, data.activeProfileId, data.activeProfile);
+      }
+
       window.dispatchEvent(
         new CustomEvent("nnvs:profile-switched", { detail: { profileId } })
       );
@@ -138,6 +143,7 @@ function SelectProfileContent() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
+      await clearAuthSession();
       router.push("/login");
     }
   }

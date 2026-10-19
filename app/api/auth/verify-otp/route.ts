@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOTP } from "@/lib/auth/otp";
-import { generateToken } from "@/lib/jwt";
+import { generateToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
 
 export async function POST(req: NextRequest) {
   try {
@@ -222,6 +222,8 @@ export async function POST(req: NextRequest) {
       message: requiresProfileSelection
         ? "Please select which profile to manage."
         : "OTP verified successfully.",
+      token,
+      maxAge: AUTH_COOKIE_MAX_AGE,
       userId: user.id,
       role: roleToAssign,
       requiresProfileSelection,
@@ -237,7 +239,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     if (activeProfileId) {
@@ -246,7 +248,7 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: AUTH_COOKIE_MAX_AGE,
       });
     } else if (requiresProfileSelection) {
       response.cookies.set("activeProfileId", "", {

@@ -23,7 +23,14 @@ export function isPermanentAdmin(mobile?: string | null): boolean {
 export async function requireAdmin(
   req: NextRequest
 ): Promise<AdminAuthResult> {
-  const token = req.cookies.get("nnvs_token")?.value;
+  const authHeader = req.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.substring(7).trim()
+    : null;
+  const token =
+    req.cookies.get("nnvs_token")?.value ||
+    bearerToken ||
+    req.headers.get("x-nnvs-token");
 
   if (!token) {
     return {

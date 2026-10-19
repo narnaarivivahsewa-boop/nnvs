@@ -17,6 +17,7 @@ import {
   Bot,
 } from "lucide-react";
 import AIMatchmakerModal from "@/components/AIMatchmakerModal";
+import { clearAuthSession, saveAuthSession } from "@/lib/auth/session-storage";
 
 type UserProfile = {
   id: string;
@@ -128,12 +129,16 @@ function DashboardContent() {
   const handleSwitchProfile = async (targetId: string) => {
     setSelectedProfileId(targetId);
     try {
-      await fetch("/api/auth/select-profile", {
+      const res = await fetch("/api/auth/select-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ profileId: targetId }),
       });
+      const data = await res.json();
+      if (data.token) {
+        await saveAuthSession(data.token, targetId, data.activeProfile);
+      }
       window.dispatchEvent(
         new CustomEvent("nnvs:profile-switched", { detail: { profileId: targetId } })
       );
@@ -149,6 +154,7 @@ function DashboardContent() {
         method: "POST",
       });
     } finally {
+      await clearAuthSession();
       setUser(null);
       setLoggingOut(false);
       router.push("/login");

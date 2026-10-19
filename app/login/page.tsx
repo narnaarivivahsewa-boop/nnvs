@@ -15,6 +15,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
+import { saveAuthSession, syncSessionToCookies } from "@/lib/auth/session-storage";
 
 function LoginContent() {
   const router = useRouter();
@@ -51,6 +52,25 @@ function LoginContent() {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
+  // Auto-restore session from native Preferences / localStorage if user returns
+  useEffect(() => {
+    let mounted = true;
+    async function checkSession() {
+      try {
+        const restored = await syncSessionToCookies();
+        if (restored && mounted) {
+          window.location.href = redirectUrl || "/dashboard";
+        }
+      } catch (err) {
+        console.warn("Session auto-sync check error:", err);
+      }
+    }
+    checkSession();
+    return () => {
+      mounted = false;
+    };
+  }, [redirectUrl]);
+
   // ==========================================
   // 1. PRIMARY: PASSWORD LOGIN (Admin & Members)
   // ==========================================
@@ -86,6 +106,15 @@ function LoginContent() {
       if (!res.ok) {
         setMessage(data.message || "Invalid credentials. Please check your mobile/password.");
         return;
+      }
+
+      // Persist session across Web, Android, and iOS
+      if (data.token) {
+        await saveAuthSession(data.token, data.activeProfileId, {
+          userId: data.userId,
+          fullName: data.fullName,
+          role: data.role,
+        });
       }
 
       setMessage("Login Successful! Redirecting...");
@@ -176,6 +205,14 @@ function LoginContent() {
         return;
       }
 
+      // Persist session across Web, Android, and iOS
+      if (data.token) {
+        await saveAuthSession(data.token, data.activeProfileId, {
+          userId: data.userId,
+          role: data.role,
+        });
+      }
+
       setMessage("Login Successful! Redirecting...");
 
       setTimeout(() => {
@@ -257,17 +294,29 @@ function LoginContent() {
           {/* 1. DEFAULT: PASSWORD LOGIN (All Members & Admin) */}
           {/* ========================================================= */}
           {loginMode === "PASSWORD" && (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
+            <form
+              method="post"
+              action="/api/auth/login-password"
+              onSubmit={handlePasswordLogin}
+              className="space-y-4"
+            >
               {/* Mobile / Username */}
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
+                <label
+                  htmlFor="username"
+                  className="mb-1.5 block text-xs font-bold text-[#2D221E]"
+                >
                   Mobile Number / Username
                 </label>
 
                 <div className="relative">
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
                   <input
+                    id="username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
+                    required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter 10 digit mobile or username"
@@ -279,7 +328,10 @@ function LoginContent() {
               {/* Password */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-[#2D221E]">
+                  <label
+                    htmlFor="password"
+                    className="block text-xs font-bold text-[#2D221E]"
+                  >
                     Password
                   </label>
                   <button
@@ -298,7 +350,11 @@ function LoginContent() {
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
                   <input
+                    id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
@@ -307,6 +363,7 @@ function LoginContent() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A7972] hover:text-[#4A121A]"
                   >
                     {showPassword ? (
@@ -322,7 +379,7 @@ function LoginContent() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Lock className="h-4 w-4 text-[#DFBA73]" />
                 <span>{loading ? "Signing in..." : "Sign In with Password"}</span>
@@ -350,10 +407,24 @@ function LoginContent() {
           {/* 2. ALTERNATIVE: MOBILE OTP LOGIN */}
           {/* ========================================================= */}
           {loginMode === "OTP" && (
-            <div className="space-y-4">
+            <form
+              method="post"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (otpSent) {
+                  handleVerifyOTP();
+                } else {
+                  handleSendOTP();
+                }
+              }}
+              className="space-y-4"
+            >
               {/* Mobile Input */}
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
+                <label
+                  htmlFor="login-mobile"
+                  className="mb-1.5 block text-xs font-bold text-[#2D221E]"
+                >
                   Registered Mobile Number
                 </label>
 
@@ -362,7 +433,10 @@ function LoginContent() {
                     +91
                   </span>
                   <input
+                    id="login-mobile"
+                    name="tel"
                     type="tel"
+                    autoComplete="tel"
                     inputMode="numeric"
                     value={mobile}
                     maxLength={10}
@@ -377,10 +451,9 @@ function LoginContent() {
               {/* Send OTP Button */}
               {!otpSent && (
                 <button
-                  type="button"
-                  onClick={handleSendOTP}
+                  type="submit"
                   disabled={loading}
-                  className="w-full rounded-xl bg-[#4A121A] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+                  className="w-full rounded-xl bg-[#4A121A] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#3A0C13] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Phone className="h-4 w-4 text-[#DFBA73]" />
                   <span>{loading ? "Sending OTP..." : "Send Login OTP"}</span>
@@ -391,14 +464,20 @@ function LoginContent() {
               {otpSent && (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#2D221E]">
+                    <label
+                      htmlFor="one-time-code"
+                      className="mb-1.5 block text-xs font-bold text-[#2D221E]"
+                    >
                       Enter 6-Digit OTP
                     </label>
 
                     <div className="relative">
                       <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
                       <input
+                        id="one-time-code"
+                        name="one-time-code"
                         type="text"
+                        autoComplete="one-time-code"
                         inputMode="numeric"
                         value={otp}
                         maxLength={6}
@@ -410,10 +489,9 @@ function LoginContent() {
                   </div>
 
                   <button
-                    type="button"
-                    onClick={handleVerifyOTP}
+                    type="submit"
                     disabled={loading}
-                    className="w-full rounded-xl bg-[#C5A059] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#B88E4C] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+                    className="w-full rounded-xl bg-[#C5A059] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#B88E4C] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <ShieldCheck className="h-4 w-4 text-white" />
                     <span>{loading ? "Verifying..." : "Verify OTP & Sign In"}</span>
@@ -466,7 +544,7 @@ function LoginContent() {
                   <span>← Back to Password Login</span>
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {/* Feedback Message */}

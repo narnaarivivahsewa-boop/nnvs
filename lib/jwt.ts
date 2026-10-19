@@ -8,6 +8,10 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secretStr.trim());
 }
 
+export const AUTH_COOKIE_NAME = "nnvs_token";
+export const ACTIVE_PROFILE_COOKIE_NAME = "activeProfileId";
+export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 90; // 90 days in seconds
+
 export async function generateToken(
   userId: string,
   mobile: string,
@@ -29,7 +33,7 @@ export async function generateToken(
       alg: "HS256",
     })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("90d")
     .sign(getSecretKey());
 }
 

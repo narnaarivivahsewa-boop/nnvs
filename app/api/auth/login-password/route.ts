@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { generateToken } from "@/lib/jwt";
+import { generateToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
 import { isPermanentAdmin } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
@@ -149,6 +149,8 @@ export async function POST(req: NextRequest) {
       message: requiresProfileSelection
         ? "Please select which profile to manage."
         : "Login successful.",
+      token,
+      maxAge: AUTH_COOKIE_MAX_AGE,
       userId: user.id,
       fullName: user.fullName,
       role: effectiveRole,
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     if (activeProfileId) {
@@ -172,7 +174,7 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: AUTH_COOKIE_MAX_AGE,
       });
     } else if (requiresProfileSelection) {
       response.cookies.set("activeProfileId", "", {

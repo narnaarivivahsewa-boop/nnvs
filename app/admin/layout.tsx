@@ -19,6 +19,7 @@ import {
   Store,
   HardDrive,
 } from "lucide-react";
+import { clearAuthSession } from "@/lib/auth/session-storage";
 
 const navItems = [
   {
@@ -85,8 +86,8 @@ export default function AdminLayout({
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/login");
-    } catch {
+    } finally {
+      await clearAuthSession();
       router.push("/login");
     }
   };

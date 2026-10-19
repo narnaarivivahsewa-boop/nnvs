@@ -81,13 +81,16 @@ export default function ChangePasswordPage() {
             <p className="text-xs text-gray-500">Redirecting to your dashboard...</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form method="post" onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
+              <label htmlFor="new-password" className="block text-xs font-bold text-gray-700 mb-1">
                 New Password
               </label>
               <input
+                id="new-password"
+                name="new-password"
                 type="password"
+                autoComplete="new-password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -97,11 +100,14 @@ export default function ChangePasswordPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
+              <label htmlFor="confirm-password" className="block text-xs font-bold text-gray-700 mb-1">
                 Confirm Password
               </label>
               <input
+                id="confirm-password"
+                name="confirm-password"
                 type="password"
+                autoComplete="new-password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

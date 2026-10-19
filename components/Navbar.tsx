@@ -14,6 +14,11 @@ import {
   User,
   ArrowRight,
 } from "lucide-react";
+import {
+  getAuthSession,
+  clearAuthSession,
+  saveAuthSession,
+} from "@/lib/auth/session-storage";
 
 interface ProfileItem {
   id: string;
@@ -66,10 +71,23 @@ export default function Navbar() {
 
   async function checkAuth() {
     try {
-      const res = await fetch("/api/auth/me", {
+      let res = await fetch("/api/auth/me", {
         cache: "no-store",
         credentials: "include",
       });
+
+      if (!res.ok) {
+        // Fallback: check if we have a token stored in native Preferences or localStorage
+        const { token } = await getAuthSession();
+        if (token) {
+          res = await fetch("/api/auth/me", {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        }
+      }
 
       if (res.ok) {
         const data = await res.json();
@@ -77,6 +95,13 @@ export default function Navbar() {
           setUser(data.user);
           setActiveProfile(data.user.activeProfile || data.user.profile || null);
           setProfiles(data.user.profiles || []);
+          if (data.token) {
+            await saveAuthSession(
+              data.token,
+              data.user.activeProfile?.id || null,
+              data.user
+            );
+          }
         } else {
           setUser(null);
           setActiveProfile(null);
@@ -131,6 +156,10 @@ export default function Navbar() {
         if (matched) setActiveProfile(matched);
         setProfileDropdownOpen(false);
 
+        if (data.token) {
+          await saveAuthSession(data.token, profileId, data.activeProfile);
+        }
+
         window.dispatchEvent(
           new CustomEvent("nnvs:profile-switched", { detail: { profileId } })
         );
@@ -151,6 +180,7 @@ export default function Navbar() {
         method: "POST",
       });
     } finally {
+      await clearAuthSession();
       setUser(null);
       setActiveProfile(null);
       setProfiles([]);
