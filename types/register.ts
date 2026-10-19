@@ -24,7 +24,14 @@ export interface RegisterFormData {
   city: string;
   postalCode?: string;
 
-  // Step 3
+  // Biodata & Horoscope Fields
+  birthPlace?: string;
+  birthTime?: string;
+  gotra?: string;
+  manglik?: string;
+  diet?: string;
+
+  // Step 3: Education & Occupation
   highestQualification?: string;
   college?: string;
   occupationField?: string;
@@ -32,25 +39,30 @@ export interface RegisterFormData {
   company?: string;
   annualIncome?: string;
 
-  // Step 4
+  // Step 4: Partner Preferences
   minAge?: string;
   maxAge?: string;
   minHeight?: string;
   maxHeight?: string;
   preferredReligion?: string;
   preferredCaste?: string;
+  dietPreference?: string;
 
-  // Step 5
+  // Step 5: Family
   fatherName?: string;
+  fatherOccupation?: string;
   motherName?: string;
+  motherOccupation?: string;
   brothers?: string;
   sisters?: string;
   familyType?: string;
   familyStatus?: string;
 
-  // About
+  // About & Notes
   about?: string;
 
   // Photos (Minimum 1, Maximum 3)
   photos?: string[];
 }
+
+export type ProfileEditFormData = Partial<RegisterFormData>;

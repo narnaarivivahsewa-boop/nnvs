@@ -40,9 +40,17 @@ export const EMPLOYMENT_TYPES = [
 ];
 
 export const MANGLIK_OPTIONS = [
-  "Yes",
   "No",
+  "Yes",
+  "Anshik / Partial",
   "Doesn't Matter",
+];
+
+export const DIET_OPTIONS = [
+  "Vegetarian",
+  "Non-Vegetarian",
+  "Eggetarian",
+  "Jain",
 ];
 
 export const CURRENCIES = [

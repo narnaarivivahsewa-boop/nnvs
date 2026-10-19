@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useRef } from "react";
-import { ImagePlus, Trash2, Star, Sparkles, AlertCircle } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { ImagePlus, Trash2, Star, Sparkles, AlertCircle, Loader2 } from "lucide-react";
+import { compressImage } from "@/lib/image-compressor";
 
 interface PhotosFormProps {
   photos: string[];
@@ -17,6 +18,7 @@ export default function PhotosForm({
   setUploading,
 }: PhotosFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [statusMessage, setStatusMessage] = useState<string>("");
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -24,27 +26,35 @@ export default function PhotosForm({
 
     if (photos.length + files.length > 3) {
       alert(`You can only upload up to 3 photos in total. Currently you have ${photos.length}.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     setUploading(true);
+    setStatusMessage("Processing photos...");
 
     try {
       const uploadedUrls: string[] = [];
 
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith("image/")) {
-          alert(`File "${file.name}" is not a valid image format.`);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        // Max raw upload limit 25MB before compression
+        if (file.size > 25 * 1024 * 1024) {
+          alert(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
           continue;
         }
 
-        if (file.size > 10 * 1024 * 1024) {
-          alert(`Image "${file.name}" is too large. Max size allowed is 10MB.`);
-          continue;
-        }
+        setStatusMessage(`Compressing photo ${i + 1} of ${files.length}...`);
+        const optimizedFile = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.82,
+        });
 
+        setStatusMessage(`Uploading photo ${i + 1} of ${files.length}...`);
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file", optimizedFile);
 
         const res = await fetch("/api/upload", {
           method: "POST",
@@ -54,11 +64,14 @@ export default function PhotosForm({
         const data = await res.json();
 
         if (!res.ok || !data.success) {
+          console.error("Upload failure:", data);
           alert(data.message || `Failed to upload "${file.name}".`);
           continue;
         }
 
-        uploadedUrls.push(data.url);
+        if (data.url) {
+          uploadedUrls.push(data.url);
+        }
       }
 
       if (uploadedUrls.length > 0) {
@@ -69,6 +82,7 @@ export default function PhotosForm({
       alert("Unable to upload image. Please check your network and try again.");
     } finally {
       setUploading(false);
+      setStatusMessage("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -113,7 +127,7 @@ export default function PhotosForm({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
           multiple
           onChange={handleFileChange}
           disabled={uploading || photos.length >= 3}
@@ -130,17 +144,21 @@ export default function PhotosForm({
           }`}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-red-800 shadow-sm mb-3">
-            <ImagePlus className="h-6 w-6" />
+            {uploading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-red-700" />
+            ) : (
+              <ImagePlus className="h-6 w-6" />
+            )}
           </div>
           <p className="text-base font-bold text-gray-800">
             {uploading
-              ? "Uploading image to secure storage..."
+              ? statusMessage || "Optimizing & uploading image..."
               : photos.length >= 3
               ? "Maximum 3 photos reached"
-              : "Click to upload photos"}
+              : "Click to upload photos (Camera or Gallery)"}
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Supports JPG, PNG, WEBP (Up to 10MB each &bull; Max 3 photos)
+            Supports JPG, PNG, WEBP, HEIC from iPhone & Android cameras &bull; Max 3 photos
           </p>
         </label>
       </div>

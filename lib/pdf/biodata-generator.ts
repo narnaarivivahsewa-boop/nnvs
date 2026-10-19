@@ -358,8 +358,13 @@ export async function generateBiodataPdfBuffer(
       drawField("Height", profile.height || "-", margin + 10, subY, leftColWidth, 85);
       subY += 15;
       drawField("Marital Status", profile.maritalStatus || "Never Married", margin + 10, subY, leftColWidth, 85);
-      subY += 15;
-      drawField("Religion / Caste", [profile.religion, profile.caste].filter(Boolean).join(" / ") || "-", margin + 10, subY, leftColWidth, 85);
+      const gotraMatch = profile.notes?.match(/Gotra:\s*([^;\n]+)/i);
+      const gotraText = gotraMatch ? gotraMatch[1].trim() : "";
+      const communityDisplay = [
+        profile.religion,
+        profile.caste ? (gotraText ? `${profile.caste} (${gotraText})` : profile.caste) : (gotraText ? `Gotra: ${gotraText}` : null),
+      ].filter(Boolean).join(" / ") || "-";
+      drawField("Religion / Caste", communityDisplay, margin + 10, subY, leftColWidth, 85);
       subY += 15;
       drawField("Mother Tongue", profile.motherTongue || "Hindi", margin + 10, subY, leftColWidth, 85);
 

@@ -79,6 +79,33 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Helpers for safe Prisma field casting & null handling
+function safeStr(val: any): string | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null || String(val).trim() === "") return null;
+  return String(val).trim();
+}
+
+function safeInt(val: any): number | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null || String(val).trim() === "") return null;
+  const parsed = parseInt(String(val), 10);
+  return isNaN(parsed) ? null : parsed;
+}
+
+function safeIntDefault(val: any, defaultVal: number): number {
+  if (val === undefined || val === null || String(val).trim() === "") return defaultVal;
+  const parsed = parseInt(String(val), 10);
+  return isNaN(parsed) ? defaultVal : parsed;
+}
+
+function safeDate(val: any): Date | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null || String(val).trim() === "") return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const token = req.cookies.get("nnvs_token")?.value;
@@ -107,28 +134,48 @@ export async function PUT(req: NextRequest) {
       caste,
       motherTongue,
 
+      // Biodata & Horoscope Fields
+      birthPlace,
+      birthTime,
+      gotra,
+      manglik,
+      diet,
+      about,
+      notes,
+
+      // Family Fields
       fatherName,
+      fatherOccupation,
       motherName,
+      motherOccupation,
       brothers,
       sisters,
       familyType,
       familyStatus,
 
+      // Education Fields
       highestQualification,
       college,
       occupationField,
 
+      // Occupation Fields
       profession,
       company,
       annualIncome,
 
+      // Partner Preference Fields
       minAge,
       maxAge,
       minHeight,
       maxHeight,
       preferredReligion,
       preferredCaste,
+      dietPreference,
 
+      // Location / Address
+      city,
+
+      // Photos
       photos,
     } = body;
 
@@ -157,8 +204,22 @@ export async function PUT(req: NextRequest) {
     }
 
     // Role-based Restrictions:
-    // Members CANNOT edit name or gender once submitted. Admin has full rights.
+    // Members CANNOT edit legal name or gender once submitted. Admin has full rights.
     const isMember = payload.role !== "ADMIN";
+
+    // Handle Gotra safely: Gotra is not an explicit column on Profile in Prisma,
+    // so store it structured in notes to prevent Prisma schema mismatch errors.
+    let finalNotes = safeStr(notes || about) ?? profile.notes ?? "";
+    if (gotra !== undefined) {
+      const cleanGotra = String(gotra || "").trim();
+      if (cleanGotra) {
+        if (/Gotra:\s*[^;\n]+/i.test(finalNotes)) {
+          finalNotes = finalNotes.replace(/Gotra:\s*[^;\n]+/i, `Gotra: ${cleanGotra}`);
+        } else {
+          finalNotes = finalNotes ? `${finalNotes}\nGotra: ${cleanGotra}` : `Gotra: ${cleanGotra}`;
+        }
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       // 1. Update User (Only Admin can modify legal full name and gender)
@@ -166,52 +227,84 @@ export async function PUT(req: NextRequest) {
         await tx.user.update({
           where: { id: profile.userId },
           data: {
-            ...(fullName ? { fullName } : {}),
-            ...(gender ? { gender: gender.toUpperCase() } : {}),
+            ...(fullName ? { fullName: String(fullName).trim() } : {}),
+            ...(gender ? { gender: String(gender).toUpperCase() as any } : {}),
           },
         });
       }
 
       // 2. Update Profile
+      const profileUpdateData: any = {
+        ...(!isMember && fullName
+          ? {
+              firstName: String(fullName).trim().split(" ")[0] || String(fullName).trim(),
+              lastName: String(fullName).trim().split(" ").slice(1).join(" ") || null,
+            }
+          : {}),
+      };
+
+      if (dateOfBirth !== undefined) {
+        profileUpdateData.dateOfBirth = safeDate(dateOfBirth);
+      }
+      if (height !== undefined) {
+        profileUpdateData.height = safeStr(height);
+      }
+      if (maritalStatus !== undefined) {
+        profileUpdateData.maritalStatus = safeStr(maritalStatus);
+      }
+      if (religion !== undefined) {
+        profileUpdateData.religion = safeStr(religion);
+      }
+      if (caste !== undefined) {
+        profileUpdateData.caste = safeStr(caste);
+      }
+      if (motherTongue !== undefined) {
+        profileUpdateData.motherTongue = safeStr(motherTongue);
+      }
+      if (birthPlace !== undefined || city !== undefined) {
+        profileUpdateData.birthPlace = safeStr(birthPlace || city);
+      }
+      if (birthTime !== undefined) {
+        profileUpdateData.birthTime = safeStr(birthTime);
+      }
+      if (manglik !== undefined) {
+        profileUpdateData.manglik = safeStr(manglik);
+      }
+      if (diet !== undefined) {
+        profileUpdateData.diet = safeStr(diet);
+      }
+      if (finalNotes !== undefined) {
+        profileUpdateData.notes = finalNotes || null;
+      }
+
       await tx.profile.update({
         where: { id: profile.id },
-        data: {
-          // If not member, allow updating firstName/lastName
-          ...(!isMember && fullName
-            ? {
-                firstName: fullName.split(" ")[0] || fullName,
-                lastName: fullName.split(" ").slice(1).join(" ") || null,
-              }
-            : {}),
-
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-          height: height && height !== "" ? String(height) : null,
-          maritalStatus,
-          religion,
-          caste,
-          motherTongue,
-        },
+        data: profileUpdateData,
       });
 
       // 3. Family
       await tx.family.upsert({
         where: { profileId: profile.id },
         update: {
-          fatherName,
-          motherName,
-          brothers: brothers && brothers !== "" ? parseInt(brothers) : 0,
-          sisters: sisters && sisters !== "" ? parseInt(sisters) : 0,
-          familyType,
-          familyStatus,
+          fatherName: safeStr(fatherName),
+          fatherOccupation: safeStr(fatherOccupation),
+          motherName: safeStr(motherName),
+          motherOccupation: safeStr(motherOccupation),
+          brothers: safeIntDefault(brothers, 0),
+          sisters: safeIntDefault(sisters, 0),
+          familyType: safeStr(familyType),
+          familyStatus: safeStr(familyStatus),
         },
         create: {
           profileId: profile.id,
-          fatherName,
-          motherName,
-          brothers: brothers && brothers !== "" ? parseInt(brothers) : 0,
-          sisters: sisters && sisters !== "" ? parseInt(sisters) : 0,
-          familyType,
-          familyStatus,
+          fatherName: safeStr(fatherName),
+          fatherOccupation: safeStr(fatherOccupation),
+          motherName: safeStr(motherName),
+          motherOccupation: safeStr(motherOccupation),
+          brothers: safeIntDefault(brothers, 0),
+          sisters: safeIntDefault(sisters, 0),
+          familyType: safeStr(familyType),
+          familyStatus: safeStr(familyStatus),
         },
       });
 
@@ -219,15 +312,15 @@ export async function PUT(req: NextRequest) {
       await tx.education.upsert({
         where: { profileId: profile.id },
         update: {
-          highestQualification,
-          college,
-          occupationField,
+          highestQualification: safeStr(highestQualification),
+          college: safeStr(college),
+          occupationField: safeStr(occupationField),
         },
         create: {
           profileId: profile.id,
-          highestQualification,
-          college,
-          occupationField,
+          highestQualification: safeStr(highestQualification),
+          college: safeStr(college),
+          occupationField: safeStr(occupationField),
         },
       });
 
@@ -235,15 +328,15 @@ export async function PUT(req: NextRequest) {
       await tx.occupation.upsert({
         where: { profileId: profile.id },
         update: {
-          profession,
-          company,
-          annualIncome: annualIncome && annualIncome !== "" ? String(annualIncome) : null,
+          profession: safeStr(profession),
+          company: safeStr(company),
+          annualIncome: safeStr(annualIncome),
         },
         create: {
           profileId: profile.id,
-          profession,
-          company,
-          annualIncome: annualIncome && annualIncome !== "" ? String(annualIncome) : null,
+          profession: safeStr(profession),
+          company: safeStr(company),
+          annualIncome: safeStr(annualIncome),
         },
       });
 
@@ -251,27 +344,27 @@ export async function PUT(req: NextRequest) {
       await tx.partnerPreference.upsert({
         where: { profileId: profile.id },
         update: {
-          minAge: minAge && minAge !== "" ? parseInt(minAge) : null,
-          maxAge: maxAge && maxAge !== "" ? parseInt(maxAge) : null,
-          minHeight: minHeight && minHeight !== "" ? String(minHeight) : null,
-          maxHeight: maxHeight && maxHeight !== "" ? String(maxHeight) : null,
-          preferredReligion,
-          preferredCaste,
+          minAge: safeInt(minAge),
+          maxAge: safeInt(maxAge),
+          minHeight: safeStr(minHeight),
+          maxHeight: safeStr(maxHeight),
+          preferredReligion: safeStr(preferredReligion),
+          preferredCaste: safeStr(preferredCaste),
+          dietPreference: safeStr(dietPreference),
         },
         create: {
           profileId: profile.id,
-          minAge: minAge && minAge !== "" ? parseInt(minAge) : null,
-          maxAge: maxAge && maxAge !== "" ? parseInt(maxAge) : null,
-          minHeight: minHeight && minHeight !== "" ? String(minHeight) : null,
-          maxHeight: maxHeight && maxHeight !== "" ? String(maxHeight) : null,
-          preferredReligion,
-          preferredCaste,
+          minAge: safeInt(minAge),
+          maxAge: safeInt(maxAge),
+          minHeight: safeStr(minHeight),
+          maxHeight: safeStr(maxHeight),
+          preferredReligion: safeStr(preferredReligion),
+          preferredCaste: safeStr(preferredCaste),
+          dietPreference: safeStr(dietPreference),
         },
       });
 
-      // ===========================
-      // Profile Photos Update
-      // ===========================
+      // 7. Profile Photos Update
       if (Array.isArray(photos)) {
         await tx.profilePhoto.deleteMany({
           where: {

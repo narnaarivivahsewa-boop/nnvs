@@ -70,6 +70,13 @@ export default function PartnerPreferenceForm({
           error={errors.preferredCaste}
         />
 
+        <InputField
+          label="Diet Preference"
+          placeholder="e.g. Vegetarian, Jain, Any"
+          registration={register("dietPreference")}
+          error={errors.dietPreference}
+        />
+
       </div>
 
     </div>

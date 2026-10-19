@@ -135,8 +135,18 @@ export async function PUT(
       oldNnvsId,
       legacyProfileId,
 
+      birthPlace,
+      birthTime,
+      gotra,
+      manglik,
+      diet,
+      about,
+      notes,
+
       fatherName,
+      fatherOccupation,
       motherName,
+      motherOccupation,
       brothers,
       sisters,
       familyType,
@@ -156,15 +166,42 @@ export async function PUT(
       maxHeight,
       preferredReligion,
       preferredCaste,
+      dietPreference,
     } = body;
+
+    const safeAdminStr = (val: any) => (val === undefined ? undefined : val === null || String(val).trim() === "" ? null : String(val).trim());
+    const safeAdminInt = (val: any, defaultVal: number | null = null) => {
+      if (val === undefined) return undefined;
+      if (val === null || String(val).trim() === "") return defaultVal;
+      const parsed = parseInt(String(val), 10);
+      return isNaN(parsed) ? defaultVal : parsed;
+    };
+    const safeAdminDate = (val: any) => {
+      if (val === undefined) return undefined;
+      if (val === null || String(val).trim() === "") return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    let finalAdminNotes = safeAdminStr(notes || about) ?? profile.notes ?? "";
+    if (gotra !== undefined) {
+      const cleanGotra = String(gotra || "").trim();
+      if (cleanGotra) {
+        if (/Gotra:\s*[^;\n]+/i.test(finalAdminNotes)) {
+          finalAdminNotes = finalAdminNotes.replace(/Gotra:\s*[^;\n]+/i, `Gotra: ${cleanGotra}`);
+        } else {
+          finalAdminNotes = finalAdminNotes ? `${finalAdminNotes}\nGotra: ${cleanGotra}` : `Gotra: ${cleanGotra}`;
+        }
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       // 1. Update User Record
       const userUpdates: any = {};
-      if (fullName !== undefined) userUpdates.fullName = fullName;
+      if (fullName !== undefined) userUpdates.fullName = safeAdminStr(fullName);
       if (gender !== undefined) userUpdates.gender = String(gender).toUpperCase();
-      if (mobile !== undefined) userUpdates.mobile = mobile;
-      if (email !== undefined) userUpdates.email = email;
+      if (mobile !== undefined) userUpdates.mobile = safeAdminStr(mobile);
+      if (email !== undefined) userUpdates.email = safeAdminStr(email);
       if (userStatus !== undefined) userUpdates.status = userStatus;
 
       if (Object.keys(userUpdates).length > 0) {
@@ -176,26 +213,32 @@ export async function PUT(
 
       // 2. Update Profile Record
       const profileUpdates: any = {};
-      if (firstName !== undefined) profileUpdates.firstName = firstName;
-      else if (fullName !== undefined) profileUpdates.firstName = fullName.split(" ")[0] || fullName;
+      if (firstName !== undefined) profileUpdates.firstName = safeAdminStr(firstName);
+      else if (fullName !== undefined) profileUpdates.firstName = String(fullName).trim().split(" ")[0] || String(fullName).trim();
 
-      if (lastName !== undefined) profileUpdates.lastName = lastName;
-      else if (fullName !== undefined) profileUpdates.lastName = fullName.split(" ").slice(1).join(" ") || null;
+      if (lastName !== undefined) profileUpdates.lastName = safeAdminStr(lastName);
+      else if (fullName !== undefined) profileUpdates.lastName = String(fullName).trim().split(" ").slice(1).join(" ") || null;
 
-      if (dateOfBirth !== undefined) profileUpdates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-      if (height !== undefined) profileUpdates.height = height ? String(height) : null;
-      if (maritalStatus !== undefined) profileUpdates.maritalStatus = maritalStatus;
-      if (religion !== undefined) profileUpdates.religion = religion;
-      if (caste !== undefined) profileUpdates.caste = caste;
-      if (motherTongue !== undefined) profileUpdates.motherTongue = motherTongue;
+      if (dateOfBirth !== undefined) profileUpdates.dateOfBirth = safeAdminDate(dateOfBirth);
+      if (height !== undefined) profileUpdates.height = safeAdminStr(height);
+      if (maritalStatus !== undefined) profileUpdates.maritalStatus = safeAdminStr(maritalStatus);
+      if (religion !== undefined) profileUpdates.religion = safeAdminStr(religion);
+      if (caste !== undefined) profileUpdates.caste = safeAdminStr(caste);
+      if (motherTongue !== undefined) profileUpdates.motherTongue = safeAdminStr(motherTongue);
+
+      if (birthPlace !== undefined) profileUpdates.birthPlace = safeAdminStr(birthPlace);
+      if (birthTime !== undefined) profileUpdates.birthTime = safeAdminStr(birthTime);
+      if (manglik !== undefined) profileUpdates.manglik = safeAdminStr(manglik);
+      if (diet !== undefined) profileUpdates.diet = safeAdminStr(diet);
+      if (notes !== undefined || about !== undefined || gotra !== undefined) profileUpdates.notes = finalAdminNotes || null;
 
       if (approvalStatus !== undefined) profileUpdates.approvalStatus = approvalStatus;
       if (isVisible !== undefined) profileUpdates.isVisible = Boolean(isVisible);
       if (paymentCompleted !== undefined) profileUpdates.paymentCompleted = Boolean(paymentCompleted);
       if (isPaymentExempted !== undefined) profileUpdates.isPaymentExempted = Boolean(isPaymentExempted);
-      if (paymentExemptionReason !== undefined) profileUpdates.paymentExemptionReason = paymentExemptionReason;
-      if (oldNnvsId !== undefined) profileUpdates.oldNnvsId = oldNnvsId;
-      if (legacyProfileId !== undefined) profileUpdates.legacyProfileId = legacyProfileId;
+      if (paymentExemptionReason !== undefined) profileUpdates.paymentExemptionReason = safeAdminStr(paymentExemptionReason);
+      if (oldNnvsId !== undefined) profileUpdates.oldNnvsId = safeAdminStr(oldNnvsId);
+      if (legacyProfileId !== undefined) profileUpdates.legacyProfileId = safeAdminStr(legacyProfileId);
 
       await tx.profile.update({
         where: { id: profile.id },
@@ -203,25 +246,29 @@ export async function PUT(
       });
 
       // 3. Update Family Details
-      if (fatherName !== undefined || motherName !== undefined || brothers !== undefined || sisters !== undefined) {
+      if (fatherName !== undefined || motherName !== undefined || brothers !== undefined || sisters !== undefined || fatherOccupation !== undefined || motherOccupation !== undefined || familyType !== undefined || familyStatus !== undefined) {
         await tx.family.upsert({
           where: { profileId: profile.id },
           update: {
-            ...(fatherName !== undefined ? { fatherName } : {}),
-            ...(motherName !== undefined ? { motherName } : {}),
-            ...(brothers !== undefined ? { brothers: brothers ? parseInt(brothers) : 0 } : {}),
-            ...(sisters !== undefined ? { sisters: sisters ? parseInt(sisters) : 0 } : {}),
-            ...(familyType !== undefined ? { familyType } : {}),
-            ...(familyStatus !== undefined ? { familyStatus } : {}),
+            ...(fatherName !== undefined ? { fatherName: safeAdminStr(fatherName) } : {}),
+            ...(fatherOccupation !== undefined ? { fatherOccupation: safeAdminStr(fatherOccupation) } : {}),
+            ...(motherName !== undefined ? { motherName: safeAdminStr(motherName) } : {}),
+            ...(motherOccupation !== undefined ? { motherOccupation: safeAdminStr(motherOccupation) } : {}),
+            ...(brothers !== undefined ? { brothers: safeAdminInt(brothers, 0) } : {}),
+            ...(sisters !== undefined ? { sisters: safeAdminInt(sisters, 0) } : {}),
+            ...(familyType !== undefined ? { familyType: safeAdminStr(familyType) } : {}),
+            ...(familyStatus !== undefined ? { familyStatus: safeAdminStr(familyStatus) } : {}),
           },
           create: {
             profileId: profile.id,
-            fatherName: fatherName || null,
-            motherName: motherName || null,
-            brothers: brothers ? parseInt(brothers) : 0,
-            sisters: sisters ? parseInt(sisters) : 0,
-            familyType: familyType || null,
-            familyStatus: familyStatus || null,
+            fatherName: safeAdminStr(fatherName) || null,
+            fatherOccupation: safeAdminStr(fatherOccupation) || null,
+            motherName: safeAdminStr(motherName) || null,
+            motherOccupation: safeAdminStr(motherOccupation) || null,
+            brothers: safeAdminInt(brothers, 0) ?? 0,
+            sisters: safeAdminInt(sisters, 0) ?? 0,
+            familyType: safeAdminStr(familyType) || null,
+            familyStatus: safeAdminStr(familyStatus) || null,
           },
         });
       }
@@ -231,15 +278,15 @@ export async function PUT(
         await tx.education.upsert({
           where: { profileId: profile.id },
           update: {
-            ...(highestQualification !== undefined ? { highestQualification } : {}),
-            ...(college !== undefined ? { college } : {}),
-            ...(occupationField !== undefined ? { occupationField } : {}),
+            ...(highestQualification !== undefined ? { highestQualification: safeAdminStr(highestQualification) } : {}),
+            ...(college !== undefined ? { college: safeAdminStr(college) } : {}),
+            ...(occupationField !== undefined ? { occupationField: safeAdminStr(occupationField) } : {}),
           },
           create: {
             profileId: profile.id,
-            highestQualification: highestQualification || null,
-            college: college || null,
-            occupationField: occupationField || null,
+            highestQualification: safeAdminStr(highestQualification) || null,
+            college: safeAdminStr(college) || null,
+            occupationField: safeAdminStr(occupationField) || null,
           },
         });
       }
@@ -249,39 +296,41 @@ export async function PUT(
         await tx.occupation.upsert({
           where: { profileId: profile.id },
           update: {
-            ...(profession !== undefined ? { profession } : {}),
-            ...(company !== undefined ? { company } : {}),
-            ...(annualIncome !== undefined ? { annualIncome: annualIncome ? String(annualIncome) : null } : {}),
+            ...(profession !== undefined ? { profession: safeAdminStr(profession) } : {}),
+            ...(company !== undefined ? { company: safeAdminStr(company) } : {}),
+            ...(annualIncome !== undefined ? { annualIncome: safeAdminStr(annualIncome) } : {}),
           },
           create: {
             profileId: profile.id,
-            profession: profession || null,
-            company: company || null,
-            annualIncome: annualIncome ? String(annualIncome) : null,
+            profession: safeAdminStr(profession) || null,
+            company: safeAdminStr(company) || null,
+            annualIncome: safeAdminStr(annualIncome) || null,
           },
         });
       }
 
       // 6. Update Partner Preference
-      if (minAge !== undefined || maxAge !== undefined || preferredCaste !== undefined || preferredReligion !== undefined) {
+      if (minAge !== undefined || maxAge !== undefined || preferredCaste !== undefined || preferredReligion !== undefined || minHeight !== undefined || maxHeight !== undefined || dietPreference !== undefined) {
         await tx.partnerPreference.upsert({
           where: { profileId: profile.id },
           update: {
-            ...(minAge !== undefined ? { minAge: minAge ? parseInt(minAge) : null } : {}),
-            ...(maxAge !== undefined ? { maxAge: maxAge ? parseInt(maxAge) : null } : {}),
-            ...(minHeight !== undefined ? { minHeight: minHeight ? String(minHeight) : null } : {}),
-            ...(maxHeight !== undefined ? { maxHeight: maxHeight ? String(maxHeight) : null } : {}),
-            ...(preferredReligion !== undefined ? { preferredReligion } : {}),
-            ...(preferredCaste !== undefined ? { preferredCaste } : {}),
+            ...(minAge !== undefined ? { minAge: safeAdminInt(minAge) } : {}),
+            ...(maxAge !== undefined ? { maxAge: safeAdminInt(maxAge) } : {}),
+            ...(minHeight !== undefined ? { minHeight: safeAdminStr(minHeight) } : {}),
+            ...(maxHeight !== undefined ? { maxHeight: safeAdminStr(maxHeight) } : {}),
+            ...(preferredReligion !== undefined ? { preferredReligion: safeAdminStr(preferredReligion) } : {}),
+            ...(preferredCaste !== undefined ? { preferredCaste: safeAdminStr(preferredCaste) } : {}),
+            ...(dietPreference !== undefined ? { dietPreference: safeAdminStr(dietPreference) } : {}),
           },
           create: {
             profileId: profile.id,
-            minAge: minAge ? parseInt(minAge) : null,
-            maxAge: maxAge ? parseInt(maxAge) : null,
-            minHeight: minHeight ? String(minHeight) : null,
-            maxHeight: maxHeight ? String(maxHeight) : null,
-            preferredReligion: preferredReligion || null,
-            preferredCaste: preferredCaste || null,
+            minAge: safeAdminInt(minAge) || null,
+            maxAge: safeAdminInt(maxAge) || null,
+            minHeight: safeAdminStr(minHeight) || null,
+            maxHeight: safeAdminStr(maxHeight) || null,
+            preferredReligion: safeAdminStr(preferredReligion) || null,
+            preferredCaste: safeAdminStr(preferredCaste) || null,
+            dietPreference: safeAdminStr(dietPreference) || null,
           },
         });
       }

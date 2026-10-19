@@ -87,21 +87,45 @@ function EditProfileContent() {
           setPhotos(profile.photos.map((p: any) => p.imageUrl));
         }
 
+        const rawGender = profile.user?.gender ? String(profile.user.gender).toUpperCase() : "";
+        const formattedGender = rawGender === "MALE" ? "Male" : rawGender === "FEMALE" ? "Female" : profile.user?.gender || "";
+
+        // Extract Gotra if previously stored in notes
+        const gotraMatch = profile.notes?.match(/Gotra:\s*([^;\n]+)/i);
+        const savedGotra = gotraMatch ? gotraMatch[1].trim() : "";
+
         reset({
           fullName: profile.user?.fullName || "",
-          gender: profile.user?.gender || "",
+          mobile: profile.user?.mobile || "",
+          email: profile.user?.email || "",
+          password: "",
+          confirmPassword: "",
+          profileType: formattedGender === "Female" ? "Female" : "Male",
+          lookingFor: formattedGender === "Female" ? "Groom" : "Bride",
+          gender: formattedGender,
           dateOfBirth: profile.dateOfBirth
             ? profile.dateOfBirth.substring(0, 10)
             : "",
+          birthTime: profile.birthTime || "",
+          birthPlace: profile.birthPlace || "",
+          gotra: savedGotra,
+          manglik: profile.manglik || "",
+          diet: profile.diet || "",
           height: profile.height ? String(profile.height) : "",
           maritalStatus: profile.maritalStatus || "",
           religion: profile.religion || "",
           caste: profile.caste || "",
           motherTongue: profile.motherTongue || "",
+          city: profile.birthPlace || "",
+          state: "",
+          country: "India",
+          postalCode: "",
           fatherName: profile.family?.fatherName || "",
+          fatherOccupation: profile.family?.fatherOccupation || "",
           motherName: profile.family?.motherName || "",
-          brothers: profile.family?.brothers ? String(profile.family.brothers) : "",
-          sisters: profile.family?.sisters ? String(profile.family.sisters) : "",
+          motherOccupation: profile.family?.motherOccupation || "",
+          brothers: profile.family?.brothers !== null && profile.family?.brothers !== undefined ? String(profile.family.brothers) : "",
+          sisters: profile.family?.sisters !== null && profile.family?.sisters !== undefined ? String(profile.family.sisters) : "",
           familyType: profile.family?.familyType || "",
           familyStatus: profile.family?.familyStatus || "",
           highestQualification: profile.education?.highestQualification || "",
@@ -124,6 +148,8 @@ function EditProfileContent() {
             : "",
           preferredReligion: profile.partnerPreference?.preferredReligion || "",
           preferredCaste: profile.partnerPreference?.preferredCaste || "",
+          dietPreference: profile.partnerPreference?.dietPreference || "",
+          about: profile.notes || "",
         });
       } catch (error) {
         console.error("Failed to load profile:", error);
@@ -151,6 +177,16 @@ function EditProfileContent() {
       console.error("Failed to switch profile to edit:", e);
     }
   }
+
+  const onFormError = (formErrors: any) => {
+    console.warn("Form validation errors:", formErrors);
+    const errorKeys = Object.keys(formErrors);
+    if (errorKeys.length > 0) {
+      const firstKey = errorKeys[0];
+      const err = formErrors[firstKey];
+      alert(`Please review form inputs: ${err?.message || `Please verify "${firstKey}"`}`);
+    }
+  };
 
   async function onSubmit(data: RegisterFormData) {
     try {
@@ -243,7 +279,7 @@ function EditProfileContent() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+        <form onSubmit={handleSubmit(onSubmit, onFormError)} className="space-y-10">
           <PhotosForm
             photos={photos}
             setPhotos={setPhotos}

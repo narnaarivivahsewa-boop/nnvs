@@ -46,6 +46,7 @@ type Profile = {
   diet?: string | null;
   manglik?: string | null;
   contactPerson?: string | null;
+  notes?: string | null;
 
   isContactUnlocked?: boolean;
 
@@ -593,7 +594,12 @@ export default function ProfileDetailsPage() {
                 </div>
                 <div>
                   <p className="text-gray-400">Community / Caste</p>
-                  <p className="font-semibold text-gray-800 mt-1">{profile.caste || "-"}</p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {profile.caste || "-"}
+                    {profile.notes?.match(/Gotra:\s*([^;\n]+)/i)?.[1]
+                      ? ` (Gotra: ${profile.notes.match(/Gotra:\s*([^;\n]+)/i)![1].trim()})`
+                      : ""}
+                  </p>
                 </div>
                 <div>
                   <p className="text-gray-400">Diet</p>

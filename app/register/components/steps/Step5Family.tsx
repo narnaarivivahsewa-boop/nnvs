@@ -14,6 +14,8 @@ import {
 
 import { RegisterFormData } from "@/types/register";
 
+import { compressImage } from "@/lib/image-compressor";
+
 type Props = {
   register: UseFormRegister<RegisterFormData>;
   errors: FieldErrors<RegisterFormData>;
@@ -41,7 +43,7 @@ export default function Step5Family({
   ) => {
     const files = e.target.files;
 
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
     if (photos.length + files.length > 3) {
       alert("Maximum 3 photos allowed.");
@@ -54,9 +56,19 @@ export default function Step5Family({
       const uploaded: string[] = [];
 
       for (const file of Array.from(files)) {
-        const formData = new FormData();
+        if (file.size > 25 * 1024 * 1024) {
+          alert(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
+          continue;
+        }
 
-        formData.append("file", file);
+        const optimizedFile = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.82,
+        });
+
+        const formData = new FormData();
+        formData.append("file", optimizedFile);
 
         const res = await fetch("/api/upload", {
           method: "POST",
@@ -65,18 +77,20 @@ export default function Step5Family({
 
         const data = await res.json();
 
-        if (!res.ok) {
-          alert(data.message);
+        if (!res.ok || !data.success) {
+          alert(data.message || `Failed to upload "${file.name}".`);
           continue;
         }
 
-        uploaded.push(data.url);
+        if (data.url) {
+          uploaded.push(data.url);
+        }
       }
 
       setPhotos((prev) => [...prev, ...uploaded]);
     } catch (error) {
       console.error(error);
-      alert("Image upload failed.");
+      alert("Image upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
