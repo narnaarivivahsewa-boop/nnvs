@@ -78,9 +78,10 @@ export async function GET(req: NextRequest) {
 
     const whereClause: any = {
       isVisible: true,
+      approvalStatus: "APPROVED",
       OR: [
         { paymentCompleted: true },
-        { approvalStatus: "APPROVED" },
+        { isPaymentExempted: true },
       ],
       userId: {
         not: currentUser.id, // Exclude own profile

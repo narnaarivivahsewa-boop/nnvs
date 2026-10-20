@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
   try {
@@ -86,10 +87,21 @@ export async function POST(req: NextRequest) {
               },
             });
 
+            // Rule 2: Official Profile ID is assigned only upon confirmed payment
+            let officialProfileId = matchedProfile.profileId;
+            if (matchedProfile.profileId.startsWith("DRAFT-") || matchedProfile.profileId === "DRAFT") {
+              let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+              while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
+                candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+              }
+              officialProfileId = candidateId;
+            }
+
             // Enforce Strict Gate: Do NOT set isVisible = true unless already approved
             await tx.profile.update({
               where: { id: matchedProfile.id },
               data: {
+                profileId: officialProfileId,
                 paymentCompleted: true,
                 approvalStatus:
                   matchedProfile.approvalStatus === "DRAFT"
@@ -129,7 +141,19 @@ export async function POST(req: NextRequest) {
             }
           });
 
+          // Automated PDF Generation for paid profile
+          autoGenerateAndSaveBiodataPdf(matchedProfile.id).catch((err) => {
+            console.error("[Auto PDF generation error in webhook]:", err);
+          });
+
           console.log(`✓ Webhook captured payment for Profile ${matchedProfile.profileId} (₹${grossAmount})`);
+        }
+      } else {
+        // If already existing payment, ensure PDF exists
+        if (profileId) {
+          autoGenerateAndSaveBiodataPdf(profileId).catch((err) => {
+            console.error("[Auto PDF generation error for existing webhook payment]:", err);
+          });
         }
       }
     }

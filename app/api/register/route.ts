@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: user.id,
 
-          profileId: `NNVS${Date.now()}`,
+          profileId: `DRAFT-${Date.now()}`,
 
           firstName: fullName,
 
@@ -199,6 +199,7 @@ export async function POST(req: NextRequest) {
           motherTongue,
 
           paymentCompleted: false,
+          approvalStatus: "DRAFT",
 
           isVisible: false,
 

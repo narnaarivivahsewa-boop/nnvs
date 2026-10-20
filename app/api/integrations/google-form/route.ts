@@ -7,6 +7,7 @@ import {
   extractDriveFileId,
   formatGoogleDrivePhotoUrl,
 } from "@/lib/integrations/google-sync-helpers";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 const INTEGRATION_KEY_HEADER = "x-integration-key";
 
@@ -162,6 +163,19 @@ function checkCandidateDuplicate(
   return true;
 }
 
+// Extract Gotra from row.gotra, notes, caste, or address
+function extractGotraFromRow(row: any): string | null {
+  if (row.gotra && String(row.gotra).trim()) {
+    return String(row.gotra).trim();
+  }
+  const textToScan = `${row.notes || ""} ${row.caste || ""} ${row.address || ""}`;
+  const match = textToScan.match(/gotra[:\s-]+([^\n,;]+)/i);
+  if (match) {
+    return match[1].trim();
+  }
+  return null;
+}
+
 // Upload base64 image data to Cloudinary
 async function uploadToCloudinary(base64Data: string, folder: string = "nnvs-matrimony/profile-photos"): Promise<string | null> {
   try {
@@ -239,7 +253,17 @@ export async function POST(req: NextRequest) {
 
       // Source Identifiers
       const sourceId = row.sourceId || `SHEET_ROW_${rowIndex}`;
-      const legacyProfileId = row.legacyProfileId ? String(row.legacyProfileId).trim() : null;
+      const legacyProfileId = (
+        row.legacyProfileId ||
+        row.oldId ||
+        row.oldNnvsId ||
+        row.legacyId ||
+        row["Old ID"] ||
+        row["Old NNVS ID"] ||
+        row["NNVS ID"] ||
+        row["Registration ID"] ||
+        ""
+      ).toString().trim() || null;
 
       // Multi-Phone Extraction from Column Z (Contact No) or fallback row text
       let rawMobile = row.mobile || row.contactNo || "";
@@ -284,59 +308,156 @@ export async function POST(req: NextRequest) {
       // Exact Field Extractions from Payload needed early for matching
       const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
 
-      // Check for Existing Records in Database by sourceId (the exact row)
-      let existingProfile = null;
+      // Check for Existing Records in Database by Old ID, Legacy ID, Profile ID, or Mobile Number
+      let existingProfile: any = null;
 
-      // 1. Match by sourceId or oldNnvsId or legacyProfileId
-      existingProfile = await prisma.profile.findFirst({
-        where: {
-          OR: [
-            { sourceId },
-            { oldNnvsId: sourceId },
-            { legacyProfileId: legacyProfileId || undefined },
-          ],
-        },
-        include: { user: true, family: true, education: true, occupation: true, partnerPreference: true },
-      });
+      // 1. Match by Old ID / legacyProfileId / oldNnvsId / profileId / sourceId
+      if (legacyProfileId) {
+        const cleanLegacy = String(legacyProfileId).trim();
+        const variations = [cleanLegacy, cleanLegacy.toUpperCase(), cleanLegacy.toLowerCase()];
 
-      // 2. Check for User Registered Mobile (Column Z) or via ProfilePhone
-      let existingUser = await prisma.user.findUnique({
-        where: { mobile },
-        include: { profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } } },
-      });
+        // Handle variations: NNVS-B-0504, NNVS-B-504, B-0504, B0504, B-504, etc.
+        const numMatch = cleanLegacy.match(/(?:NNVS[- ]*)?([BG])[- ]*0*(\d+)/i);
+        if (numMatch) {
+          const letter = numMatch[1].toUpperCase();
+          const num = parseInt(numMatch[2], 10);
+          const padded = String(num).padStart(4, "0");
+          variations.push(`NNVS-${letter}-${padded}`);
+          variations.push(`NNVS-${letter}-${num}`);
+          variations.push(`${letter}-${padded}`);
+          variations.push(`${letter}-${num}`);
+          variations.push(`${letter}${padded}`);
+          variations.push(`NNVS${letter}${padded}`);
+        }
 
-      if (!existingUser) {
-        const phoneMatch = await prisma.profilePhone.findFirst({
-          where: { phone: mobile },
-          include: {
-            profile: {
-              include: {
-                user: {
-                  include: {
-                    profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } },
+        existingProfile = await prisma.profile.findFirst({
+          where: {
+            OR: [
+              { legacyProfileId: { in: variations, mode: "insensitive" } },
+              { oldNnvsId: { in: variations, mode: "insensitive" } },
+              { profileId: { in: variations, mode: "insensitive" } },
+              ...(sourceId ? [{ sourceId }, { oldNnvsId: sourceId }] : []),
+            ],
+          },
+          include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+        });
+      } else if (sourceId) {
+        existingProfile = await prisma.profile.findFirst({
+          where: {
+            OR: [{ sourceId }, { oldNnvsId: sourceId }],
+          },
+          include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+        });
+      }
+
+      // 2. If not matched by Old ID, match by Mobile Number
+      if (!existingProfile && (mobile || allMobiles.length > 0)) {
+        const mobilesToCheck = Array.from(new Set([mobile, ...allMobiles].filter((m) => m && !m.startsWith("9900"))));
+
+        if (mobilesToCheck.length > 0) {
+          const matchedUsers = await prisma.user.findMany({
+            where: {
+              OR: mobilesToCheck.flatMap((m) => [
+                { mobile: m },
+                { mobile: { endsWith: m.slice(-10) } },
+              ]),
+            },
+            include: {
+              profiles: {
+                include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+              },
+            },
+          });
+
+          const matchedPhones = await prisma.profilePhone.findMany({
+            where: {
+              OR: mobilesToCheck.flatMap((m) => [
+                { phone: m },
+                { phone: { endsWith: m.slice(-10) } },
+              ]),
+            },
+            include: {
+              profile: {
+                include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+              },
+            },
+          });
+
+          const candidatePool: any[] = [];
+          for (const u of matchedUsers) {
+            if (u.profiles) {
+              for (const p of u.profiles) {
+                if (!candidatePool.some((cp) => cp.id === p.id)) candidatePool.push(p);
+              }
+            }
+          }
+          for (const ph of matchedPhones) {
+            if (ph.profile && !candidatePool.some((cp) => cp.id === ph.profile.id)) {
+              candidatePool.push(ph.profile);
+            }
+          }
+
+          if (candidatePool.length === 1) {
+            existingProfile = candidatePool[0];
+          } else if (candidatePool.length > 1) {
+            // Find best matching candidate by name or gender
+            const exactNameMatch = candidatePool.find((p) => checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p));
+            if (exactNameMatch) {
+              existingProfile = exactNameMatch;
+            } else {
+              const genderMatch = candidatePool.find((p) => {
+                const pGender = p.user?.gender || (p.legacyProfileId?.includes("-G-") ? "FEMALE" : "MALE");
+                return pGender === gender;
+              });
+              existingProfile = genderMatch || candidatePool[0];
+            }
+          }
+        }
+      }
+
+      // Check for User Registered Mobile
+      let existingUser = existingProfile?.user || null;
+      if (!existingUser && mobile) {
+        existingUser = await prisma.user.findUnique({
+          where: { mobile },
+          include: { profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } } },
+        });
+
+        if (!existingUser) {
+          const phoneMatch = await prisma.profilePhone.findFirst({
+            where: { phone: mobile },
+            include: {
+              profile: {
+                include: {
+                  user: {
+                    include: {
+                      profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } },
+                    },
                   },
                 },
               },
             },
-          },
-        });
-        if (phoneMatch?.profile?.user) {
-          existingUser = phoneMatch.profile.user as any;
+          });
+          if (phoneMatch?.profile?.user) {
+            existingUser = phoneMatch.profile.user as any;
+          }
         }
       }
 
-      // 3. Sibling / Multi-Profile & Genuine Duplicate Detection
-      // Check if any existing profile under this user/phone is genuinely the EXACT SAME CANDIDATE
+      // Sibling / Multi-Profile & Genuine Duplicate Detection
+      // If an existing candidate with matching name/details is found under this user/phone,
+      // treat this submission as an EDIT / UPDATE to that profile instead of creating a duplicate!
       let duplicateCandidateMatch: any = null;
-      if (existingUser && existingUser.profiles?.length > 0) {
-        duplicateCandidateMatch = existingUser.profiles.find((p) => {
-          if (existingProfile && p.id === existingProfile.id) return false;
+      if (!existingProfile && existingUser && existingUser.profiles?.length > 0) {
+        duplicateCandidateMatch = existingUser.profiles.find((p: any) => {
           return checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p);
         });
+        if (duplicateCandidateMatch) {
+          existingProfile = duplicateCandidateMatch;
+        }
       }
 
-      // Only flag as duplicate if genuinely matching name and gender/DOB under the same contact
-      const isDuplicateCandidate = Boolean(duplicateCandidateMatch);
+      const isDuplicateCandidate = !existingProfile && Boolean(duplicateCandidateMatch);
       const duplicateMatchedProfileId = duplicateCandidateMatch?.profileId || null;
       const duplicateNotes = isDuplicateCandidate
         ? `Duplicate candidate submission: matches profile ${duplicateCandidateMatch.profileId} (${duplicateCandidateMatch.firstName || ""} ${duplicateCandidateMatch.lastName || ""}) with same contact number ${mobile}.`
@@ -439,8 +560,24 @@ export async function POST(req: NextRequest) {
         const consentSocialMedia = String(row.consentSocialMedia || "").toLowerCase().includes("yes");
         const consentGeneral = !String(row.consentGeneral || "").toLowerCase().includes("no");
         const otherMatrimonyInfo = row.otherMatrimonyInfo || null;
-        const notes = row.notes || row.address || null;
         const paymentRemark = row.paymentRemark || null;
+
+        // Notes, Address & Gotra Handling
+        const rawNotes = (row.notes || row.address || existingProfile?.notes || "").trim();
+        let finalNotes = rawNotes;
+        const extractedGotra = extractGotraFromRow(row);
+        if (extractedGotra) {
+          if (!finalNotes) {
+            finalNotes = `Gotra: ${extractedGotra}`;
+          } else if (/Gotra:\s*[^;\n]+/i.test(finalNotes)) {
+            finalNotes = finalNotes.replace(/Gotra:\s*[^;\n]+/i, `Gotra: ${extractedGotra}`);
+          } else {
+            finalNotes = `${finalNotes}\nGotra: ${extractedGotra}`;
+          }
+        }
+
+        const caste = row.caste ? String(row.caste).trim() : existingProfile?.caste || null;
+        const religion = row.religion ? String(row.religion).trim() : existingProfile?.religion || null;
 
         // Family Details (Cols Q, R, S, T, U, V, W, X)
         const fatherName = row.fatherName || null;
@@ -455,9 +592,9 @@ export async function POST(req: NextRequest) {
         const propertyDetails = row.propertyDetails || null;
 
         // Qualification (Col K), Occupation (Col L), Income (Col M)
-        const highestQualification = row.qualification || null;
-        const profession = row.occupation || null;
-        const annualIncome = row.income ? String(row.income) : null;
+        const highestQualification = row.qualification || row.highestQualification || null;
+        const profession = row.occupation || row.profession || null;
+        const annualIncome = row.income ? String(row.income) : (row.annualIncome ? String(row.annualIncome) : null);
 
         // Partner Preferences (Col AA)
         const partnerPrefText = row.partnerPreferences || null;
@@ -499,7 +636,7 @@ export async function POST(req: NextRequest) {
           await prisma.user.update({
             where: { id: userId },
             data: {
-              fullName: existingUser?.fullName || fullName,
+              fullName: fullName || existingUser?.fullName,
               email: userEmail,
               mobileVerified: true,
               status: "ACTIVE",
@@ -508,8 +645,9 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Profile Creation / Update
+        // Rule 2: Official RishteClub Profile ID is assigned upon confirmed payment
         let websiteProfileId = existingProfile?.profileId;
-        if (!websiteProfileId) {
+        if (!websiteProfileId || websiteProfileId.startsWith("DRAFT-") || websiteProfileId === "DRAFT") {
           let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
           let idCheck = await prisma.profile.findUnique({ where: { profileId: candidateId } });
           while (idCheck) {
@@ -519,40 +657,43 @@ export async function POST(req: NextRequest) {
           websiteProfileId = candidateId;
         }
 
-        // All imported submissions require Admin Approval before going public
-        const isLegacyApproved = existingProfile && existingProfile.approvalStatus === "APPROVED" && existingProfile.isVisible;
+        // If profile was already approved in RishteClub, preserve its approved & visible status upon edit
+        const isAlreadyApproved = existingProfile ? existingProfile.approvalStatus === "APPROVED" : false;
+        const isAlreadyVisible = existingProfile ? Boolean(existingProfile.isVisible) : false;
 
         const profileData: any = {
-          firstName: fullName.split(" ")[0] || fullName,
-          lastName: fullName.split(" ").slice(1).join(" ") || null,
-          dateOfBirth,
-          height,
-          maritalStatus,
-          birthPlace,
-          birthTime,
-          diet,
-          manglik,
-          contactPerson,
+          firstName: (fullName.split(" ")[0] || fullName) || existingProfile?.firstName,
+          lastName: (fullName.split(" ").slice(1).join(" ") || null) || existingProfile?.lastName || null,
+          dateOfBirth: dateOfBirth || existingProfile?.dateOfBirth || null,
+          height: height || existingProfile?.height || null,
+          maritalStatus: maritalStatus || existingProfile?.maritalStatus || null,
+          birthPlace: birthPlace || existingProfile?.birthPlace || null,
+          birthTime: birthTime || existingProfile?.birthTime || null,
+          diet: diet || existingProfile?.diet || null,
+          manglik: manglik || existingProfile?.manglik || null,
+          contactPerson: contactPerson || existingProfile?.contactPerson || null,
           consentSocialMedia,
           consentGeneral,
-          otherMatrimonyInfo,
-          notes,
-          paymentRemark: isLegacyApproved
+          otherMatrimonyInfo: otherMatrimonyInfo || existingProfile?.otherMatrimonyInfo || null,
+          caste: caste || existingProfile?.caste || null,
+          religion: religion || existingProfile?.religion || null,
+          notes: finalNotes || existingProfile?.notes || null,
+          paymentRemark: isAlreadyApproved
             ? (paymentRemark || existingProfile?.paymentRemark || "Google Form Sync")
             : (paymentRemark || "Google Form New Submission - Pending Admin Approval & Verification"),
           source: "GOOGLE_FORM",
-          sourceId,
+          sourceId: sourceId || existingProfile?.sourceId || null,
           oldNnvsId: sourceId || legacyProfileId || existingProfile?.oldNnvsId || null,
           legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
-          isVisible: isLegacyApproved ? true : false,
+          isVisible: existingProfile ? isAlreadyVisible : false,
           paymentCompleted: true,
           isPaymentExempted: true,
           paymentExemptionReason: "Google Form Legacy / Imported Member",
-          approvalStatus: isLegacyApproved ? "APPROVED" : "PENDING_APPROVAL",
-          approvedAt: isLegacyApproved ? (existingProfile?.approvedAt || new Date()) : null,
-          isDuplicateFlagged: isDuplicateCandidate,
-          duplicateMatchedProfileId: isDuplicateCandidate ? duplicateMatchedProfileId : null,
-          duplicateNotes: isDuplicateCandidate ? duplicateNotes : null,
+          approvalStatus: existingProfile ? (isAlreadyApproved ? "APPROVED" : existingProfile.approvalStatus) : "PENDING_APPROVAL",
+          approvedAt: isAlreadyApproved ? (existingProfile?.approvedAt || new Date()) : null,
+          isDuplicateFlagged: existingProfile ? false : isDuplicateCandidate,
+          duplicateMatchedProfileId: existingProfile ? null : (isDuplicateCandidate ? duplicateMatchedProfileId : null),
+          duplicateNotes: existingProfile ? null : (isDuplicateCandidate ? duplicateNotes : null),
         };
 
         let profile;
@@ -561,6 +702,7 @@ export async function POST(req: NextRequest) {
             where: { id: existingProfile.id },
             data: {
               ...profileData,
+              profileId: websiteProfileId,
               userId: userId!,
             },
           });
@@ -719,7 +861,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 9. Payment Record for Google Form Imports (Only existing approved legacy profiles get auto payment-exempt record)
-        if (isLegacyApproved && userId) {
+        if (isAlreadyApproved && userId) {
           const existingPayment = await prisma.payment.findFirst({
             where: {
               OR: [
@@ -757,6 +899,13 @@ export async function POST(req: NextRequest) {
               },
             });
           }
+        }
+
+        // Automated PDF Generation for paid Google Form candidates
+        try {
+          await autoGenerateAndSaveBiodataPdf(profile.id);
+        } catch (err) {
+          console.error(`[Auto PDF generation on Google Form sync failed for ${profile.profileId}]:`, err);
         }
 
         if (existingProfile) {

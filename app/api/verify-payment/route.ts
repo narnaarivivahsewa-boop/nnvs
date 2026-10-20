@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyRazorpaySignature } from "@/lib/razorpay";
 import { prisma } from "@/lib/prisma";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
   try {
@@ -106,9 +107,20 @@ export async function POST(req: NextRequest) {
               // until an Admin officially approves it.
               const willBeVisible = profile.approvalStatus === "APPROVED";
 
+              // Rule 2: Official Profile ID is assigned only upon confirmed payment
+              let officialProfileId = profile.profileId;
+              if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+                let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+                while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
+                  candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+                }
+                officialProfileId = candidateId;
+              }
+
               await tx.profile.update({
                 where: { id: profile.id },
                 data: {
+                  profileId: officialProfileId,
                   paymentCompleted: true,
                   isVisible: willBeVisible,
                   approvalStatus:
@@ -148,8 +160,15 @@ export async function POST(req: NextRequest) {
               return payment;
             });
             paymentRecordId = result.id;
+            // Automated PDF Generation for paid profile
+            autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+              console.error("[Auto PDF generation error in verify-payment]:", err);
+            });
           } else {
             paymentRecordId = existingPayment.id;
+            autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+              console.error("[Auto PDF generation error for existing payment]:", err);
+            });
           }
         }
       } catch (dbError) {

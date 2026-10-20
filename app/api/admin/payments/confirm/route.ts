@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { calculateGstFromGross } from "@/lib/gst";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin(req);
@@ -106,11 +107,24 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        // Rule 2: Official Profile ID is assigned upon fee clearance / exemption
+        let officialProfileId = profile.profileId;
+        if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+          let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
+            candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          }
+          officialProfileId = candidateId;
+        }
+
         // 2. Make Profile Live & Approved
         await tx.profile.update({
           where: { id: profile.id },
           data: {
+            profileId: officialProfileId,
             paymentCompleted: true,
+            isPaymentExempted: true,
+            paymentExemptionReason: reasonText,
             isVisible: true,
             approvalStatus: "APPROVED",
             approvedAt: now,
@@ -125,7 +139,7 @@ export async function POST(req: NextRequest) {
             module: "PAYMENT",
             details: JSON.stringify({
               paymentId: payment.id,
-              profileId: profile.profileId,
+              profileId: officialProfileId,
               candidateName: profile.user?.fullName || "Candidate",
               grossAmount: 0,
               paymentGateway: "PAYMENT_EXEMPT",
@@ -138,6 +152,11 @@ export async function POST(req: NextRequest) {
         });
 
         return payment;
+      });
+
+      // Automated PDF Generation for paid/exempt profile
+      autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+        console.error("[Auto PDF generation error in admin payment exempt]:", err);
       });
 
       return NextResponse.json({
@@ -200,19 +219,35 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // 2. Make Profile Live
-      await tx.profile.update({
-        where: { id: profile.id },
-        data: {
-          paymentCompleted: true,
-          isVisible: true,
-          approvalStatus: "APPROVED",
-          approvedAt: now,
-        },
+        // Rule 2: Official Profile ID is assigned upon confirmed payment
+        let officialProfileId = profile.profileId;
+        if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+          let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
+            candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          }
+          officialProfileId = candidateId;
+        }
+
+        // 2. Make Profile Live
+        await tx.profile.update({
+          where: { id: profile.id },
+          data: {
+            profileId: officialProfileId,
+            paymentCompleted: true,
+            isVisible: true,
+            approvalStatus: "APPROVED",
+            approvedAt: now,
+          },
+        });
+
+        return payment;
       });
 
-      return payment;
-    });
+      // Automated PDF Generation for paid profile
+      autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+        console.error("[Auto PDF generation error in admin payment confirm]:", err);
+      });
 
     return NextResponse.json({
       success: true,

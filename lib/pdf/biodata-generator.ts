@@ -781,6 +781,14 @@ export async function autoGenerateAndSaveBiodataPdf(profileId: string): Promise<
       return { success: false, error: "Profile not found" };
     }
 
+    // Strict Payment Gate: Biodata PDF MUST ONLY be generated for profiles with confirmed payment
+    if (!profile.paymentCompleted && !profile.isPaymentExempted) {
+      return {
+        success: false,
+        error: `Biodata PDF generation blocked: Profile ${profile.profileId} is unpaid (paymentCompleted: false).`,
+      };
+    }
+
     const pdfBuffer = await generateBiodataPdfBuffer(profile as any);
     const result = await saveBiodataPdfLocally(profile as any, pdfBuffer);
     return result;

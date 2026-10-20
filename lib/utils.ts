@@ -1,7 +1,14 @@
-    export function generateProfileId(): string {
+export function generateProfileId(): string {
   const random = Math.floor(100000 + Math.random() * 900000);
-
   return `NNVS${random}`;
+}
+
+export function generateDraftProfileId(): string {
+  return `DRAFT-${Date.now()}`;
+}
+
+export function generateOfficialProfileId(): string {
+  return `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 export function calculateAge(dateOfBirth: string): number {

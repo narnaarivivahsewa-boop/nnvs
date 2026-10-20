@@ -13,6 +13,7 @@ export async function GET(
 
     // Check optional authentication token
     let isAuthenticated = false;
+    let userPayload: any = null;
     const token = req.cookies.get("nnvs_token")?.value;
 
     if (token) {
@@ -20,15 +21,16 @@ export async function GET(
         const payload = await verifyToken(token);
         if (payload?.userId) {
           isAuthenticated = true;
+          userPayload = payload;
         }
       } catch {
         isAuthenticated = false;
       }
     }
 
-    const profile = await prisma.profile.findUnique({
+    const profile = await prisma.profile.findFirst({
       where: {
-        profileId,
+        OR: [{ profileId }, { id: profileId }, { legacyProfileId: profileId }],
       },
       include: {
         user: {
@@ -58,6 +60,23 @@ export async function GET(
         {
           success: false,
           message: "Profile not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    // Strict Gate: Only Paid & Approved profiles are publicly accessible.
+    // Unpaid or draft profiles can only be viewed by their owner or an Admin.
+    const isOwner = userPayload?.userId === profile.userId;
+    const isAdmin = userPayload?.role === "ADMIN";
+    const isPaid = profile.paymentCompleted || profile.isPaymentExempted;
+    const isPubliclyViewable = profile.isVisible && profile.approvalStatus === "APPROVED" && isPaid;
+
+    if (!isPubliclyViewable && !isOwner && !isAdmin) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "This profile is currently in draft status or pending verification.",
         },
         { status: 404 }
       );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
+import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,12 +82,23 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Rule 2: Official Profile ID is assigned only upon confirmed payment
+      let officialProfileId = profile.profileId;
+      if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+        let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+        while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
+          candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+        }
+        officialProfileId = candidateId;
+      }
+
       // Update Profile
       await tx.profile.update({
         where: { id: profile.id },
         data: {
+          profileId: officialProfileId,
           paymentCompleted: true,
-          isVisible: true,
+          isVisible: profile.approvalStatus === "APPROVED",
           approvalStatus: profile.approvalStatus === "DRAFT" ? "UNDER_REVIEW" : profile.approvalStatus,
         },
       });
@@ -104,6 +116,11 @@ export async function POST(req: NextRequest) {
       }
 
       return payment;
+    });
+
+    // Automated PDF Generation for paid profile
+    autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+      console.error("[Auto PDF generation error in complete payment]:", err);
     });
 
     return NextResponse.json({

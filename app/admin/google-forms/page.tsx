@@ -11,6 +11,10 @@ import {
   ShieldCheck,
   RefreshCw,
   X,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Download,
 } from "lucide-react";
 
 export default function GoogleFormsMonitorPage() {
@@ -18,6 +22,26 @@ export default function GoogleFormsMonitorPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [generatingPdfs, setGeneratingPdfs] = useState(false);
+  const [pdfResult, setPdfResult] = useState<any | null>(null);
+
+  const handleGeneratePdfs = async () => {
+    try {
+      setGeneratingPdfs(true);
+      const res = await fetch("/api/admin/google-forms/generate-pdfs", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setPdfResult(data);
+    } catch (err: any) {
+      setPdfResult({
+        success: false,
+        message: err?.message || "Failed to trigger batch PDF generation.",
+      });
+    } finally {
+      setGeneratingPdfs(false);
+    }
+  };
 
   const loadProfiles = useCallback(async (query: string = "") => {
     try {
@@ -76,18 +100,73 @@ export default function GoogleFormsMonitorPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setRefreshing(true);
-            loadProfiles(search);
-          }}
-          disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition active:scale-95 self-start sm:self-auto"
-        >
-          <RefreshCw className={`h-4 w-4 text-[#7A5835] ${refreshing ? "animate-spin" : ""}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleGeneratePdfs}
+            disabled={generatingPdfs}
+            className="inline-flex items-center justify-center gap-2 bg-[#7A5835] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#634628] shadow-sm transition active:scale-95 disabled:opacity-50"
+          >
+            <FileText className={`h-4 w-4 ${generatingPdfs ? "animate-spin" : ""}`} />
+            <span>{generatingPdfs ? "Scanning & Generating..." : "Generate Missing Paid PDFs"}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setRefreshing(true);
+              loadProfiles(search);
+            }}
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition active:scale-95"
+          >
+            <RefreshCw className={`h-4 w-4 text-[#7A5835] ${refreshing ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
+
+      {/* Batch PDF Generation Result Modal / Card */}
+      {pdfResult && (
+        <div className={`p-4 rounded-2xl border shadow-sm ${pdfResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              {pdfResult.success ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              )}
+              <div>
+                <h4 className={`text-sm font-bold ${pdfResult.success ? "text-emerald-900" : "text-red-900"}`}>
+                  {pdfResult.success ? "Batch PDF Generation Complete" : "Batch PDF Generation Failed"}
+                </h4>
+                <div className="mt-1 text-xs text-gray-700 space-y-1">
+                  {pdfResult.success ? (
+                    <>
+                      <p>
+                        Total Paid Profiles: <strong>{pdfResult.total}</strong> • Already on Disk: <strong>{pdfResult.alreadyPresentCount}</strong> • Newly Generated: <strong>{pdfResult.newlyGeneratedCount}</strong> • Failed: <strong>{pdfResult.failedCount}</strong>
+                      </p>
+                      {pdfResult.generatedList && pdfResult.generatedList.length > 0 && (
+                        <div className="mt-2 bg-white/70 p-2 rounded-lg border border-emerald-200 font-mono text-[11px] max-h-32 overflow-y-auto">
+                          {pdfResult.generatedList.map((item: string, idx: number) => (
+                            <div key={idx}>✓ {item}</div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p>{pdfResult.message || "An error occurred while generating missing PDFs."}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setPdfResult(null)}
+              className="text-gray-400 hover:text-gray-600 p-1"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sync Safety Notice */}
       <div className="bg-[#FAF8F5] border border-[#EBE3D5] rounded-2xl p-4 flex items-start gap-3 text-xs text-gray-700 shadow-sm">

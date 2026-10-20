@@ -306,7 +306,7 @@ function DashboardContent() {
               <div className="flex flex-wrap gap-2 pt-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Status: {profile?.approvalStatus || "ACTIVE"}</span>
+                  <span>Status: {profile?.approvalStatus || "DRAFT"}</span>
                 </span>
 
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3.5 py-1 text-xs font-bold text-blue-800 border border-blue-200">
@@ -314,12 +314,30 @@ function DashboardContent() {
                   <span>Visibility: {profile?.isVisible ? "Public / Live" : "Private / Pending Review"}</span>
                 </span>
 
-                {(profile?.paymentCompleted || profile?.isPaymentExempted) && (
+                {profile?.paymentCompleted || profile?.isPaymentExempted ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-3.5 py-1 text-xs font-bold text-purple-800 border border-purple-200">
                     <span>✓ Membership Paid</span>
                   </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-bold text-amber-900 border border-amber-300">
+                    <span>⏳ DRAFT (Unpaid)</span>
+                  </span>
                 )}
               </div>
+
+              {!(profile?.paymentCompleted || profile?.isPaymentExempted) && (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold">⚠️ Unpaid Draft:</span> Official RishteClub Profile ID and Biodata PDF are assigned upon confirmed payment.
+                  </div>
+                  <Link
+                    href={`/payment?profileId=${encodeURIComponent(profile?.profileId || "")}`}
+                    className="bg-[#4A121A] text-white px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-[#681925] shrink-0"
+                  >
+                    Pay & Activate
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Completion Gauge / Progress Column */}
@@ -352,14 +370,23 @@ function DashboardContent() {
                   <span>Edit Profile</span>
                 </Link>
 
-                {profile?.profileId && (
-                  <a
-                    href={`/api/profiles/${encodeURIComponent(profile.profileId)}/pdf`}
-                    download
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+                {profile?.paymentCompleted || profile?.isPaymentExempted ? (
+                  profile?.profileId && (
+                    <a
+                      href={`/api/profiles/${encodeURIComponent(profile.profileId)}/pdf`}
+                      download
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+                    >
+                      <span>Download PDF</span>
+                    </a>
+                  )
+                ) : (
+                  <Link
+                    href={`/payment?profileId=${encodeURIComponent(profile?.profileId || "")}`}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-amber-700 transition"
                   >
-                    <span>Download PDF</span>
-                  </a>
+                    <span>Unlock PDF</span>
+                  </Link>
                 )}
               </div>
             </div>

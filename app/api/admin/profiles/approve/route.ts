@@ -38,10 +38,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Rule 2: Official Profile ID is assigned only upon confirmed payment or admin approval/clearance
+    let officialProfileId = profile.profileId;
+    if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+      let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      while (await prisma.profile.findUnique({ where: { profileId: candidateId } })) {
+        candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+      officialProfileId = candidateId;
+    }
+
+    const isPaidOrExempt = profile.paymentCompleted || profile.isPaymentExempted;
+
     const updated = await prisma.profile.update({
       where: { id: profile.id },
       data: {
+        profileId: officialProfileId,
         approvalStatus: "APPROVED",
+        paymentCompleted: true,
+        isPaymentExempted: isPaidOrExempt ? profile.isPaymentExempted : true,
+        paymentExemptionReason: profile.paymentExemptionReason || (isPaidOrExempt ? undefined : "Admin Manual Approval Fee Clearance"),
         isVisible: true,
         approvedAt: new Date(),
       },

@@ -56,6 +56,18 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    // Strict Payment Gate: Biodata PDF MUST ONLY be generated for profiles with confirmed payment
+    if (!profile.paymentCompleted && !profile.isPaymentExempted) {
+      return NextResponse.json(
+        {
+          error: "Biodata PDF is only available for profiles with confirmed payment.",
+          profileId: profile.profileId,
+          paymentCompleted: false,
+        },
+        { status: 403 }
+      );
+    }
+
     // Check query params
     const { searchParams } = new URL(req.url);
     const isInline = searchParams.get("view") === "inline";
