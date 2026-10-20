@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Users, User, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Users, User, ArrowLeft, CheckCircle2, Key } from "lucide-react";
 
 import { RegisterFormData } from "@/types/register";
 
@@ -268,24 +268,35 @@ function EditProfileContent() {
             )}
           </div>
 
-          {/* If user owns multiple profiles, allow switching which one to edit */}
-          {allProfiles.length > 1 && (
-            <div className="flex items-center gap-2 rounded-2xl bg-[#FAF5EB] border-2 border-[#4A121A] px-3.5 py-2 shadow-sm">
-              <Users className="h-4 w-4 text-[#C5A059]" />
-              <span className="text-xs font-bold text-gray-700 whitespace-nowrap">Edit Profile:</span>
-              <select
-                value={activeProfile?.id || activeProfile?.profileId || ""}
-                onChange={(e) => handleSwitchProfileToEdit(e.target.value)}
-                className="bg-transparent text-xs font-bold text-[#4A121A] focus:outline-none cursor-pointer"
-              >
-                {allProfiles.map((p, idx) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName ? `${p.firstName} (${p.profileId})` : `Profile #${idx + 1} (${p.profileId})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* If user owns multiple profiles, allow switching which one to edit */}
+            {allProfiles.length > 1 && (
+              <div className="flex items-center gap-2 rounded-2xl bg-[#FAF5EB] border-2 border-[#4A121A] px-3.5 py-2 shadow-sm">
+                <Users className="h-4 w-4 text-[#C5A059]" />
+                <span className="text-xs font-bold text-gray-700 whitespace-nowrap">Edit Profile:</span>
+                <select
+                  value={activeProfile?.id || activeProfile?.profileId || ""}
+                  onChange={(e) => handleSwitchProfileToEdit(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-[#4A121A] focus:outline-none cursor-pointer"
+                >
+                  {allProfiles.map((p, idx) => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName ? `${p.firstName} (${p.profileId})` : `Profile #${idx + 1} (${p.profileId})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <Link
+              href="/profile/change-password"
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#DACBB4] bg-[#FAF5EB] px-4 py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#F2E8D7] transition shadow-xs"
+              title="Change your account password"
+            >
+              <Key className="h-4 w-4 text-[#C5A059]" />
+              <span>Change Password</span>
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit, onFormError)} className="space-y-10">

@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
-import { formatBirthTime } from "../utils";
+import { formatBirthTime, formatDOB } from "../utils";
 
 export interface BiodataProfileInput {
   id: string;
@@ -69,31 +69,43 @@ export interface BiodataProfileInput {
   }[];
 }
 
-// Helper to calculate age
+// Helper to calculate age in Asia/Kolkata timezone
 function calculateAge(dob?: Date | string | null): number | null {
   if (!dob) return null;
   const birthDate = new Date(dob);
   if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+
+  const bParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(birthDate);
+
+  const bDay = parseInt(bParts.find((p) => p.type === "day")?.value || "0", 10);
+  const bMonth = parseInt(bParts.find((p) => p.type === "month")?.value || "0", 10);
+  const bYear = parseInt(bParts.find((p) => p.type === "year")?.value || "0", 10);
+
+  const todayParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(new Date());
+
+  const tDay = parseInt(todayParts.find((p) => p.type === "day")?.value || "0", 10);
+  const tMonth = parseInt(todayParts.find((p) => p.type === "month")?.value || "0", 10);
+  const tYear = parseInt(todayParts.find((p) => p.type === "year")?.value || "0", 10);
+
+  let age = tYear - bYear;
+  if (tMonth < bMonth || (tMonth === bMonth && tDay < bDay)) {
     age--;
   }
   return age >= 0 ? age : null;
 }
 
-// Format Date of Birth
-function formatDOB(dob?: Date | string | null): string {
-  if (!dob) return "-";
-  const d = new Date(dob);
-  if (isNaN(d.getTime())) return String(dob);
-  const day = String(d.getDate()).padStart(2, "0");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const month = months[d.getMonth()];
-  const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
-}
+// Re-export formatDOB and formatBirthTime from utils
+export { formatDOB, formatBirthTime };
 
 // Fetch image buffer safely with timeout
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {

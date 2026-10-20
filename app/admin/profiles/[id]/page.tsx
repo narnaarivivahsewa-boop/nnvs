@@ -27,7 +27,7 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
-import { formatBirthTime } from "@/lib/utils";
+import { formatBirthTime, formatDOB } from "@/lib/utils";
 import CandidateMatcher from "./components/CandidateMatcher";
 
 export default function AdminProfileViewPage({
@@ -645,7 +645,7 @@ export default function AdminProfileViewPage({
                 <span className="text-gray-500 block">Date of Birth</span>
                 <strong className="text-gray-900 text-sm font-semibold">
                   {profile.dateOfBirth
-                    ? new Date(profile.dateOfBirth).toLocaleDateString("en-IN")
+                    ? formatDOB(profile.dateOfBirth)
                     : "Not specified"}
                 </strong>
               </div>

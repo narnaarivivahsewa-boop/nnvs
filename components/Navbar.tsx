@@ -13,6 +13,7 @@ import {
   Check,
   User,
   ArrowRight,
+  Key,
 } from "lucide-react";
 import {
   getAuthSession,
@@ -355,7 +356,15 @@ export default function Navbar() {
                           })}
                         </div>
 
-                        <div className="mt-2 pt-2 border-t border-[#F0E6D6]">
+                        <div className="mt-2 pt-2 border-t border-[#F0E6D6] flex flex-col gap-1">
+                          <Link
+                            href="/profile/change-password"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center justify-center gap-1.5 w-full py-1.5 text-[11px] font-bold text-[#4A121A] hover:underline"
+                          >
+                            <Key className="h-3 w-3 text-[#C5A059]" />
+                            <span>Change Password</span>
+                          </Link>
                           <Link
                             href="/select-profile"
                             onClick={() => setProfileDropdownOpen(false)}
@@ -369,6 +378,15 @@ export default function Navbar() {
                     )}
                   </div>
                 )}
+
+                <Link
+                  href="/profile/change-password"
+                  className="flex items-center gap-1.5 rounded-xl border border-[#DACBB4] bg-white px-3.5 py-2 text-sm font-semibold text-[#4A121A] transition hover:bg-[#FAF0DC] hover:border-[#C5A059]"
+                  title="Change your account password"
+                >
+                  <Key className="h-4 w-4 text-[#C5A059]" />
+                  <span>Change Password</span>
+                </Link>
 
                 <Link
                   href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
@@ -486,6 +504,15 @@ export default function Navbar() {
 
               {!checkingAuth && user && (
                 <>
+                  <Link
+                    href="/profile/change-password"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#DACBB4] bg-white py-2.5 text-base font-semibold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                  >
+                    <Key className="h-4 w-4 text-[#C5A059]" />
+                    <span>Change Password</span>
+                  </Link>
+
                   <Link
                     href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
                     onClick={() => setMobileMenuOpen(false)}

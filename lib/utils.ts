@@ -35,7 +35,60 @@ export function formatDate(date: string): string {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   }).format(new Date(date));
+}
+
+export function formatDOB(dob?: Date | string | null): string {
+  if (!dob) return "-";
+
+  // Handle pure date strings without timezone shifts
+  if (typeof dob === "string") {
+    const trimmed = dob.trim();
+    if (
+      !trimmed ||
+      trimmed === "-" ||
+      trimmed.toLowerCase() === "null" ||
+      trimmed.toLowerCase() === "undefined"
+    ) {
+      return "-";
+    }
+
+    // Match DD/MM/YYYY or DD-MM-YYYY
+    const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (dmy) {
+      const day = parseInt(dmy[1], 10);
+      const monthIdx = parseInt(dmy[2], 10) - 1;
+      const year = dmy[3];
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      if (monthIdx >= 0 && monthIdx <= 11) {
+        return `${day} ${months[monthIdx]} ${year}`;
+      }
+    }
+
+    // Match pure YYYY-MM-DD
+    const ymd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) {
+      const year = ymd[1];
+      const monthIdx = parseInt(ymd[2], 10) - 1;
+      const day = parseInt(ymd[3], 10);
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      if (monthIdx >= 0 && monthIdx <= 11) {
+        return `${day} ${months[monthIdx]} ${year}`;
+      }
+    }
+  }
+
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return String(dob);
+
+  // Format in Asia/Kolkata timezone (IST UTC+5:30) to prevent off-by-one day bugs
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
 }
 
 export function capitalize(value: string): string {

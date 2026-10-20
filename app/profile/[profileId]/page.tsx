@@ -24,9 +24,11 @@ import {
   HelpCircle,
   Send,
   FileDown,
+  Key,
+  Edit3,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
-import { formatBirthTime } from "@/lib/utils";
+import { formatBirthTime, formatDOB } from "@/lib/utils";
 
 type Profile = {
   id: string;
@@ -104,10 +106,32 @@ type Profile = {
 function calculateAge(dob?: string): number | null {
   if (!dob) return null;
   const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const month = today.getMonth() - birth.getMonth();
-  if (month < 0 || (month === 0 && today.getDate() < birth.getDate())) {
+  if (isNaN(birth.getTime())) return null;
+
+  const bParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(birth);
+
+  const bDay = parseInt(bParts.find((p) => p.type === "day")?.value || "0", 10);
+  const bMonth = parseInt(bParts.find((p) => p.type === "month")?.value || "0", 10);
+  const bYear = parseInt(bParts.find((p) => p.type === "year")?.value || "0", 10);
+
+  const todayParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(new Date());
+
+  const tDay = parseInt(todayParts.find((p) => p.type === "day")?.value || "0", 10);
+  const tMonth = parseInt(todayParts.find((p) => p.type === "month")?.value || "0", 10);
+  const tYear = parseInt(todayParts.find((p) => p.type === "year")?.value || "0", 10);
+
+  let age = tYear - bYear;
+  if (tMonth < bMonth || (tMonth === bMonth && tDay < bDay)) {
     age--;
   }
   return isNaN(age) || age <= 0 ? null : age;
@@ -313,7 +337,25 @@ export default function ProfileDetailsPage() {
             <span>Back</span>
           </button>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/profile/change-password"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#4A121A] shadow-sm border border-[#DACBB4] hover:bg-[#FAF0DC] transition"
+              title="Change your account password"
+            >
+              <Key className="h-4 w-4 text-[#C5A059]" />
+              <span>Change Password</span>
+            </Link>
+
+            <Link
+              href={`/profile/edit?profileId=${profile.profileId}`}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition"
+              title="Edit Profile Biodata"
+            >
+              <Edit3 className="h-4 w-4 text-[#4A121A]" />
+              <span>Edit Profile</span>
+            </Link>
+
             <a
               href={`/api/profiles/${profile.id}/pdf`}
               download
@@ -571,13 +613,7 @@ export default function ProfileDetailsPage() {
                 <div>
                   <p className="text-gray-400">Date of Birth</p>
                   <p className="font-semibold text-gray-800 mt-1">
-                    {profile.dateOfBirth
-                      ? new Date(profile.dateOfBirth).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "-"}
+                    {formatDOB(profile.dateOfBirth)}
                   </p>
                 </div>
                 <div>

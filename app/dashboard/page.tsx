@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Users,
   Bot,
+  Key,
 } from "lucide-react";
 import AIMatchmakerModal from "@/components/AIMatchmakerModal";
 import { clearAuthSession, saveAuthSession } from "@/lib/auth/session-storage";
@@ -257,6 +258,15 @@ function DashboardContent() {
               </div>
             )}
 
+            <Link
+              href="/profile/change-password"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#DACBB4] bg-white px-4 py-2.5 text-sm font-bold text-[#4A121A] shadow-sm transition hover:bg-[#FAF0DC] hover:border-[#C5A059]"
+              title="Change your account password"
+            >
+              <Key className="h-4 w-4 text-[#C5A059]" />
+              <span>Change Password</span>
+            </Link>
+
             <button
               type="button"
               onClick={logout}
@@ -357,7 +367,7 @@ function DashboardContent() {
         </div>
 
         {/* Quick Actions Grid */}
-        <div className="grid md:grid-cols-4 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {/* AI Matchmaking Preferences Trigger Card */}
           <div
             onClick={() => setShowAiModal(true)}
@@ -423,6 +433,23 @@ function DashboardContent() {
             </p>
             <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-900 group-hover:gap-2 transition-all">
               <span>View Invoices</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </Link>
+
+          <Link
+            href="/profile/change-password"
+            className="group rounded-3xl bg-white p-6 shadow-md border border-gray-100 transition hover:-translate-y-1 hover:shadow-xl"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF0DC] text-[#4A121A] mb-4 group-hover:scale-110 transition border border-[#DACBB4]/60">
+              <Key className="h-6 w-6 text-[#C5A059]" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Change Password</h3>
+            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+              Update your account password anytime to keep your matrimonial biodata safe and secure.
+            </p>
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-[#4A121A] group-hover:gap-2 transition-all">
+              <span>Update Security</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </div>
           </Link>

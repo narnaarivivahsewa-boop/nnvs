@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, ShieldAlert, CheckCircle2, ArrowRight } from "lucide-react";
+import { KeyRound, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -51,17 +51,28 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF6EF] flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-[#FAF6EF] flex flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md mb-4 flex justify-start">
+        <button
+          type="button"
+          onClick={() => (typeof window !== "undefined" && window.history.length > 1 ? router.back() : router.push("/dashboard"))}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4A121A] hover:underline cursor-pointer"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Back to Dashboard</span>
+        </button>
+      </div>
+
       <div className="w-full max-w-md rounded-3xl bg-white border border-[#E8DCC8] p-8 shadow-xl space-y-6">
         <div className="text-center space-y-2">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FAF0DC] text-[#4A121A] border border-[#DACBB4]">
             <KeyRound className="h-7 w-7 text-[#C5A059]" />
           </div>
           <h1 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
-            Set Your New Password
+            Change Your Password
           </h1>
           <p className="text-xs text-gray-600">
-            For your security, please create a new personal password before accessing your matrimonial profile.
+            Create a secure password to protect your matrimonial profile, biodata, and contact privacy.
           </p>
         </div>
 
