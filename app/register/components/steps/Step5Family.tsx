@@ -1,7 +1,8 @@
 "use client";
 
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { FieldErrors, UseFormRegister } from "react-hook-form";
+import { AlertCircle, X } from "lucide-react";
 
 import InputField from "../form/InputField";
 import SelectField from "../form/SelectField";
@@ -37,6 +38,14 @@ export default function Step5Family({
   uploading,
   setUploading,
 }: Props) {
+  const [toast, setToast] = useState<{ type: "error" | "success" | "info"; message: string } | null>(null);
+
+  const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast((cur) => (cur?.message === message ? null : cur));
+    }, 6000);
+  };
 
   const uploadImages = async (
     e: React.ChangeEvent<HTMLInputElement>
@@ -46,7 +55,7 @@ export default function Step5Family({
     if (!files || files.length === 0) return;
 
     if (photos.length + files.length > 3) {
-      alert("Maximum 3 photos allowed.");
+      showToast("Maximum 3 photos allowed.");
       return;
     }
 
@@ -57,7 +66,7 @@ export default function Step5Family({
 
       for (const file of Array.from(files)) {
         if (file.size > 25 * 1024 * 1024) {
-          alert(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
+          showToast(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
           continue;
         }
 
@@ -78,7 +87,7 @@ export default function Step5Family({
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          alert(data.message || `Failed to upload "${file.name}".`);
+          showToast(data.message || `Failed to upload "${file.name}".`);
           continue;
         }
 
@@ -87,10 +96,13 @@ export default function Step5Family({
         }
       }
 
-      setPhotos((prev) => [...prev, ...uploaded]);
+      if (uploaded.length > 0) {
+        setPhotos((prev) => [...prev, ...uploaded]);
+        showToast("Photos uploaded successfully!", "success");
+      }
     } catch (error) {
       console.error(error);
-      alert("Image upload failed. Please try again.");
+      showToast("Image upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -171,6 +183,33 @@ export default function Step5Family({
             {photos.length} / 3 Selected
           </span>
         </div>
+
+        {/* Clean UI Toast Alert */}
+        {toast && (
+          <div
+            role="alert"
+            className={`mb-4 flex items-center justify-between gap-3 rounded-xl p-3 text-xs sm:text-sm font-semibold transition-all shadow-xs ${
+              toast.type === "error"
+                ? "bg-rose-50 text-red-800 border border-red-200"
+                : toast.type === "success"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                : "bg-amber-50 text-amber-800 border border-amber-200"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{toast.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-gray-400 hover:text-gray-700 font-bold ml-2 cursor-pointer"
+              aria-label="Dismiss alert"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <input
           type="file"

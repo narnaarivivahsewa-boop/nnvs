@@ -19,13 +19,21 @@ export default function PhotosForm({
 }: PhotosFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [toast, setToast] = useState<{ type: "error" | "success" | "info"; message: string } | null>(null);
+
+  const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast((cur) => (cur?.message === message ? null : cur));
+    }, 6000);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     if (photos.length + files.length > 3) {
-      alert(`You can only upload up to 3 photos in total. Currently you have ${photos.length}.`);
+      showToast(`You can only upload up to 3 photos in total. Currently you have ${photos.length}.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -41,7 +49,7 @@ export default function PhotosForm({
 
         // Max raw upload limit 25MB before compression
         if (file.size > 25 * 1024 * 1024) {
-          alert(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
+          showToast(`Image "${file.name}" is over 25MB. Please choose a smaller photo.`);
           continue;
         }
 
@@ -65,7 +73,7 @@ export default function PhotosForm({
 
         if (!res.ok || !data.success) {
           console.error("Upload failure:", data);
-          alert(data.message || `Failed to upload "${file.name}".`);
+          showToast(data.message || `Failed to upload "${file.name}".`);
           continue;
         }
 
@@ -76,10 +84,11 @@ export default function PhotosForm({
 
       if (uploadedUrls.length > 0) {
         setPhotos((prev) => [...prev, ...uploadedUrls]);
+        showToast("Photos uploaded successfully!", "success");
       }
     } catch (err: any) {
       console.error("Photo upload error:", err);
-      alert("Unable to upload image. Please check your network and try again.");
+      showToast("Unable to upload image. Please check your network and try again.");
     } finally {
       setUploading(false);
       setStatusMessage("");
@@ -121,6 +130,33 @@ export default function PhotosForm({
           </span>
         </div>
       </div>
+
+      {/* Clean UI Toast Alert */}
+      {toast && (
+        <div
+          role="alert"
+          className={`mb-5 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition-all shadow-xs ${
+            toast.type === "error"
+              ? "bg-rose-50 text-red-800 border border-red-200"
+              : toast.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-amber-50 text-amber-800 border border-amber-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{toast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-gray-400 hover:text-gray-700 text-lg font-bold ml-2 leading-none cursor-pointer"
+            aria-label="Dismiss alert"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Upload Action Area */}
       <div className="mb-6">
