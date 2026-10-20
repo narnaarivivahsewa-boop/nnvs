@@ -20,6 +20,8 @@ import {
   clearAuthSession,
   saveAuthSession,
 } from "@/lib/auth/session-storage";
+import { BUSINESS_INFO } from "@/lib/gst";
+import { SocialIconsRow } from "@/components/SocialLinks";
 
 interface ProfileItem {
   id: string;
@@ -203,11 +205,31 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Top Auspicious Header Banner */}
-      <div className="w-full bg-[#4A121A] py-1.5 text-center border-b border-[#6B1F2D]">
-        <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#DFBA73]">
-          🙏 जय श्री श्याम 🙏
-        </p>
+      {/* Top Auspicious & Official Social Header Bar */}
+      <div className="w-full bg-[#4A121A] py-1.5 px-4 sm:px-6 lg:px-10 border-b border-[#6B1F2D]">
+        <div className="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-2 text-xs">
+          <p className="font-semibold tracking-wider text-[#DFBA73] flex items-center gap-1.5">
+            <span>🙏 जय श्री श्याम 🙏</span>
+            <span className="hidden sm:inline text-white/50">•</span>
+            <span className="hidden sm:inline text-white/90 text-[11px] font-normal">
+              Official Matrimonial Platform
+            </span>
+          </p>
+
+          <div className="flex items-center gap-4">
+            <a
+              href={`mailto:${BUSINESS_INFO.email}`}
+              className="text-[11px] text-[#DFBA73] hover:text-white transition font-medium hidden md:inline-flex items-center gap-1"
+            >
+              <span>{BUSINESS_INFO.email}</span>
+            </a>
+            <SocialIconsRow
+              variant="gold"
+              className="flex items-center gap-2"
+              iconClassName="h-3.5 w-3.5"
+            />
+          </div>
+        </div>
       </div>
 
       <header className="sticky top-0 z-50 w-full bg-[#FAF6EF]/95 backdrop-blur-md border-b border-[#E8DCC8] shadow-sm transition-all">
@@ -532,6 +554,26 @@ export default function Navbar() {
                   </button>
                 </>
               )}
+            </div>
+
+            {/* Mobile Drawer Social & Support Links */}
+            <div className="border-t border-[#E8DCC8] pt-4 mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A5835]">
+                  Official Links
+                </span>
+                <a
+                  href={`mailto:${BUSINESS_INFO.email}`}
+                  className="text-[11px] font-medium text-[#4A121A] hover:underline"
+                >
+                  {BUSINESS_INFO.email}
+                </a>
+              </div>
+              <SocialIconsRow
+                variant="light"
+                className="flex items-center justify-around py-2 bg-white rounded-xl border border-[#DACBB4]"
+                iconClassName="h-4 w-4"
+              />
             </div>
           </div>
         )}

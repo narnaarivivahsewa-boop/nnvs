@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateBiodataPdfBuffer, saveBiodataPdfLocally } from "@/lib/pdf/biodata-generator";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(
   req: NextRequest,
@@ -57,7 +58,18 @@ export async function GET(
     }
 
     // Strict Payment Gate: Biodata PDF MUST ONLY be generated for profiles with confirmed payment
-    if (!profile.paymentCompleted && !profile.isPaymentExempted) {
+    // 100% Free & Unrestricted for Admin users
+    let isAdmin = false;
+    try {
+      const auth = await requireAdmin(req);
+      if (auth.authorized) {
+        isAdmin = true;
+      }
+    } catch {
+      isAdmin = false;
+    }
+
+    if (!isAdmin && !profile.paymentCompleted && !profile.isPaymentExempted) {
       return NextResponse.json(
         {
           error: "Biodata PDF is only available for profiles with confirmed payment.",

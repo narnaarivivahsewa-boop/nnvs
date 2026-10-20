@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Mail, Clock, Heart, ShieldCheck, MessageCircle } from "lucide-react";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { InstagramIcon, FacebookIcon, YouTubeIcon } from "@/components/SocialLinks";
 
 export default function Footer() {
   return (
@@ -140,6 +141,42 @@ export default function Footer() {
                 <div>
                   <p className="font-semibold text-white">Support Note</p>
                   <p className="text-[11px] text-[#A6938D]">WhatsApp Only – Do Not Call</p>
+                </div>
+              </div>
+
+              {/* Official Social Media Channels */}
+              <div className="pt-3 border-t border-[#521822]">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#DFBA73] mb-2 font-serif-luxury">
+                  Official Channels
+                </p>
+                <div className="flex flex-col gap-1.5 text-[11px]">
+                  <a
+                    href={BUSINESS_INFO.social.instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[#D6C4BD] hover:text-[#E1306C] transition"
+                  >
+                    <InstagramIcon className="h-3.5 w-3.5 text-[#E1306C]" />
+                    <span>Instagram: {BUSINESS_INFO.social.instagramHandle}</span>
+                  </a>
+                  <a
+                    href={BUSINESS_INFO.social.facebook}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[#D6C4BD] hover:text-[#1877F2] transition"
+                  >
+                    <FacebookIcon className="h-3.5 w-3.5 text-[#1877F2]" />
+                    <span>Facebook: /RishteClub</span>
+                  </a>
+                  <a
+                    href={BUSINESS_INFO.social.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[#D6C4BD] hover:text-[#FF0000] transition"
+                  >
+                    <YouTubeIcon className="h-3.5 w-3.5 text-[#FF0000]" />
+                    <span>YouTube: @NarNaariVivahSewa</span>
+                  </a>
                 </div>
               </div>
             </div>

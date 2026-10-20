@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Store,
   HardDrive,
+  Sparkles,
 } from "lucide-react";
 import { clearAuthSession } from "@/lib/auth/session-storage";
 
@@ -36,6 +37,11 @@ const navItems = [
     title: "Pending Approvals",
     href: "/admin/approvals",
     icon: UserCheck,
+  },
+  {
+    title: "Kundali Milan Studio",
+    href: "/admin/kundali-studio",
+    icon: Sparkles,
   },
   {
     title: "Payments",

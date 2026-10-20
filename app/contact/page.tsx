@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BUSINESS_INFO } from "@/lib/gst";
-import { Mail, Phone, ArrowLeft, MessageSquare } from "lucide-react";
+import { Mail, Phone, ArrowLeft, MessageSquare, Share2 } from "lucide-react";
+import { OfficialSocialCards } from "@/components/SocialLinks";
 
 export const metadata: Metadata = {
   title: "Contact Us & Helpline | RishteClub Matrimony",
@@ -117,6 +118,26 @@ export default function ContactPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* Official Social Media Channels & Verified Handles */}
+        <div className="mt-8 rounded-3xl bg-[#FAF5EB] p-6 sm:p-8 shadow-sm border border-[#DACBB4]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <h3 className="font-serif-luxury text-xl font-bold text-[#4A121A] flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-[#C5A059]" />
+                <span>Official Social Media & Channels</span>
+              </h3>
+              <p className="text-xs text-[#5A4E48] mt-1">
+                Follow RishteClub on our verified channels for matchmaking updates, success stories, and astrology insights.
+              </p>
+            </div>
+            <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-full self-start sm:self-auto">
+              ✓ 100% Official Accounts
+            </span>
+          </div>
+
+          <OfficialSocialCards />
         </div>
 
         {/* Business & Legal Registration Details */}

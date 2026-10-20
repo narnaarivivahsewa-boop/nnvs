@@ -152,6 +152,7 @@ export default function AstrologyPage() {
   // Authentication & Profile State
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [registeredProfile, setRegisteredProfile] = useState<any>(null);
   const [accountProfiles, setAccountProfiles] = useState<any[]>([]);
   const [switchingProfile, setSwitchingProfile] = useState(false);
@@ -253,6 +254,7 @@ export default function AstrologyPage() {
 
         if (authRes.ok && authData.success && authData.user) {
           setIsAuthenticated(true);
+          setIsAdmin(authData.user.role === "ADMIN");
           const currentUser = authData.user;
           const userProf = currentUser.activeProfile || currentUser.profile || currentUser.profiles?.[0];
           setAccountProfiles(currentUser.profiles || []);
@@ -495,8 +497,38 @@ export default function AstrologyPage() {
 
       {/* Main Astrological Workspace */}
       <main className="flex-1 py-10 sm:py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-10">
-          
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
+
+          {/* Admin Matchmaker Studio Notification Banner */}
+          {!authLoading && isAdmin && (
+            <div className="rounded-3xl bg-gradient-to-r from-[#4A121A] via-[#6B1F2D] to-[#4A121A] border-2 border-[#DFBA73] p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-center gap-3.5">
+                <div className="h-11 w-11 rounded-2xl bg-[#DFBA73] text-[#4A121A] flex items-center justify-center shrink-0 shadow">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Logged in as Admin</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#DFBA73] bg-[#DFBA73]/20 border border-[#DFBA73]/40 px-2 py-0.5 rounded-full">
+                      Full Privileges
+                    </span>
+                  </p>
+                  <p className="text-xs text-[#E8D8C0]">
+                    Need to compare any two registered Groom &amp; Bride profiles with manual overrides and 1-click Biodata PDFs?
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href="/admin/kundali-studio"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#DFBA73] hover:bg-[#C9A254] px-5 py-2.5 text-xs font-bold text-[#4A121A] shadow-md transition transform hover:scale-[1.02] shrink-0"
+              >
+                <span>Switch to Admin Matchmaker Studio</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
+
           {/* Unauthenticated Members Gate Notice */}
           {!authLoading && !isAuthenticated && (
             <div className="rounded-3xl bg-amber-50/90 border border-amber-300/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-5 animate-fadeIn">

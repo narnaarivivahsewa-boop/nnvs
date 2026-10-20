@@ -48,7 +48,8 @@ export const BUSINESS_INFO = {
   },
   
   // Support Contacts & Official Communications
-  email: "narnaarivivahsewa@gmail.com",
+  email: "support@rishteclub.com",
+  secondaryEmail: "narnaarivivahsewa@gmail.com",
   officialEmail: "rahul.dhamija786@gmail.com",
   primaryWhatsApp: "9871592002",
   whatsappUrl: "https://wa.me/919871592002",
@@ -57,6 +58,17 @@ export const BUSINESS_INFO = {
   callingHours: "WhatsApp Only – Do Not Call",
   upiId: "narnaarivivahsewa@okicici",
   qrCodeUrl: "/payment-qr.jpeg",
+
+  // Official Social Media & Channels
+  social: {
+    email: "support@rishteclub.com",
+    emailUrl: "mailto:support@rishteclub.com",
+    instagram: "https://www.instagram.com/rishteclub",
+    instagramHandle: "@rishteclub",
+    facebook: "https://www.facebook.com/RishteClub",
+    youtube: "https://www.youtube.com/@NarNaariVivahSewa",
+    youtubeChannelName: "RishteClub Matrimony",
+  },
   
   // Pricing Structure
   fees: {
