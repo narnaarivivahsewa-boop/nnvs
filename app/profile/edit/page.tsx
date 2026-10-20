@@ -189,6 +189,15 @@ function EditProfileContent() {
   };
 
   async function onSubmit(data: RegisterFormData) {
+    if (!photos || photos.length < 1) {
+      alert("At least 1 photo is mandatory to create/update profile");
+      return;
+    }
+    if (photos.length > 3) {
+      alert("Maximum 3 photos allowed.");
+      return;
+    }
+
     try {
       setSaving(true);
 

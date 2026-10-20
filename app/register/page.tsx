@@ -321,7 +321,11 @@ export default function RegisterPage() {
 
       case 5:
         if (photos.length < 1) {
-          alert("Please upload at least one profile photo.");
+          alert("At least 1 photo is mandatory to create/update profile");
+          return;
+        }
+        if (photos.length > 3) {
+          alert("Maximum 3 photos allowed.");
           return;
         }
 
@@ -342,6 +346,15 @@ export default function RegisterPage() {
   };
 
   const onSubmit = async (data: RegisterFormData) => {
+    if (photos.length < 1) {
+      alert("At least 1 photo is mandatory to create/update profile");
+      return;
+    }
+    if (photos.length > 3) {
+      alert("Maximum 3 photos allowed.");
+      return;
+    }
+
     try {
       const payload = {
         ...data,

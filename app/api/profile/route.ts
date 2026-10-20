@@ -179,6 +179,29 @@ export async function PUT(req: NextRequest) {
       photos,
     } = body;
 
+    // Enforce 1-3 mandatory photos on profile update
+    if (photos !== undefined) {
+      if (!Array.isArray(photos) || photos.length < 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "At least 1 photo is mandatory to create/update profile",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (photos.length > 3) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Maximum 3 photos allowed",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Find Target Profile
     const effectiveTargetId = targetProfileId || getActiveProfileId(req, payload.activeProfileId);
 

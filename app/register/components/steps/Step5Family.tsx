@@ -191,6 +191,13 @@ export default function Step5Family({
           </p>
         )}
 
+        {photos.length === 0 && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs sm:text-sm font-semibold text-red-700">
+            <span>⚠️</span>
+            <span>At least 1 photo is mandatory to create/update profile</span>
+          </div>
+        )}
+
         {photos.length > 0 && (
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
 

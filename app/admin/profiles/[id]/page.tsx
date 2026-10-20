@@ -23,9 +23,12 @@ import {
   FileDown,
   Trash2,
   RefreshCw,
+  Sparkles,
+  HeartHandshake,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import { formatBirthTime } from "@/lib/utils";
+import CandidateMatcher from "./components/CandidateMatcher";
 
 export default function AdminProfileViewPage({
   params,
@@ -40,6 +43,7 @@ export default function AdminProfileViewPage({
   const [profile, setProfile] = useState<any | null>(null);
   const [activePhoto, setActivePhoto] = useState<string>("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [showMatcher, setShowMatcher] = useState(false);
 
   // Payment Confirmation Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -507,7 +511,29 @@ export default function AdminProfileViewPage({
             </div>
           )}
 
-          {/* 8. Delete Profile Button */}
+          {/* 8. Match Candidates Feature */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowMatcher((prev) => !prev);
+              if (!showMatcher) {
+                setTimeout(() => {
+                  document.getElementById("match-candidates-section")?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition shadow-sm ${
+              showMatcher
+                ? "bg-[#4A121A] text-[#DFBA73] border border-[#DFBA73]"
+                : "bg-gradient-to-r from-amber-600 to-amber-700 text-white hover:from-amber-700 hover:to-amber-800"
+            }`}
+            title="Filter opposite-gender profiles and perform 36 Guna Kundali Milan"
+          >
+            <Sparkles className="h-4 w-4 text-[#DFBA73]" />
+            <span>{showMatcher ? "Hide Matcher" : "Match Candidates"}</span>
+          </button>
+
+          {/* 9. Delete Profile Button */}
           <button
             type="button"
             onClick={() => setDeleteModalOpen(true)}
@@ -520,6 +546,13 @@ export default function AdminProfileViewPage({
           </button>
         </div>
       </div>
+
+      {/* MATCH CANDIDATES & KUNDALI MILAN SECTION */}
+      {showMatcher && (
+        <div id="match-candidates-section">
+          <CandidateMatcher targetProfile={profile} />
+        </div>
+      )}
 
       {/* MAIN PROFILE DETAILS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

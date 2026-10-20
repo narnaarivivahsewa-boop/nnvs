@@ -111,6 +111,44 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+// Font buffers for Vercel Serverless / standalone execution
+let regularFontBuffer: Buffer | null = null;
+let boldFontBuffer: Buffer | null = null;
+let italicFontBuffer: Buffer | null = null;
+
+function getFontBuffers() {
+  try {
+    if (!regularFontBuffer) {
+      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Regular.ttf");
+      if (fs.existsSync(p)) regularFontBuffer = fs.readFileSync(p);
+    }
+    if (!boldFontBuffer) {
+      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Bold.ttf");
+      if (fs.existsSync(p)) boldFontBuffer = fs.readFileSync(p);
+    }
+    if (!italicFontBuffer) {
+      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Italic.ttf");
+      if (fs.existsSync(p)) italicFontBuffer = fs.readFileSync(p);
+    }
+  } catch (err) {
+    console.warn("Failed to load local TTF fonts, defaulting to pdfkit standard fonts:", err);
+  }
+  return { regularFontBuffer, boldFontBuffer, italicFontBuffer };
+}
+
+function registerFonts(doc: InstanceType<typeof PDFDocument>) {
+  const { regularFontBuffer, boldFontBuffer, italicFontBuffer } = getFontBuffers();
+  if (regularFontBuffer) {
+    doc.registerFont("Helvetica", regularFontBuffer);
+  }
+  if (boldFontBuffer) {
+    doc.registerFont("Helvetica-Bold", boldFontBuffer);
+  }
+  if (italicFontBuffer) {
+    doc.registerFont("Helvetica-Oblique", italicFontBuffer);
+  }
+}
+
 /**
  * Generates an elegant, high-impact Matrimonial Biodata PDF Buffer
  */
@@ -137,6 +175,8 @@ export async function generateBiodataPdfBuffer(
           Keywords: "Matrimony, Biodata, RishteClub, NNVS, Vivah",
         },
       });
+
+      registerFonts(doc);
 
       const chunks: Buffer[] = [];
       doc.on("data", (chunk) => chunks.push(chunk));

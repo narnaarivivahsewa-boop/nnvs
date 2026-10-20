@@ -47,6 +47,29 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // ===========================
+    // Mandatory Photo Validation (Min 1, Max 3)
+    // ===========================
+    if (!Array.isArray(photos) || photos.length < 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "At least 1 photo is mandatory to create/update profile",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (photos.length > 3) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Maximum 3 photos allowed",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ===========================
     // Multi-Signal Duplicate Check
     // ===========================
     const duplicateCheck = await checkDuplicateRegistration({

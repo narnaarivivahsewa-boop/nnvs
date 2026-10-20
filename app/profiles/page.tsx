@@ -433,7 +433,10 @@ function ProfilesContent() {
                     className="group relative flex flex-col justify-between overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md hover:border-[#C5A059]"
                   >
                     {/* Card Header & Photo */}
-                    <div className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center p-4">
+                    <Link
+                      href={`/profile/${profile.profileId}`}
+                      className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center p-4 cursor-pointer block"
+                    >
                       <MatrimonyAvatar
                         imageUrl={profile.photos?.[0]?.imageUrl}
                         fullName={profile.user.fullName}
@@ -462,7 +465,7 @@ function ProfilesContent() {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Link>
 
                     {/* Profile Details Body */}
                     <div className="p-5 flex-1 flex flex-col justify-between">
@@ -483,9 +486,11 @@ function ProfilesContent() {
 
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors">
-                              {profile.user.fullName}
-                            </h3>
+                            <Link href={`/profile/${profile.profileId}`}>
+                              <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors hover:underline cursor-pointer">
+                                {profile.user.fullName}
+                              </h3>
+                            </Link>
                             <p className="text-xs font-medium text-[#5A4E48] mt-0.5">
                               {age ? `${age} Yrs` : "Age N/A"} • {profile.height ? String(profile.height) : "Height N/A"}
                             </p>

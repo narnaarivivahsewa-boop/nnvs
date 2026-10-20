@@ -208,10 +208,10 @@ export default function PhotosForm({
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-2 rounded-2xl bg-amber-50/80 p-4 border border-amber-200/80 text-amber-900 text-sm">
-          <AlertCircle className="h-5 w-5 shrink-0 text-amber-700" />
+        <div className="flex items-center gap-3 rounded-2xl bg-red-50 p-4 border border-red-200 text-red-700 text-sm font-semibold">
+          <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
           <span>
-            No photos uploaded yet. Uploading at least one portrait photo increases family match inquiries significantly.
+            At least 1 photo is mandatory to create/update profile. Please upload between 1 to 3 photos.
           </span>
         </div>
       )}

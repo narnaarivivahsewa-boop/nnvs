@@ -932,7 +932,6 @@ export default function AstrologyPage() {
 
                       <Link
                         href={`/profile/${selectedCandidate.profileId}`}
-                        target="_blank"
                         className="rounded-xl bg-white border border-[#4A121A] px-4 py-2 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition shrink-0"
                       >
                         View Full Bio →

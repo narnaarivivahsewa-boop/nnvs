@@ -306,7 +306,7 @@ export default function ProfileDetailsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <button
             type="button"
-            onClick={() => (typeof window !== "undefined" && window.history.length > 1 ? router.back() : router.push("/admin/profiles"))}
+            onClick={() => (typeof window !== "undefined" && window.history.length > 1 ? router.back() : router.push("/profiles"))}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition active:scale-95 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />

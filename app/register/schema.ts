@@ -77,6 +77,7 @@ export const registerSchema = z
 
     photos: z
       .array(z.string().url("Invalid photo URL"))
+      .min(1, "At least 1 photo is mandatory to create/update profile")
       .max(3, "Maximum 3 photos allowed")
       .default([]),
   })
