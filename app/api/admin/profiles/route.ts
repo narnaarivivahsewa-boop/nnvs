@@ -16,13 +16,22 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status") || "";
     const source = searchParams.get("source") || "";
     const payment = searchParams.get("payment") || "";
-    const visibility = searchParams.get("visibility") || "";
+    const visibilityParam = (searchParams.get("visibility") || "").trim().toUpperCase();
+    const hiddenParam = (searchParams.get("hidden") || "").trim().toLowerCase();
     const duplicate = searchParams.get("duplicate") || "";
+    const gender = (searchParams.get("gender") || "").trim().toUpperCase();
 
     const whereClause: any = {};
 
     if (status) {
       whereClause.approvalStatus = status;
+    }
+
+    if (gender === "MALE" || gender === "FEMALE") {
+      whereClause.user = {
+        ...whereClause.user,
+        gender: gender,
+      };
     }
 
     if (source === "GOOGLE_FORM") {
@@ -37,10 +46,22 @@ export async function GET(req: NextRequest) {
       whereClause.paymentCompleted = false;
     }
 
-    if (visibility === "LIVE") {
-      whereClause.isVisible = true;
-    } else if (visibility === "HIDDEN") {
+    if (
+      visibilityParam === "HIDDEN" ||
+      visibilityParam === "HIDE" ||
+      visibilityParam === "FALSE" ||
+      hiddenParam === "true" ||
+      hiddenParam === "1"
+    ) {
       whereClause.isVisible = false;
+    } else if (
+      visibilityParam === "LIVE" ||
+      visibilityParam === "VISIBLE" ||
+      visibilityParam === "TRUE" ||
+      hiddenParam === "false" ||
+      hiddenParam === "0"
+    ) {
+      whereClause.isVisible = true;
     }
 
     if (duplicate === "FLAGGED") {

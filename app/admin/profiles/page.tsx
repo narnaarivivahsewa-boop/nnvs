@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   CheckCircle,
@@ -64,20 +65,47 @@ type Profile = {
   }[];
 };
 
-export default function AdminProfilesPage() {
+function AdminProfilesContent() {
+  const searchParams = useSearchParams();
+  const urlVisibility = searchParams.get("visibility") || (searchParams.get("hidden") === "true" ? "HIDDEN" : "");
+  const urlStatus = searchParams.get("status") || "";
+  const urlPayment = searchParams.get("payment") || "";
+  const urlSource = searchParams.get("source") || "";
+  const urlDuplicate = searchParams.get("duplicate") || "";
+  const urlSearch = searchParams.get("search") || "";
+  const urlGender = searchParams.get("gender") || "";
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [gender, setGender] = useState("");
-  const [status, setStatus] = useState("");
-  const [source, setSource] = useState("");
-  const [payment, setPayment] = useState("");
-  const [visibility, setVisibility] = useState("");
-  const [duplicate, setDuplicate] = useState("");
+  // Filters initialized from URL search params
+  const [search, setSearch] = useState(urlSearch);
+  const [gender, setGender] = useState(urlGender);
+  const [status, setStatus] = useState(urlStatus);
+  const [source, setSource] = useState(urlSource);
+  const [payment, setPayment] = useState(urlPayment);
+  const [visibility, setVisibility] = useState(urlVisibility);
+  const [duplicate, setDuplicate] = useState(urlDuplicate);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Sync state if URL query parameters change (e.g. user navigated from admin dashboard card)
+  useEffect(() => {
+    const v = searchParams.get("visibility") || (searchParams.get("hidden") === "true" ? "HIDDEN" : "");
+    if (v !== null) setVisibility(v);
+    const s = searchParams.get("status");
+    if (s !== null) setStatus(s);
+    const p = searchParams.get("payment");
+    if (p !== null) setPayment(p);
+    const src = searchParams.get("source");
+    if (src !== null) setSource(src);
+    const g = searchParams.get("gender");
+    if (g !== null) setGender(g);
+    const q = searchParams.get("search");
+    if (q !== null) setSearch(q);
+    const d = searchParams.get("duplicate");
+    if (d !== null) setDuplicate(d);
+  }, [searchParams]);
 
   // Payment Confirmation Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -1368,5 +1396,19 @@ export default function AdminProfilesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminProfilesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-red-800 border-t-transparent" />
+        </div>
+      }
+    >
+      <AdminProfilesContent />
+    </Suspense>
   );
 }

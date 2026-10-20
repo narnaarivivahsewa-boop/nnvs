@@ -53,7 +53,9 @@ export default function FeaturedProfiles() {
   useEffect(() => {
     async function loadProfiles() {
       try {
-        const res = await fetch("/api/public/profiles?limit=6");
+        const res = await fetch("/api/public/profiles?limit=6&featured=true&sort=female-first", {
+          cache: "no-store",
+        });
         const data = await res.json();
 
         if (data.success && Array.isArray(data.profiles)) {

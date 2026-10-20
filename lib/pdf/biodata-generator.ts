@@ -410,6 +410,7 @@ export async function generateBiodataPdfBuffer(
       drawField("Height", profile.height || "-", margin + 10, subY, leftColWidth, 85);
       subY += 15;
       drawField("Marital Status", profile.maritalStatus || "Never Married", margin + 10, subY, leftColWidth, 85);
+      subY += 15;
       const gotraMatch = profile.notes?.match(/Gotra:\s*([^;\n]+)/i);
       const gotraText = gotraMatch ? gotraMatch[1].trim() : "";
       const communityDisplay = [
