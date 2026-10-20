@@ -19,6 +19,7 @@ import {
   Store,
   HardDrive,
   Sparkles,
+  Share2,
 } from "lucide-react";
 import { clearAuthSession } from "@/lib/auth/session-storage";
 
@@ -42,6 +43,11 @@ const navItems = [
     title: "Kundali Milan Studio",
     href: "/admin/kundali-studio",
     icon: Sparkles,
+  },
+  {
+    title: "Social Automation",
+    href: "/admin/social-automation",
+    icon: Share2,
   },
   {
     title: "Payments",

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/auto-post?slot=MORNING",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/auto-post?slot=AFTERNOON",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/auto-post?slot=EVENING",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}

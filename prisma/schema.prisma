@@ -626,9 +626,31 @@ model AdminSetting {
   qrCodeUrl String? @default("/payment-qr.jpeg")
   qrUpiId String? @default("narnaarivivahsewa@okicici")
 
+  // Social Media Auto-Poster Settings
+  socialAutoPostingEnabled Boolean @default(true)
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+}
+
+model SocialPostLog {
+  id               String   @id @default(cuid())
+  slot             String   // "MORNING" | "AFTERNOON" | "EVENING" | "MANUAL"
+  platform         String   @default("META_ALL") // "META_ALL" | "INSTAGRAM" | "FACEBOOK"
+  imageUrl         String?  @db.Text
+  caption          String?  @db.Text
+  status           String   // "SUCCESS" | "FAILED" | "SKIPPED"
+  instagramMediaId String?
+  facebookPostId   String?
+  error            String?  @db.Text
+  candidateId      String?
+  triggeredBy      String   @default("CRON") // "CRON" | "ADMIN_TEST"
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([slot])
+  @@index([status])
 }
 
 model ProfilePhone {
