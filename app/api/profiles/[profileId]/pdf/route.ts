@@ -85,7 +85,11 @@ export async function GET(
       console.error("[PDF Local Save Warning]:", err);
     });
 
-    const candidateName = (profile.user?.fullName || profile.firstName || "Biodata").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const candidateName = (
+      [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() ||
+      profile.user?.fullName ||
+      "Biodata"
+    ).replace(/[^a-zA-Z0-9_-]/g, "_");
     const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
     const fileName = `Biodata_${code ? `${code}_` : ""}${candidateName}${withoutContact ? "_NoContact" : ""}.pdf`;
 

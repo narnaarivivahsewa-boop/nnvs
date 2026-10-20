@@ -283,8 +283,9 @@ export default function ProfileDetailsPage() {
 
   const handleShare = () => {
     if (navigator.share) {
+      const candidateTitle = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.user.fullName || "Candidate";
       navigator.share({
-        title: `${profile?.user.fullName} | RishteClub Matrimony Profile`,
+        title: `${candidateTitle} | RishteClub Matrimony Profile`,
         url: window.location.href,
       });
     } else {
@@ -406,7 +407,7 @@ export default function ProfileDetailsPage() {
               <div className="relative h-[380px] w-full rounded-2xl overflow-hidden bg-gray-100 border-2 border-white shadow-lg flex items-center justify-center">
                 <MatrimonyAvatar
                   imageUrl={activePhoto}
-                  fullName={profile.user.fullName}
+                  fullName={[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName}
                   gender={profile.user.gender}
                   size="hero"
                   badge={true}
@@ -478,7 +479,7 @@ export default function ProfileDetailsPage() {
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900">
-                  {profile.user.fullName}
+                  {[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName}
                 </h1>
 
                 <p className="mt-2 text-lg text-gray-600 font-medium">

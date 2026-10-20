@@ -181,7 +181,7 @@ export async function generateBiodataPdfBuffer(
         size: "A4", // 595.28 x 841.89
         margins: { top: 20, bottom: 20, left: 24, right: 24 },
         info: {
-          Title: `Matrimonial Biodata - ${profile.user?.fullName || profile.firstName || "Candidate"}`,
+          Title: `Matrimonial Biodata - ${[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user?.fullName || "Candidate"}`,
           Author: "Nar Naari Vivah Sewa (RishteClub)",
           Subject: "Verified Matrimonial Biodata",
           Keywords: "Matrimony, Biodata, RishteClub, NNVS, Vivah",
@@ -385,8 +385,8 @@ export async function generateBiodataPdfBuffer(
 
       // Left Column for Personal Overview
       const fullName =
+        [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() ||
         profile.user?.fullName ||
-        [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
         "Candidate";
       const gender = profile.user?.gender ? (profile.user.gender === "MALE" ? "Male (Groom)" : "Female (Bride)") : "-";
       const age = calculateAge(profile.dateOfBirth);
@@ -684,7 +684,7 @@ export function getBiodataStructuredPath(profile: BiodataProfileInput): {
     .replace(/[<>:"/\\|?*]/g, "_")
     .trim();
 
-  const candidateName = (profile.user?.fullName || profile.firstName || "Candidate")
+  const candidateName = ([profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user?.fullName || "Candidate")
     .replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_")
     .trim();
   const code = (profile.legacyProfileId || profile.profileId || profile.id || "candidate")
@@ -728,7 +728,7 @@ export async function saveBiodataPdfLocally(
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const candidateName = (profile.user?.fullName || profile.firstName || "Candidate")
+    const candidateName = ([profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user?.fullName || "Candidate")
       .replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_")
       .trim();
     const code = (profile.legacyProfileId || profile.profileId || profile.id || "").replace(/[^a-zA-Z0-9_-]/g, "_");

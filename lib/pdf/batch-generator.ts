@@ -71,7 +71,7 @@ export async function generateMissingPaidPdfs(): Promise<BatchGenerationResult> 
     const category = getBiodataCategoryFolder(p as any);
     const targetDir = path.join(baseDir, category);
 
-    const candidateName = (p.user?.fullName || p.firstName || "Candidate")
+    const candidateName = ([p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.user?.fullName || "Candidate")
       .replace(/[^a-zA-Z0-9_\u0900-\u097F -]/g, "_")
       .trim();
     const code = (p.legacyProfileId || p.profileId || p.id || "").replace(/[^a-zA-Z0-9_-]/g, "_");

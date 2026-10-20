@@ -350,8 +350,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 2. If not matched by Old ID, match by Mobile Number
-      if (!existingProfile && (mobile || allMobiles.length > 0)) {
+      // 2. If not matched by Old ID:
+      // CRITICAL RULE: If incoming row has an Old ID (e.g. NNVS-B-0505), but it wasn't found above,
+      // this is a NEW/SEPARATE candidate with that Old ID. NEVER overwrite another candidate (e.g. NNVS-B-0504)
+      // just because they share the parent's mobile number!
+      if (!existingProfile && !legacyProfileId && (mobile || allMobiles.length > 0)) {
         const mobilesToCheck = Array.from(new Set([mobile, ...allMobiles].filter((m) => m && !m.startsWith("9900"))));
 
         if (mobilesToCheck.length > 0) {
@@ -397,20 +400,18 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          if (candidatePool.length === 1) {
-            existingProfile = candidatePool[0];
-          } else if (candidatePool.length > 1) {
-            // Find best matching candidate by name or gender
-            const exactNameMatch = candidatePool.find((p) => checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p));
-            if (exactNameMatch) {
-              existingProfile = exactNameMatch;
-            } else {
-              const genderMatch = candidatePool.find((p) => {
-                const pGender = p.user?.gender || (p.legacyProfileId?.includes("-G-") ? "FEMALE" : "MALE");
-                return pGender === gender;
-              });
-              existingProfile = genderMatch || candidatePool[0];
+          // STRICT CANDIDATE CHECK:
+          // A candidate match by phone number is ONLY valid if candidate's name, gender, and DOB strictly match!
+          // Sibling candidates sharing the parent's phone number MUST NOT overwrite each other!
+          const exactCandidateMatch = candidatePool.find((p) => {
+            if (p.legacyProfileId && legacyProfileId && p.legacyProfileId !== legacyProfileId) {
+              return false;
             }
+            return checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p);
+          });
+
+          if (exactCandidateMatch) {
+            existingProfile = exactCandidateMatch;
           }
         }
       }
@@ -450,6 +451,10 @@ export async function POST(req: NextRequest) {
       let duplicateCandidateMatch: any = null;
       if (!existingProfile && existingUser && existingUser.profiles?.length > 0) {
         duplicateCandidateMatch = existingUser.profiles.find((p: any) => {
+          // If incoming row has an Old ID, NEVER match against an existing profile with a different Old ID!
+          if (legacyProfileId && p.legacyProfileId && p.legacyProfileId !== legacyProfileId) {
+            return false;
+          }
           return checkCandidateDuplicate({ fullName, gender, dateOfBirth }, p);
         });
         if (duplicateCandidateMatch) {
@@ -636,7 +641,7 @@ export async function POST(req: NextRequest) {
           await prisma.user.update({
             where: { id: userId },
             data: {
-              fullName: fullName || existingUser?.fullName,
+              fullName: existingUser?.fullName || fullName,
               email: userEmail,
               mobileVerified: true,
               status: "ACTIVE",

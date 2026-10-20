@@ -505,7 +505,7 @@ function AdminProfilesContent() {
                   <div className="h-14 w-14 shrink-0">
                     <MatrimonyAvatar
                       imageUrl={profile.photos?.[0]?.imageUrl}
-                      fullName={profile.user.fullName || profile.firstName}
+                      fullName={[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName}
                       gender={profile.user.gender}
                       size="sm"
                       badge={false}
@@ -516,7 +516,7 @@ function AdminProfilesContent() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
                       <h3 className="font-bold text-gray-900 text-sm truncate">
-                        {profile.user.fullName || profile.firstName || "Member"}
+                        {[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName || "Member"}
                       </h3>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
@@ -752,7 +752,9 @@ function AdminProfilesContent() {
                     </td>
 
                     <td className="px-4 py-3.5">
-                      <div className="font-bold text-gray-900">{profile.user.fullName || profile.firstName || "-"}</div>
+                      <div className="font-bold text-gray-900">
+                        {[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName || "-"}
+                      </div>
                       <div className="font-mono text-xs text-gray-600 font-bold">{profile.profileId}</div>
                       {profile.legacyProfileId && (
                         <div className="text-[11px] font-mono font-bold text-[#7A5835]">
