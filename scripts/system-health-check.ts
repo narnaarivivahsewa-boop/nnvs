@@ -419,8 +419,12 @@ async function main() {
       "Profile ID transitioned from DRAFT to official candidate ID"
     );
     assert(
-      updatedFreeProfile?.approvalStatus === "UNDER_REVIEW",
-      "Draft profile transitioned to UNDER_REVIEW upon payment completion"
+      updatedFreeProfile?.approvalStatus === "APPROVED",
+      "Draft profile transitioned to APPROVED upon payment completion (direct live, no admin approval needed)"
+    );
+    assert(
+      updatedFreeProfile?.isVisible === true,
+      "Draft profile made directly LIVE (isVisible: true) upon payment completion"
     );
 
     // Clean up test records

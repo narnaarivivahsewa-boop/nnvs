@@ -67,12 +67,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify OTP Hash
-    if (otpRecord.code !== hashOTP(otp)) {
+    // Verify OTP with Fast2SMS official verification endpoint
+    const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
+    const verifyResult = await verifyFast2SmsOTP(cleanMobile, otp);
+    const isHashValid = otpRecord.code === hashOTP(otp);
+
+    if (!verifyResult.success && !isHashValid) {
       return NextResponse.json(
         {
           success: false,
-          message: "Incorrect OTP. Please enter the valid code received on SMS.",
+          message:
+            verifyResult.error ||
+            "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
       );
@@ -209,6 +215,27 @@ export async function POST(req: NextRequest) {
         redirectTo = "/dashboard";
       }
     }
+
+    // Record login activity
+    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    const userAgent = req.headers.get("user-agent") || "unknown";
+    const now = new Date();
+
+    await Promise.allSettled([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: now },
+      }),
+      prisma.loginHistory.create({
+        data: {
+          userId: user.id,
+          ipAddress,
+          userAgent,
+          device: "Web Browser (OTP)",
+          loginAt: now,
+        },
+      }),
+    ]);
 
     const token = await generateToken(
       user.id,

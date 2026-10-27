@@ -167,11 +167,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ===========================
-    // 5. Generate 6-Digit OTP & Send via Fast2SMS
+    // 5. Send OTP via Fast2SMS Smart OTP Gateway
     // ===========================
-    const otp = generateOTP();
-
-    const smsResult = await sendFast2SmsOTP(cleanMobile, otp);
+    const smsResult = await sendFast2SmsOTP(cleanMobile);
 
     if (!smsResult.success) {
       console.error("Fast2SMS send SMS OTP failed:", smsResult.error);
@@ -184,11 +182,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedOTP = hashOTP(otp);
     const expiresAt = getOTPExpiry();
 
     // ===========================
-    // 6. Save Hashed OTP in DB
+    // 6. Save OTP Record in DB
     // ===========================
     await prisma.oTP.deleteMany({
       where: {
@@ -200,7 +197,9 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: hashedOTP,
+        code: smsResult.requestId?.startsWith("FAST2SMS_")
+          ? smsResult.requestId
+          : `FAST2SMS_${smsResult.requestId || "OTP"}`,
         type: otpType,
         expiresAt,
         verified: false,

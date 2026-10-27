@@ -69,6 +69,7 @@ model User {
   profiles Profile[]
 
   loginHistory LoginHistory[]
+  lastLoginAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -667,4 +668,29 @@ model ProfilePhone {
   updatedAt DateTime @updatedAt
 
   @@unique([profileId, phone])
+}
+
+model DailyVisitorStat {
+  id        String   @id @default(cuid())
+  date      String   @unique // "YYYY-MM-DD" formatted in Asia/Kolkata
+  visits    Int      @default(0)
+  pageviews Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+model VisitorSession {
+  id         String   @id @default(cuid())
+  visitorKey String   @unique // e.g. "2026-10-27:ipHashOrClientSession"
+  date       String
+  ipAddress  String?
+  userAgent  String?
+  path       String?
+  referer    String?
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+  @@index([createdAt])
 }

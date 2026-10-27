@@ -209,7 +209,7 @@ function DashboardContent() {
                   Payment Verified Successfully!
                 </h3>
                 <p className="text-xs text-emerald-800">
-                  Your profile has been submitted for Admin approval. Set your AI matchmaking preferences to receive top recommendations.
+                  Your profile is now live and active on RishteClub! Set your AI matchmaking preferences to receive top recommendations.
                 </p>
               </div>
             </div>

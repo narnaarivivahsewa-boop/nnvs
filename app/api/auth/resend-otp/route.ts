@@ -1,0 +1,175 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getOTPExpiry, maskMobileNumber } from "@/lib/auth/otp";
+import { resendFast2SmsOTP, sendFast2SmsOTP } from "@/lib/sms/fast2sms";
+
+// In-memory IP rate limiter (Sliding window: Max 10 requests per 10 minutes per IP)
+const ipRequestTimestamps = new Map<string, number[]>();
+
+function checkIpRateLimit(ip: string): { allowed: boolean; remainingSec: number } {
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const maxRequests = 10;
+
+  const timestamps = (ipRequestTimestamps.get(ip) || []).filter((t) => now - t < windowMs);
+  if (timestamps.length >= maxRequests) {
+    const oldest = timestamps[0];
+    const remainingSec = Math.ceil((oldest + windowMs - now) / 1000);
+    return { allowed: false, remainingSec: Math.max(remainingSec, 1) };
+  }
+
+  timestamps.push(now);
+  ipRequestTimestamps.set(ip, timestamps);
+  return { allowed: true, remainingSec: 0 };
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown-ip";
+
+    // 0. IP Rate Limiting
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Too many requests from this network. Please wait ${ipCheck.remainingSec} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json();
+
+    const rawMobile = String(body.mobile ?? "").trim();
+    const cleanMobile = rawMobile.replace(/\D/g, "").slice(-10);
+
+    const otpType =
+      body.type === "REGISTRATION"
+        ? "REGISTRATION"
+        : "LOGIN";
+
+    // ===========================
+    // 1. Validate 10-Digit Mobile
+    // ===========================
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ===========================
+    // 2. Cooldown Check (30 seconds)
+    // ===========================
+    const lastOtp = await prisma.oTP.findFirst({
+      where: { mobile: cleanMobile },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (lastOtp) {
+      const secondsSinceLastOtp = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+      if (secondsSinceLastOtp < 30) {
+        const remaining = Math.ceil(30 - secondsSinceLastOtp);
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Please wait ${remaining} seconds before requesting a new SMS OTP.`,
+            cooldownRemaining: remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // Hourly Limit: Max 8 OTPs per mobile per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const hourlyCount = await prisma.oTP.count({
+      where: {
+        mobile: cleanMobile,
+        createdAt: { gte: oneHourAgo },
+      },
+    });
+
+    if (hourlyCount >= 8) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many OTP requests for this number. Please try again after 1 hour.",
+        },
+        { status: 429 }
+      );
+    }
+
+    // ===========================
+    // 3. Resend via Fast2SMS Official Endpoint
+    // ===========================
+    let resendResult = await resendFast2SmsOTP(cleanMobile);
+
+    // If Fast2SMS resend failed (e.g. session expired on provider), fallback to sending new OTP
+    if (!resendResult.success) {
+      console.warn("Fast2SMS resend failed, attempting fresh send:", resendResult.error);
+      const sendResult = await sendFast2SmsOTP(cleanMobile);
+      if (!sendResult.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: sendResult.error || "Unable to resend SMS OTP. Please try again.",
+          },
+          { status: 502 }
+        );
+      }
+      resendResult = {
+        success: true,
+        requestId: sendResult.requestId,
+        message: sendResult.message,
+      };
+    }
+
+    const expiresAt = getOTPExpiry();
+
+    // ===========================
+    // 4. Update / Save Record in DB
+    // ===========================
+    await prisma.oTP.deleteMany({
+      where: {
+        mobile: cleanMobile,
+        verified: false,
+      },
+    });
+
+    await prisma.oTP.create({
+      data: {
+        mobile: cleanMobile,
+        code: resendResult.requestId?.startsWith("FAST2SMS_")
+          ? resendResult.requestId
+          : `FAST2SMS_${resendResult.requestId || "RESEND"}`,
+        type: otpType,
+        expiresAt,
+        verified: false,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `OTP resent via SMS to +91 ${maskMobileNumber(cleanMobile)}.`,
+      maskedMobile: `+91 ${maskMobileNumber(cleanMobile)}`,
+    });
+  } catch (error) {
+    console.error("Resend OTP Error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Something went wrong while resending OTP. Please try again.",
+      },
+      { status: 500 }
+    );
+  }
+}

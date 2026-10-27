@@ -103,9 +103,10 @@ export async function POST(req: NextRequest) {
                 },
               });
 
-              // Strict Gate: A profile must strictly remain inactive (isVisible: false)
-              // until an Admin officially approves it.
-              const willBeVisible = profile.approvalStatus === "APPROVED";
+              // Direct Live Activation Rule:
+              // Profiles registering via website with OTP verification and completing payment
+              // become directly LIVE and APPROVED. No admin approval required.
+              const now = new Date();
 
               // Rule 2: Official Profile ID is assigned only upon confirmed payment
               let officialProfileId = profile.profileId;
@@ -122,11 +123,9 @@ export async function POST(req: NextRequest) {
                 data: {
                   profileId: officialProfileId,
                   paymentCompleted: true,
-                  isVisible: willBeVisible,
-                  approvalStatus:
-                    profile.approvalStatus === "DRAFT"
-                      ? "UNDER_REVIEW"
-                      : profile.approvalStatus,
+                  isVisible: true,
+                  approvalStatus: "APPROVED",
+                  approvedAt: profile.approvedAt || now,
                 },
               });
 

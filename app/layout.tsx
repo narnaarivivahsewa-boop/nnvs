@@ -4,6 +4,8 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import PwaRegister from "@/components/PwaRegister";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import VisitorTracker from "@/components/VisitorTracker";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -242,6 +244,8 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-full bg-[#FAF6EF] text-[#2D221E] font-sans overflow-x-hidden"
       >
+        <GoogleAnalytics />
+        <VisitorTracker />
         <PwaRegister />
         <PWAInstallPrompt />
         <Navbar />

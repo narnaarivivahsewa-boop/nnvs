@@ -141,6 +141,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Record login activity
+    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    const userAgent = req.headers.get("user-agent") || "unknown";
+    const now = new Date();
+
+    await Promise.allSettled([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: now },
+      }),
+      prisma.loginHistory.create({
+        data: {
+          userId: user.id,
+          ipAddress,
+          userAgent,
+          device: "Web Browser",
+          loginAt: now,
+        },
+      }),
+    ]);
+
     // Generate JWT token
     const token = await generateToken(user.id, user.mobile, effectiveRole, activeProfileId);
 

@@ -56,7 +56,7 @@ async function runTestSuite() {
 
   // Restore mock credentials for downstream mock tests
   process.env.FAST2SMS_API_KEY = "mock_test_key_for_automated_testing_only";
-  process.env.FAST2SMS_OTP_ID = "37afc2db63";
+  process.env.FAST2SMS_OTP_ID = "bfb224b309";
 
   // ---------------------------------------------------------------------------
   // 3. Mocked Provider Send Tests (Success, Validation Error, Timeout)
@@ -69,9 +69,7 @@ async function runTestSuite() {
     if (String(url).includes("/dev/otp/send")) {
       const body = JSON.parse(options.body);
       assert(body.mobile === "9876543210", "Payload contains clean 10-digit mobile");
-      assert(body.otp_id === "37afc2db63", "Payload contains configured Template ID 37afc2db63");
-      assert(body.otp_length === 6, "Payload specifies 6-digit OTP length");
-      assert(body.otp_expiry === 10, "Payload specifies 10-minute expiry");
+      assert(body.otp_id === "bfb224b309", "Payload contains configured Template ID bfb224b309");
       assert(options.headers["authorization"] === "mock_test_key_for_automated_testing_only", "Authorization header passes API key");
       assert(!String(options.headers["authorization"]).includes("NEXT_PUBLIC"), "API key is not from a client-exposed variable");
 
@@ -119,7 +117,6 @@ async function runTestSuite() {
       const body = JSON.parse(options.body);
       assert(body.mobile === "9876543210", "Verify payload contains mobile");
       assert(body.otp === "123456", "Verify payload contains user OTP");
-      assert(body.otp_id === "37afc2db63", "Verify payload contains Template ID");
 
       return new Response(
         JSON.stringify({

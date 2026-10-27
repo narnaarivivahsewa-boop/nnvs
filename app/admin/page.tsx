@@ -15,6 +15,10 @@ import {
   FileSpreadsheet,
   ArrowRight,
   Sparkles,
+  TrendingUp,
+  Activity,
+  Globe,
+  BarChart3,
 } from "lucide-react";
 
 type DashboardData = {
@@ -28,6 +32,23 @@ type DashboardData = {
   duplicateFlags: number;
   invoicesGenerated: number;
   googleFormImports: number;
+  traffic?: {
+    todayStr: string;
+    todayVisits: number;
+    todayPageviews: number;
+    trend: {
+      date: string;
+      label: string;
+      dayName: string;
+      visits: number;
+      pageviews: number;
+    }[];
+  };
+  adoption?: {
+    totalRegisteredProfiles: number;
+    activeUsers: number;
+    pendingUsers: number;
+  };
   recentProfiles: {
     id: string;
     profileId: string;
@@ -176,6 +197,22 @@ export default function AdminDashboard() {
       bg: "bg-indigo-50 text-indigo-900 border-indigo-200",
       iconBg: "bg-indigo-600 text-white",
     },
+    {
+      title: "User Adoption",
+      value: `${dashboard.adoption?.activeUsers ?? 0} Active`,
+      href: "/admin/activity",
+      icon: Activity,
+      bg: "bg-teal-50 text-teal-900 border-teal-200",
+      iconBg: "bg-teal-600 text-white",
+    },
+    {
+      title: "Today's Visitors",
+      value: dashboard.traffic?.todayVisits ?? 0,
+      href: "#traffic-counter",
+      icon: Globe,
+      bg: "bg-sky-50 text-sky-900 border-sky-200",
+      iconBg: "bg-sky-600 text-white",
+    },
   ];
 
   return (
@@ -229,13 +266,148 @@ export default function AdminDashboard() {
         })}
       </div>
 
+      {/* General Public Traffic & Daily Visitor Counter Card */}
+      <div id="traffic-counter" className="rounded-2xl bg-white p-5 sm:p-6 border border-gray-100 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-xl p-2 bg-[#4A121A] text-white shadow-xs">
+                <Globe className="h-4 w-4 text-[#DFBA73]" />
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-gray-900 font-serif-luxury">
+                General Public Traffic &amp; Daily Visitor Counter
+              </h2>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Live analytics of website visitors and page impressions (excludes internal admin clicks)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Realtime Live Tracker</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Counter Stats & Last 7 Days Trend Visual */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          {/* Today's Traffic Counters (Left 5 Cols) */}
+          <div className="lg:col-span-5 grid grid-cols-2 gap-3 sm:gap-4">
+            {/* Today's Total Visits */}
+            <div className="rounded-2xl bg-gradient-to-br from-[#300B11] to-[#4A121A] text-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-[#DFBA73] font-bold uppercase tracking-wider mb-2">
+                <span>Today's Visits</span>
+                <Users className="h-4 w-4 opacity-80" />
+              </div>
+              <div className="text-3xl sm:text-4xl font-black font-mono text-white">
+                {dashboard.traffic?.todayVisits ?? 0}
+              </div>
+              <p className="text-[11px] text-[#DFBA73]/80 mt-1">
+                Unique public visitors today
+              </p>
+            </div>
+
+            {/* Today's Pageviews */}
+            <div className="rounded-2xl bg-[#FAF8F5] border border-[#E8DCC8] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-[#7A5835] font-bold uppercase tracking-wider mb-2">
+                <span>Today's Pageviews</span>
+                <TrendingUp className="h-4 w-4 text-[#C5A059]" />
+              </div>
+              <div className="text-3xl sm:text-4xl font-black font-mono text-[#300B11]">
+                {dashboard.traffic?.todayPageviews ?? 0}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Total page impressions
+              </p>
+            </div>
+          </div>
+
+          {/* Last 7 Days Traffic Trend (Right 7 Cols) */}
+          <div className="lg:col-span-7 bg-[#FAF8F5]/80 rounded-2xl p-4 sm:p-5 border border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4 text-[#4A121A]" />
+                <span>Last 7 Days Traffic Trend</span>
+              </span>
+              <span className="text-[11px] font-semibold text-gray-500">
+                Daily Unique Visits &bull; General Public
+              </span>
+            </div>
+
+            {/* Visual Bar Chart */}
+            <div className="pt-2">
+              <div className="h-28 flex items-end justify-between gap-2 sm:gap-3 px-1">
+                {(dashboard.traffic?.trend || []).map((item, idx) => {
+                  const maxVisits = Math.max(
+                    ...(dashboard.traffic?.trend?.map((t) => t.visits) || [1]),
+                    10
+                  );
+                  const heightPercent = Math.max(14, Math.round((item.visits / maxVisits) * 100));
+                  const isToday = idx === (dashboard.traffic?.trend?.length || 1) - 1;
+
+                  return (
+                    <div
+                      key={item.date}
+                      className="flex-1 flex flex-col items-center h-full justify-end group relative"
+                    >
+                      {/* Tooltip on Hover */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 z-20 pointer-events-none bg-gray-900 text-white text-[10px] font-bold py-1 px-2 rounded shadow-md whitespace-nowrap">
+                        {item.visits} visits ({item.pageviews} views)
+                      </div>
+
+                      {/* Bar Value */}
+                      <span className={`text-[10px] font-mono font-bold mb-1 ${isToday ? "text-[#4A121A] font-extrabold" : "text-gray-500"}`}>
+                        {item.visits}
+                      </span>
+
+                      {/* Bar Visual */}
+                      <div className="w-full bg-gray-200/80 rounded-t-lg h-full flex items-end overflow-hidden max-w-[40px]">
+                        <div
+                          style={{ height: `${heightPercent}%` }}
+                          className={`w-full rounded-t-lg transition-all duration-500 ${
+                            isToday
+                              ? "bg-gradient-to-t from-[#4A121A] to-[#DFBA73] shadow-xs"
+                              : "bg-gradient-to-t from-[#7A5835] to-[#C5A059]/80 group-hover:from-[#4A121A] group-hover:to-[#DFBA73]"
+                          }`}
+                        />
+                      </div>
+
+                      {/* Day Label */}
+                      <span className={`text-[10px] font-bold mt-2 ${isToday ? "text-[#4A121A] font-black underline underline-offset-2" : "text-gray-600"}`}>
+                        {isToday ? "Today" : item.dayName}
+                      </span>
+                      <span className="text-[9px] text-gray-400 font-medium">
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Quick Mobile Action Shortcuts */}
       <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-xs">
         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
           Quick Management Shortcuts
         </h2>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          <Link
+            href="/admin/activity"
+            className="flex items-center justify-between rounded-xl bg-teal-50/70 p-3 text-xs font-bold text-teal-900 border border-teal-200 hover:bg-teal-100 transition"
+          >
+            <span className="flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5 text-teal-700" />
+              <span>User Adoption</span>
+            </span>
+            <ArrowRight className="h-3.5 w-3.5 text-teal-700" />
+          </Link>
+
           <Link
             href="/admin/profiles"
             className="flex items-center justify-between rounded-xl bg-[#FAF6EF] p-3 text-xs font-bold text-[#4A121A] border border-[#E8DCC8] hover:bg-[#F2E8D7] transition"

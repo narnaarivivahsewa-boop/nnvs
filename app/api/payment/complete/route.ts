@@ -92,14 +92,15 @@ export async function POST(req: NextRequest) {
         officialProfileId = candidateId;
       }
 
-      // Update Profile
+      // Update Profile: Directly LIVE upon verified payment completion
       await tx.profile.update({
         where: { id: profile.id },
         data: {
           profileId: officialProfileId,
           paymentCompleted: true,
-          isVisible: profile.approvalStatus === "APPROVED",
-          approvalStatus: profile.approvalStatus === "DRAFT" ? "UNDER_REVIEW" : profile.approvalStatus,
+          isVisible: true,
+          approvalStatus: "APPROVED",
+          approvedAt: profile.approvedAt || new Date(),
         },
       });
 

@@ -168,10 +168,47 @@ function LoginContent() {
       }
 
       setOtpSent(true);
-      setResendTimer(90);
+      setResendTimer(60);
       setMessage(data.message || "OTP sent successfully to your mobile number via SMS.");
     } catch {
       setMessage("Something went wrong while sending OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setMessage("");
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setMessage("Please enter a valid 10 digit Indian mobile number.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mobile,
+          type: "LOGIN",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.cooldownRemaining) {
+          setResendTimer(data.cooldownRemaining);
+        }
+        setMessage(data.message || "Failed to resend OTP.");
+        return;
+      }
+
+      setResendTimer(60);
+      setMessage(data.message || "OTP resent successfully via Fast2SMS SMS.");
+    } catch {
+      setMessage("Something went wrong while resending OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -502,7 +539,7 @@ function LoginContent() {
                     <button
                       type="button"
                       disabled={loading || resendTimer > 0}
-                      onClick={handleSendOTP}
+                      onClick={handleResendOTP}
                       className="font-bold text-[#4A121A] hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
                     >
                       <RotateCcw className="h-3 w-3" />

@@ -24,6 +24,7 @@ type Step1AccountProps = {
   otpStatus: { type: "success" | "error" | "info" | null; message: string };
 
   onSendOTP: () => void;
+  onResendOTP?: () => void;
   onVerifyOTP: () => void;
   onChangeMobile: () => void;
 };
@@ -43,6 +44,7 @@ export default function Step1Account({
   otpStatus,
 
   onSendOTP,
+  onResendOTP,
   onVerifyOTP,
   onChangeMobile,
 }: Step1AccountProps) {
@@ -196,7 +198,7 @@ export default function Step1Account({
                 ) : (
                   <button
                     type="button"
-                    onClick={onSendOTP}
+                    onClick={onResendOTP || onSendOTP}
                     disabled={otpLoading}
                     className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 transition active:scale-95 disabled:opacity-50 cursor-pointer"
                   >

@@ -97,17 +97,16 @@ export async function POST(req: NextRequest) {
               officialProfileId = candidateId;
             }
 
-            // Enforce Strict Gate: Do NOT set isVisible = true unless already approved
+            // Direct Live Activation Rule:
+            // When payment is verified for OTP-registered user, make profile directly LIVE
             await tx.profile.update({
               where: { id: matchedProfile.id },
               data: {
                 profileId: officialProfileId,
                 paymentCompleted: true,
-                approvalStatus:
-                  matchedProfile.approvalStatus === "DRAFT"
-                    ? "UNDER_REVIEW"
-                    : matchedProfile.approvalStatus,
-                isVisible: matchedProfile.approvalStatus === "APPROVED",
+                approvalStatus: "APPROVED",
+                isVisible: true,
+                approvedAt: matchedProfile.approvedAt || new Date(),
               },
             });
 

@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth/session-storage";
 import { BUSINESS_INFO } from "@/lib/gst";
 import { SocialIconsRow } from "@/components/SocialLinks";
+import AuthModal from "@/components/AuthModal";
 
 interface ProfileItem {
   id: string;
@@ -55,6 +56,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [switchingProfile, setSwitchingProfile] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<"LOGIN" | "REGISTER">("LOGIN");
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -283,12 +286,16 @@ export default function Navbar() {
           <div className="hidden lg:flex items-center gap-3">
             {!checkingAuth && !user && (
               <>
-                <Link
-                  href="/login"
-                  className="rounded-lg border border-[#4A121A] px-5 py-2 text-sm font-semibold text-[#4A121A] transition hover:bg-[#FAF0DC]"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalMode("LOGIN");
+                    setAuthModalOpen(true);
+                  }}
+                  className="rounded-lg border border-[#4A121A] px-5 py-2 text-sm font-semibold text-[#4A121A] transition hover:bg-[#FAF0DC] cursor-pointer"
                 >
                   Login
-                </Link>
+                </button>
                 <Link
                   href="/register"
                   className="rounded-lg bg-[#C5A059] px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B88E4C] hover:shadow"
@@ -507,13 +514,17 @@ export default function Navbar() {
             <div className="border-t border-[#E8DCC8] pt-4 flex flex-col gap-3">
               {!checkingAuth && !user && (
                 <>
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full text-center rounded-lg border border-[#4A121A] py-2.5 text-base font-semibold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setAuthModalMode("LOGIN");
+                      setAuthModalOpen(true);
+                    }}
+                    className="w-full text-center rounded-lg border border-[#4A121A] py-2.5 text-base font-semibold text-[#4A121A] hover:bg-[#FAF0DC] transition cursor-pointer"
                   >
                     Login
-                  </Link>
+                  </button>
                   <Link
                     href="/register"
                     onClick={() => setMobileMenuOpen(false)}
@@ -578,6 +589,13 @@ export default function Navbar() {
           </div>
         )}
       </header>
+
+      {/* Fast2SMS OTP Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        initialMode={authModalMode}
+      />
     </>
   );
 }

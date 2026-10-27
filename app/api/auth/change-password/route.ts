@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       data: {
         password: hashedPassword,
         mustChangePassword: false,
+        lastLoginAt: new Date(),
       },
     });
 

@@ -154,6 +154,39 @@ async function testRoutes() {
   });
   assert(!!verifiedDbOtp, "Database record updated to verified=true");
 
+  // 6. Resend OTP Route Test
+  console.log("\n[Route Test 6: Fast2SMS Resend-OTP Flow]");
+  const resendModule = await import("../app/api/auth/resend-otp/route");
+  const resendOtpHandler = resendModule.POST;
+  
+  global.fetch = async (url: any) => {
+    if (String(url).includes("/dev/otp/resend")) {
+      return new Response(
+        JSON.stringify({
+          return: true,
+          status_code: 200,
+          request_id: "resend_mock_abc",
+          message: "OTP resent successfully via SMS",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return new Response(JSON.stringify({ return: false }), { status: 400 });
+  };
+
+  // Clear OTP so cooldown doesn't block resend test
+  await prisma.oTP.deleteMany({ where: { mobile: testMobile } });
+
+  const reqResend = new NextRequest("http://localhost:3000/api/auth/resend-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mobile: testMobile, type: "REGISTRATION" }),
+  });
+  const resResend = await resendOtpHandler(reqResend);
+  assert(resResend.status === 200, "resend-otp returns 200 on successful Fast2SMS resend");
+  const dataResend = await resResend.json();
+  assert(dataResend.success === true, "resend-otp returns success=true");
+
   // Restore fetch
   global.fetch = originalFetch;
 

@@ -20,6 +20,7 @@ import {
   HardDrive,
   Sparkles,
   Share2,
+  Activity,
 } from "lucide-react";
 import { clearAuthSession } from "@/lib/auth/session-storage";
 
@@ -33,6 +34,11 @@ const navItems = [
     title: "Profiles",
     href: "/admin/profiles",
     icon: Users,
+  },
+  {
+    title: "User Activity & Adoption",
+    href: "/admin/activity",
+    icon: Activity,
   },
   {
     title: "Pending Approvals",

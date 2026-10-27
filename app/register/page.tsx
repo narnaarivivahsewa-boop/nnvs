@@ -201,10 +201,62 @@ export default function RegisterPage() {
 
       setOtpSent(true);
       setMaskedMobile(result.maskedMobile || mobile);
-      setResendTimer(90); // 90s cooldown
+      setResendTimer(60); // 60s cooldown
       setOtpStatus({
         type: "success",
         message: result.message || `OTP sent to ${result.maskedMobile || mobile} via SMS.`,
+      });
+    } catch (err) {
+      console.error(err);
+      setOtpStatus({
+        type: "error",
+        message: "Network error. Unable to reach SMS gateway.",
+      });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const resendOTP = async () => {
+    const mobile = getValues("mobile")?.trim();
+    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+      setOtpStatus({
+        type: "error",
+        message: "Please enter a valid 10-digit Indian mobile number.",
+      });
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+      setOtpStatus({ type: "info", message: "Resending SMS OTP..." });
+
+      const res = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mobile,
+          type: "REGISTRATION",
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        if (result.cooldownRemaining) {
+          setResendTimer(result.cooldownRemaining);
+        }
+        setOtpStatus({
+          type: "error",
+          message: result.message || "Failed to resend SMS OTP.",
+        });
+        return;
+      }
+
+      setResendTimer(60);
+      setOtpStatus({
+        type: "success",
+        message: result.message || "OTP resent successfully via Fast2SMS SMS.",
       });
     } catch (err) {
       console.error(err);
@@ -432,6 +484,7 @@ export default function RegisterPage() {
               maskedMobile={maskedMobile}
               otpStatus={otpStatus}
               onSendOTP={sendOTP}
+              onResendOTP={resendOTP}
               onVerifyOTP={verifyOTP}
               onChangeMobile={changeMobile}
             />
