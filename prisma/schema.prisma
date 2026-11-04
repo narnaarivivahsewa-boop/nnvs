@@ -717,36 +717,7 @@ model KundliLead {
   updatedAt     DateTime @updatedAt
 
   @@index([phoneNumber])
-}
-
-model OtpVerification {
-  id          String   @id @default(uuid())
-  phoneNumber String   @unique
-  otpHash     String
-  attempts    Int      @default(0)
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-
-model KundliLead {
-  id             String   @id @default(uuid())
-  phoneNumber    String   @index
-  isOtpVerified  Boolean  @default(false)
-  boyName        String
-  boyDob         DateTime
-  boyTime        String
-  boyPlace       String
-  girlName       String
-  girlDob        DateTime
-  girlTime       String
-  girlPlace      String
-  gunaScore      Float?
-  manglikStatus  String?
-  isRegistered   Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  @@index([createdAt])
 }
 
 model OtpVerification {
