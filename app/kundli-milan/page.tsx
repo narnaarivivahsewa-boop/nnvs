@@ -17,21 +17,99 @@ import {
   User,
   Star,
   RefreshCw,
-  Compass,
   Check,
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 
+const POPULAR_CITIES: readonly string[] = [
+  "Delhi, Delhi",
+  "New Delhi, Delhi",
+  "Gurugram, Haryana",
+  "Faridabad, Haryana",
+  "Noida, Uttar Pradesh",
+  "Greater Noida, Uttar Pradesh",
+  "Ghaziabad, Uttar Pradesh",
+  "Hisar, Haryana",
+  "Rohtak, Haryana",
+  "Karnal, Haryana",
+  "Panipat, Haryana",
+  "Ambala, Haryana",
+  "Sonipat, Haryana",
+  "Panchkula, Haryana",
+  "Chandigarh",
+  "Jaipur, Rajasthan",
+  "Jodhpur, Rajasthan",
+  "Udaipur, Rajasthan",
+  "Kota, Rajasthan",
+  "Bikaner, Rajasthan",
+  "Ajmer, Rajasthan",
+  "Alwar, Rajasthan",
+  "Lucknow, Uttar Pradesh",
+  "Kanpur, Uttar Pradesh",
+  "Agra, Uttar Pradesh",
+  "Varanasi, Uttar Pradesh",
+  "Prayagraj, Uttar Pradesh",
+  "Meerut, Uttar Pradesh",
+  "Bareilly, Uttar Pradesh",
+  "Aligarh, Uttar Pradesh",
+  "Mathura, Uttar Pradesh",
+  "Ludhiana, Punjab",
+  "Amritsar, Punjab",
+  "Jalandhar, Punjab",
+  "Patiala, Punjab",
+  "Bathinda, Punjab",
+  "Dehradun, Uttarakhand",
+  "Haridwar, Uttarakhand",
+  "Shimla, Himachal Pradesh",
+  "Mumbai, Maharashtra",
+  "Pune, Maharashtra",
+  "Nagpur, Maharashtra",
+  "Kolkata, West Bengal",
+  "Bengaluru, Karnataka",
+  "Hyderabad, Telangana",
+  "Ahmedabad, Gujarat",
+  "Surat, Gujarat",
+  "Vadodara, Gujarat",
+  "Indore, Madhya Pradesh",
+  "Bhopal, Madhya Pradesh",
+  "Gwalior, Madhya Pradesh",
+  "Patna, Bihar",
+  "Ranchi, Jharkhand",
+  "Raipur, Chhattisgarh",
+] as const;
+
+const HOURS_LIST = [
+  "01", "02", "03", "04", "05", "06",
+  "07", "08", "09", "10", "11", "12"
+];
+
+const MINUTES_LIST = Array.from({ length: 60 }, (_, i) =>
+  i.toString().padStart(2, "0")
+);
+
+function convertTo24Hour(hourStr: string, minStr: string, ampm: "AM" | "PM"): string {
+  let h = Number.parseInt(hourStr || "12", 10);
+  const m = minStr.padStart(2, "0");
+  if (ampm === "PM" && h < 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return `${h.toString().padStart(2, "0")}:${m}`;
+}
+
 export default function KundliMilanPage() {
-  // Partner Details State
+  // Groom (Boy) State
   const [boyName, setBoyName] = useState("");
   const [boyDob, setBoyDob] = useState("");
-  const [boyTime, setBoyTime] = useState("12:00");
+  const [boyHour, setBoyHour] = useState("12");
+  const [boyMinute, setBoyMinute] = useState("00");
+  const [boyAmPm, setBoyAmPm] = useState<"AM" | "PM">("PM");
   const [boyPlace, setBoyPlace] = useState("");
 
+  // Bride (Girl) State
   const [girlName, setGirlName] = useState("");
   const [girlDob, setGirlDob] = useState("");
-  const [girlTime, setGirlTime] = useState("12:00");
+  const [girlHour, setGirlHour] = useState("12");
+  const [girlMinute, setGirlMinute] = useState("00");
+  const [girlAmPm, setGirlAmPm] = useState<"AM" | "PM">("PM");
   const [girlPlace, setGirlPlace] = useState("");
 
   // OTP Verification State
@@ -69,7 +147,6 @@ export default function KundliMilanPage() {
         setShowPricingPopup(true);
       }, 3500);
 
-      // Smooth scroll to results
       if (resultsRef.current) {
         resultsRef.current.scrollIntoView({ behavior: "smooth" });
       }
@@ -143,17 +220,20 @@ export default function KundliMilanPage() {
     setVerifyingOtp(true);
     setOtpError("");
 
+    const boyTime24 = convertTo24Hour(boyHour, boyMinute, boyAmPm);
+    const girlTime24 = convertTo24Hour(girlHour, girlMinute, girlAmPm);
+
     try {
       const payload = {
         phoneNumber: cleanPhone,
         otp: cleanOtp,
         boyName: boyName.trim(),
         boyDob,
-        boyTime: boyTime || "12:00",
+        boyTime: boyTime24,
         boyPlace: boyPlace.trim(),
         girlName: girlName.trim(),
         girlDob,
-        girlTime: girlTime || "12:00",
+        girlTime: girlTime24,
         girlPlace: girlPlace.trim(),
       };
 
@@ -181,10 +261,17 @@ export default function KundliMilanPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2A1A1F]">
+      {/* City Autocomplete Datalist */}
+      <datalist id="kundli-cities-datalist">
+        {POPULAR_CITIES.map((city) => (
+          <option key={city} value={city} />
+        ))}
+      </datalist>
+
       {/* Hero Header */}
-      <section className="bg-gradient-to-b from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white py-14 px-4 sm:px-6 lg:px-8 border-b border-[#C5A059]/30 relative overflow-hidden">
+      <section className="bg-gradient-to-b from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white py-12 sm:py-14 px-4 sm:px-6 lg:px-8 border-b border-[#C5A059]/30 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#C5A059_1px,transparent_1px)] [background-size:16px_16px]" />
-        <div className="max-w-4xl mx-auto text-center relative z-10">
+        <div className="w-full max-w-lg md:max-w-4xl mx-auto text-center relative z-10 px-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#C5A059]/20 border border-[#C5A059]/40 text-[#DFBA73] text-xs font-semibold tracking-wider uppercase mb-4">
             <Sparkles className="w-4 h-4 text-[#DFBA73]" />
             100% Free & Accurate Vedic Matchmaking
@@ -192,7 +279,7 @@ export default function KundliMilanPage() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight font-serif text-[#FFFDF9]">
             Free Kundli Milan <span className="text-[#DFBA73]">(गुण मिलान)</span>
           </h1>
-          <p className="mt-3.5 text-base sm:text-lg text-rose-100 max-w-2xl mx-auto">
+          <p className="mt-3.5 text-sm sm:text-base md:text-lg text-rose-100 max-w-2xl mx-auto">
             Traditional 36-Guna Ashtakoot matching and Manglik Dosha analysis for prospective brides and grooms according to Vedic astrology.
           </p>
 
@@ -213,9 +300,8 @@ export default function KundliMilanPage() {
         </div>
       </section>
 
-      {/* Main Content Area */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Input Form */}
+      {/* Main Form Container */}
+      <main className="w-full max-w-lg md:max-w-4xl mx-auto px-4 py-8 sm:py-10">
         <form onSubmit={handleInitiateMilan} className="space-y-8">
           {formError && (
             <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2.5">
@@ -226,7 +312,7 @@ export default function KundliMilanPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {/* Boy's Details Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-6 sm:p-7 relative overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-hidden">
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F0E8DC]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
@@ -250,42 +336,70 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Enter boy's full name"
+                    placeholder="Enter groom's full name"
                     value={boyName}
                     onChange={(e) => setBoyName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#C5A059]" />
-                      Date of Birth <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={boyDob}
-                      onChange={(e) => setBoyDob(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-[#C5A059]" />
+                    Date of Birth <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={boyDob}
+                    onChange={(e) => setBoyDob(e.target.value)}
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                  />
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#C5A059]" />
-                      Birth Time
-                    </label>
-                    <input
-                      type="time"
-                      value={boyTime}
-                      onChange={(e) => setBoyTime(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
-                    />
+                {/* 12-Hour Time Picker with AM/PM */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#C5A059]" />
+                    Time of Birth (12-Hour)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={boyHour}
+                      onChange={(e) => setBoyHour(e.target.value)}
+                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    >
+                      {HOURS_LIST.map((h) => (
+                        <option key={h} value={h}>
+                          {h} Hr
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={boyMinute}
+                      onChange={(e) => setBoyMinute(e.target.value)}
+                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    >
+                      {MINUTES_LIST.map((m) => (
+                        <option key={m} value={m}>
+                          {m} Min
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={boyAmPm}
+                      onChange={(e) => setBoyAmPm(e.target.value as "AM" | "PM")}
+                      className="w-full h-12 px-2.5 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
                   </div>
                 </div>
 
+                {/* Birth Place: Searchable City Selection */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-[#C5A059]" />
@@ -294,17 +408,18 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Delhi, Jaipur, Hisar"
+                    list="kundli-cities-datalist"
+                    placeholder="Search city (e.g. Gurugram, Delhi, Jaipur)"
                     value={boyPlace}
                     onChange={(e) => setBoyPlace(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>
             </div>
 
             {/* Girl's Details Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-6 sm:p-7 relative overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-hidden">
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F0E8DC]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-700 flex items-center justify-center font-bold">
@@ -328,42 +443,70 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Enter girl's full name"
+                    placeholder="Enter bride's full name"
                     value={girlName}
                     onChange={(e) => setGirlName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#C5A059]" />
-                      Date of Birth <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={girlDob}
-                      onChange={(e) => setGirlDob(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-[#C5A059]" />
+                    Date of Birth <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={girlDob}
+                    onChange={(e) => setGirlDob(e.target.value)}
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                  />
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#C5A059]" />
-                      Birth Time
-                    </label>
-                    <input
-                      type="time"
-                      value={girlTime}
-                      onChange={(e) => setGirlTime(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
-                    />
+                {/* 12-Hour Time Picker with AM/PM */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#C5A059]" />
+                    Time of Birth (12-Hour)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={girlHour}
+                      onChange={(e) => setGirlHour(e.target.value)}
+                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    >
+                      {HOURS_LIST.map((h) => (
+                        <option key={h} value={h}>
+                          {h} Hr
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={girlMinute}
+                      onChange={(e) => setGirlMinute(e.target.value)}
+                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    >
+                      {MINUTES_LIST.map((m) => (
+                        <option key={m} value={m}>
+                          {m} Min
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={girlAmPm}
+                      onChange={(e) => setGirlAmPm(e.target.value as "AM" | "PM")}
+                      className="w-full h-12 px-2.5 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
                   </div>
                 </div>
 
+                {/* Birth Place: Searchable City Selection */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-[#C5A059]" />
@@ -372,10 +515,11 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Mumbai, Chandigarh, Hisar"
+                    list="kundli-cities-datalist"
+                    placeholder="Search city (e.g. Gurugram, Delhi, Jaipur)"
                     value={girlPlace}
                     onChange={(e) => setGirlPlace(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>
@@ -386,7 +530,7 @@ export default function KundliMilanPage() {
           <div className="text-center pt-2">
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl text-base font-bold bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-md shadow-[#4A121A]/20 border border-[#C5A059]"
+              className="w-full sm:w-auto h-12 min-h-[48px] inline-flex items-center justify-center gap-2.5 px-8 py-3 rounded-xl text-base font-bold bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-md shadow-[#4A121A]/20 border border-[#C5A059]"
             >
               <Sparkles className="w-5 h-5 text-[#DFBA73]" />
               Match Kundli Free (गुण मिलान करें)
@@ -571,7 +715,7 @@ export default function KundliMilanPage() {
               <div className="flex-shrink-0">
                 <Link
                   href={`/register?phone=${verifiedPhone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm bg-[#DFBA73] text-[#4A121A] hover:bg-[#E6C280] active:scale-95 transition-all shadow-md"
+                  className="h-12 min-h-[48px] inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-[#DFBA73] text-[#4A121A] hover:bg-[#E6C280] active:scale-95 transition-all shadow-md"
                 >
                   <Sparkles className="w-4 h-4" />
                   Register Profile Now
@@ -586,7 +730,7 @@ export default function KundliMilanPage() {
       {/* OTP Verification Modal */}
       {isOtpModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E8DFD3] relative">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E8DFD3] relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsOtpModalOpen(false)}
               className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -629,7 +773,7 @@ export default function KundliMilanPage() {
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                      className="w-full pl-12 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                      className="w-full h-12 pl-12 pr-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     />
                   </div>
                 </div>
@@ -638,7 +782,7 @@ export default function KundliMilanPage() {
                   type="button"
                   disabled={sendingOtp || phone.replace(/\D/g, "").length < 10}
                   onClick={handleSendOtp}
-                  className="w-full py-3 rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   {sendingOtp ? (
                     <span className="inline-flex items-center gap-2">
@@ -666,7 +810,7 @@ export default function KundliMilanPage() {
                     placeholder="Enter code"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center tracking-widest text-lg font-bold py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 text-center tracking-widest text-lg font-bold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
@@ -674,7 +818,7 @@ export default function KundliMilanPage() {
                   type="button"
                   disabled={verifyingOtp || otp.length < 4}
                   onClick={handleVerifyOtp}
-                  className="w-full py-3 rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   {verifyingOtp ? (
                     <span className="inline-flex items-center gap-2">
@@ -696,7 +840,7 @@ export default function KundliMilanPage() {
                       setOtpSent(false);
                       setOtp("");
                     }}
-                    className="hover:underline"
+                    className="hover:underline py-1.5"
                   >
                     Change Number
                   </button>
@@ -705,7 +849,7 @@ export default function KundliMilanPage() {
                     type="button"
                     disabled={resendCooldown > 0 || sendingOtp}
                     onClick={handleSendOtp}
-                    className="text-[#4A121A] font-semibold hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-[#4A121A] font-semibold hover:underline disabled:opacity-40 disabled:cursor-not-allowed py-1.5"
                   >
                     {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : "Resend OTP"}
                   </button>
@@ -719,7 +863,7 @@ export default function KundliMilanPage() {
       {/* Delayed Registration Popup Modal (3-4 seconds delay) */}
       {showPricingPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-[#C5A059] relative overflow-hidden">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-[#C5A059] relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowPricingPopup(false)}
               className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors z-10"
@@ -792,7 +936,7 @@ export default function KundliMilanPage() {
             <div className="space-y-3">
               <Link
                 href={`/register?phone=${verifiedPhone}`}
-                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-lg flex items-center justify-center gap-2 border border-[#C5A059]"
+                className="w-full h-12 min-h-[48px] rounded-xl font-bold text-sm bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-lg flex items-center justify-center gap-2 border border-[#C5A059]"
               >
                 <Sparkles className="w-4 h-4 text-[#DFBA73]" />
                 Proceed to Register (+91 {verifiedPhone})
@@ -802,7 +946,7 @@ export default function KundliMilanPage() {
               <button
                 type="button"
                 onClick={() => setShowPricingPopup(false)}
-                className="w-full py-2 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                className="w-full min-h-[44px] flex items-center justify-center text-xs text-gray-500 hover:text-gray-800 transition-colors"
               >
                 Continue Viewing Kundli Milan Report
               </button>
@@ -813,4 +957,3 @@ export default function KundliMilanPage() {
     </div>
   );
 }
-
