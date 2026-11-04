@@ -117,7 +117,7 @@ export default function KundliMilanPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setOtpError(data.message || "Failed to send OTP. Please try again.");
+        setOtpError(data.error || data.message || "Failed to send OTP. Please try again.");
         return;
       }
 
@@ -165,7 +165,7 @@ export default function KundliMilanPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setOtpError(data.message || "Invalid OTP. Please verify and retry.");
+        setOtpError(data.error || data.message || "Invalid OTP. Please verify and retry.");
         return;
       }
 
