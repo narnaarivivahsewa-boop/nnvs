@@ -106,7 +106,7 @@ model Profile {
   firstName     String?
   lastName      String?
   dateOfBirth   DateTime?
-  height 	String?
+  height        String?
   maritalStatus String?
   religion      String?
   caste         String?
@@ -125,10 +125,10 @@ model Profile {
   paymentRemark      String?
 
   // AI Matchmaking & Questionnaire fields
-  hobbies            String?
-  interests          String?
-  lifestyle          String?
-  expectations       String?
+  hobbies      String?
+  interests    String?
+  lifestyle    String?
+  expectations String?
 
   isVisible              Boolean @default(false)
   paymentCompleted       Boolean @default(false)
@@ -151,11 +151,11 @@ model Profile {
   shortlists        Shortlist[]
   blocks            Block[]
   phoneNumbers      ProfilePhone[]
-  promoCodes PromoCode[]
+  promoCodes        PromoCode[]
 
-  isDuplicateFlagged          Boolean?               @default(false)
-  duplicateMatchedProfileId   String?
-  duplicateNotes              String?
+  isDuplicateFlagged        Boolean? @default(false)
+  duplicateMatchedProfileId String?
+  duplicateNotes            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -271,13 +271,13 @@ model PartnerPreference {
   preferredCaste    String?
 
   // AI Questionnaire Preferences
-  dietPreference    String?
-  lifestyle         String?
-  dressingStyle     String?
-  educationLevel    String?
-  expectations      String?
-  hobbies           String?
-  interests         String?
+  dietPreference String?
+  lifestyle      String?
+  dressingStyle  String?
+  educationLevel String?
+  expectations   String?
+  hobbies        String?
+  interests      String?
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }
@@ -307,7 +307,8 @@ model Shortlist {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-@@unique([profileId, shortlistedProfileId])
+
+  @@unique([profileId, shortlistedProfileId])
 }
 
 model Block {
@@ -356,33 +357,34 @@ model Subscription {
 model Payment {
   id String @id @default(cuid())
 
-  userId String
+  userId    String
   profileId String?
 
-  amount Decimal @db.Decimal(10, 2)
-  grossAmount Decimal? @db.Decimal(10, 2)
+  amount        Decimal  @db.Decimal(10, 2)
+  grossAmount   Decimal? @db.Decimal(10, 2)
   taxableAmount Decimal? @db.Decimal(10, 2)
-  gstRate Decimal? @db.Decimal(5, 2)
-  gstAmount Decimal? @db.Decimal(10, 2)
+  gstRate       Decimal? @db.Decimal(5, 2)
+  gstAmount     Decimal? @db.Decimal(10, 2)
 
   status PaymentStatus @default(PENDING)
 
-  paymentGateway String?
-  transactionId  String?
-  paymentDate    DateTime?
-  screenshotUrl  String?
-  adminNotes     String? @db.Text
-  confirmedByAdmin Boolean @default(false)
-  confirmedAt    DateTime?
+  paymentGateway   String?
+  transactionId    String?
+  paymentDate      DateTime?
+  screenshotUrl    String?
+  adminNotes       String?   @db.Text
+  confirmedByAdmin Boolean   @default(false)
+  confirmedAt      DateTime?
 
-  invoiceNumber  String? @unique
-  invoiceDate    DateTime?
-  invoiceUrl     String?
+  invoiceNumber String?   @unique
+  invoiceDate   DateTime?
+  invoiceUrl    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
+
 enum PromoDiscountType {
   PERCENTAGE
 }
@@ -400,7 +402,7 @@ model PromoCode {
   code String @unique
 
   discountType  PromoDiscountType @default(PERCENTAGE)
-  discountValue Decimal @db.Decimal(5, 2)
+  discountValue Decimal           @db.Decimal(5, 2)
 
   assignedProfileId String?
   assignedEmail     String?
@@ -410,7 +412,7 @@ model PromoCode {
 
   expiresAt DateTime?
 
-  usedAt DateTime?
+  usedAt        DateTime?
   usedPaymentId String?
 
   createdAt DateTime @default(now())
@@ -423,6 +425,7 @@ model PromoCode {
   @@index([assignedMobile])
   @@index([status])
 }
+
 enum MessageStatus {
   SENT
   DELIVERED
@@ -622,10 +625,10 @@ model AdminSetting {
 
   maintenanceMode Boolean @default(false)
 
-  gstPercentage Decimal @db.Decimal(5, 2) @default(18.00)
-  registrationFee Decimal? @db.Decimal(10, 2) @default(1100.00)
-  qrCodeUrl String? @default("/payment-qr.jpeg")
-  qrUpiId String? @default("narnaarivivahsewa@okicici")
+  gstPercentage   Decimal  @default(18.00) @db.Decimal(5, 2)
+  registrationFee Decimal? @default(1100.00) @db.Decimal(10, 2)
+  qrCodeUrl       String?  @default("/payment-qr.jpeg")
+  qrUpiId         String?  @default("narnaarivivahsewa@okicici")
 
   // Social Media Auto-Poster Settings
   socialAutoPostingEnabled Boolean @default(true)
@@ -637,11 +640,11 @@ model AdminSetting {
 
 model SocialPostLog {
   id               String   @id @default(cuid())
-  slot             String   // "MORNING" | "AFTERNOON" | "EVENING" | "MANUAL"
+  slot             String // "MORNING" | "AFTERNOON" | "EVENING" | "MANUAL"
   platform         String   @default("META_ALL") // "META_ALL" | "INSTAGRAM" | "FACEBOOK"
   imageUrl         String?  @db.Text
   caption          String?  @db.Text
-  status           String   // "SUCCESS" | "FAILED" | "SKIPPED"
+  status           String // "SUCCESS" | "FAILED" | "SKIPPED"
   instagramMediaId String?
   facebookPostId   String?
   error            String?  @db.Text
@@ -693,4 +696,65 @@ model VisitorSession {
 
   @@index([date])
   @@index([createdAt])
+}
+
+model KundliLead {
+  id            String   @id @default(uuid())
+  phoneNumber   String
+  isOtpVerified Boolean  @default(false)
+  boyName       String
+  boyDob        DateTime
+  boyTime       String
+  boyPlace      String
+  girlName      String
+  girlDob       DateTime
+  girlTime      String
+  girlPlace     String
+  gunaScore     Float?
+  manglikStatus String?
+  isRegistered  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phoneNumber])
+}
+
+model OtpVerification {
+  id          String   @id @default(uuid())
+  phoneNumber String   @unique
+  otpHash     String
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model KundliLead {
+  id             String   @id @default(uuid())
+  phoneNumber    String   @index
+  isOtpVerified  Boolean  @default(false)
+  boyName        String
+  boyDob         DateTime
+  boyTime        String
+  boyPlace       String
+  girlName       String
+  girlDob        DateTime
+  girlTime       String
+  girlPlace      String
+  gunaScore      Float?
+  manglikStatus  String?
+  isRegistered   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OtpVerification {
+  id          String   @id @default(uuid())
+  phoneNumber String   @unique
+  otpHash     String
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
