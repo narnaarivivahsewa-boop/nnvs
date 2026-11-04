@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateOTP, hashOTP } from "@/lib/auth/otp";
+import { sendFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,59 +67,66 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[Kundli OTP] Generated OTP for ${cleanPhone}: ${otp}`);
+    console.log(`[Kundli OTP] Generated local OTP for ${cleanPhone}: ${otp}`);
 
-    // 4. Resolve FAST2SMS_API_KEY
+    // 4. Dispatch OTP via Fast2SMS
+    // We first attempt using the active DLT Smart OTP gateway from lib/sms/fast2sms
+    const smsResult = await sendFast2SmsOTP(cleanPhone, otp);
+    console.log("[Fast2SMS] Smart OTP dispatch result:", smsResult);
+
+    if (smsResult.success) {
+      return NextResponse.json({
+        success: true,
+        message: `OTP has been sent to +91 ${cleanPhone.slice(0, 2)}******${cleanPhone.slice(-2)}.`,
+        phoneNumber: cleanPhone,
+        requestId: smsResult.requestId,
+      });
+    }
+
+    // If Smart OTP reported an error, log details and fallback to dev/bulkV2 if needed
+    console.warn("[Fast2SMS] Smart OTP dispatch returned error, trying bulkV2 fallback:", smsResult.error);
+
     const apiKey = (process.env.FAST2SMS_API_KEY || "").replace(/["']/g, "").trim();
+    if (apiKey) {
+      try {
+        const fast2smsRes = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+          method: "POST",
+          headers: {
+            authorization: apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            route: "otp",
+            variables_values: otp,
+            numbers: cleanPhone,
+          }),
+        });
 
-    if (!apiKey) {
-      console.error("[Fast2SMS] FAST2SMS_API_KEY is not configured in environment variables.");
-      return NextResponse.json(
-        {
-          error: "SMS service not configured on server. Please check FAST2SMS_API_KEY.",
-          message: "SMS service not configured on server. Please check FAST2SMS_API_KEY.",
-          success: false,
-        },
-        { status: 500 }
-      );
+        const data = await fast2smsRes.json().catch(() => ({}));
+        console.log("Fast2SMS API Response:", data);
+
+        if (data && data.return) {
+          return NextResponse.json({
+            success: true,
+            message: `OTP has been sent to +91 ${cleanPhone.slice(0, 2)}******${cleanPhone.slice(-2)}.`,
+            phoneNumber: cleanPhone,
+          });
+        }
+      } catch (fallbackErr) {
+        console.error("[Fast2SMS] bulkV2 fallback error:", fallbackErr);
+      }
     }
 
-    // 5. Dispatch via Fast2SMS Bulk V2 OTP route
-    const fast2smsRes = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-      method: "POST",
-      headers: {
-        authorization: apiKey,
-        "Content-Type": "application/json",
+    // If both failed, return a clean user-friendly error message from Fast2SMS
+    const errorMsg = smsResult.error || "Failed to send SMS OTP. Please try again.";
+    return NextResponse.json(
+      {
+        error: errorMsg,
+        message: errorMsg,
+        success: false,
       },
-      body: JSON.stringify({
-        route: "otp",
-        variables_values: otp,
-        numbers: cleanPhone,
-      }),
-    });
-
-    const data = await fast2smsRes.json().catch(() => ({}));
-    console.log("Fast2SMS API Response:", data);
-
-    if (!data.return) {
-      const errorMsg = Array.isArray(data.message)
-        ? data.message[0]
-        : (typeof data.message === "string" ? data.message : (data.message?.[0] || "SMS dispatch failed"));
-      return NextResponse.json(
-        {
-          error: errorMsg,
-          message: errorMsg,
-          success: false,
-        },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `OTP has been sent to +91 ${cleanPhone.slice(0, 2)}******${cleanPhone.slice(-2)}.`,
-      phoneNumber: cleanPhone,
-    });
+      { status: 400 }
+    );
   } catch (error) {
     console.error("[Kundli Send OTP Error]:", error);
     return NextResponse.json(

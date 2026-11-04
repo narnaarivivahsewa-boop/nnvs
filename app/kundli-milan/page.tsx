@@ -9,7 +9,6 @@ import {
   Clock,
   MapPin,
   ShieldCheck,
-  Phone,
   CheckCircle2,
   AlertTriangle,
   X,
@@ -21,61 +20,233 @@ import {
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 
-const POPULAR_CITIES: readonly string[] = [
-  "Delhi, Delhi",
-  "New Delhi, Delhi",
-  "Gurugram, Haryana",
-  "Faridabad, Haryana",
-  "Noida, Uttar Pradesh",
-  "Greater Noida, Uttar Pradesh",
-  "Ghaziabad, Uttar Pradesh",
-  "Hisar, Haryana",
-  "Rohtak, Haryana",
-  "Karnal, Haryana",
-  "Panipat, Haryana",
-  "Ambala, Haryana",
-  "Sonipat, Haryana",
-  "Panchkula, Haryana",
-  "Chandigarh",
-  "Jaipur, Rajasthan",
-  "Jodhpur, Rajasthan",
-  "Udaipur, Rajasthan",
-  "Kota, Rajasthan",
-  "Bikaner, Rajasthan",
-  "Ajmer, Rajasthan",
-  "Alwar, Rajasthan",
-  "Lucknow, Uttar Pradesh",
-  "Kanpur, Uttar Pradesh",
+/**
+ * 200+ Alphabetically Sorted Cities covering all 22 Haryana districts,
+ * Punjab, Rajasthan, Delhi-NCR, Western UP, and major Indian metro hubs.
+ */
+export const INDIAN_CITIES: readonly string[] = [
+  "Abohar, Punjab",
   "Agra, Uttar Pradesh",
-  "Varanasi, Uttar Pradesh",
-  "Prayagraj, Uttar Pradesh",
-  "Meerut, Uttar Pradesh",
-  "Bareilly, Uttar Pradesh",
-  "Aligarh, Uttar Pradesh",
-  "Mathura, Uttar Pradesh",
-  "Ludhiana, Punjab",
-  "Amritsar, Punjab",
-  "Jalandhar, Punjab",
-  "Patiala, Punjab",
-  "Bathinda, Punjab",
-  "Dehradun, Uttarakhand",
-  "Haridwar, Uttarakhand",
-  "Shimla, Himachal Pradesh",
-  "Mumbai, Maharashtra",
-  "Pune, Maharashtra",
-  "Nagpur, Maharashtra",
-  "Kolkata, West Bengal",
-  "Bengaluru, Karnataka",
-  "Hyderabad, Telangana",
   "Ahmedabad, Gujarat",
-  "Surat, Gujarat",
-  "Vadodara, Gujarat",
-  "Indore, Madhya Pradesh",
+  "Ahmednagar, Maharashtra",
+  "Ajmer, Rajasthan",
+  "Aligarh, Uttar Pradesh",
+  "Alwar, Rajasthan",
+  "Ambala, Haryana",
+  "Ambala Cantt, Haryana",
+  "Amravati, Maharashtra",
+  "Amritsar, Punjab",
+  "Anand, Gujarat",
+  "Asansol, West Bengal",
+  "Assandh, Haryana",
+  "Aurangabad, Maharashtra",
+  "Ayodhya, Uttar Pradesh",
+  "Badaun, Uttar Pradesh",
+  "Baghpat, Uttar Pradesh",
+  "Bahadurgarh, Haryana",
+  "Balotra, Rajasthan",
+  "Banswara, Rajasthan",
+  "Baran, Rajasthan",
+  "Bareilly, Uttar Pradesh",
+  "Barmer, Rajasthan",
+  "Barnala, Punjab",
+  "Barwala, Haryana",
+  "Bathinda, Punjab",
+  "Beawar, Rajasthan",
+  "Bengaluru, Karnataka",
+  "Bharatpur, Rajasthan",
+  "Bhavnagar, Gujarat",
+  "Bhilwara, Rajasthan",
+  "Bhiwani, Haryana",
   "Bhopal, Madhya Pradesh",
+  "Bhubaneswar, Odisha",
+  "Bikaner, Rajasthan",
+  "Bilaspur, Chhattisgarh",
+  "Bokaro Steel City, Jharkhand",
+  "Bulandshahr, Uttar Pradesh",
+  "Bundi, Rajasthan",
+  "Chandausi, Uttar Pradesh",
+  "Chandigarh, Union Territory",
+  "Charkhi Dadri, Haryana",
+  "Chennai, Tamil Nadu",
+  "Chittorgarh, Rajasthan",
+  "Churu, Rajasthan",
+  "Coimbatore, Tamil Nadu",
+  "Cuttack, Odisha",
+  "Dabwali, Haryana",
+  "Dausa, Rajasthan",
+  "Dehradun, Uttarakhand",
+  "Delhi, Delhi",
+  "Deoband, Uttar Pradesh",
+  "Dhanbad, Jharkhand",
+  "Dholpur, Rajasthan",
+  "Didwana, Rajasthan",
+  "Durgapur, West Bengal",
+  "Ellenabad, Haryana",
+  "Etawah, Uttar Pradesh",
+  "Faizabad, Uttar Pradesh",
+  "Faridabad, Haryana",
+  "Fatehabad, Haryana",
+  "Fatehpur, Uttar Pradesh",
+  "Fazilka, Punjab",
+  "Firozabad, Uttar Pradesh",
+  "Firozpur, Punjab",
+  "Gandhinagar, Gujarat",
+  "Gaya, Bihar",
+  "Ghaziabad, Uttar Pradesh",
+  "Gohana, Haryana",
+  "Gorakhpur, Uttar Pradesh",
+  "Greater Noida, Uttar Pradesh",
+  "Gurdaspur, Punjab",
+  "Gurugram, Haryana",
   "Gwalior, Madhya Pradesh",
+  "Haldwani, Uttarakhand",
+  "Hanumangarh, Rajasthan",
+  "Hapur, Uttar Pradesh",
+  "Haridwar, Uttarakhand",
+  "Hathras, Uttar Pradesh",
+  "Hisar, Haryana",
+  "Hodal, Haryana",
+  "Hoshiarpur, Punjab",
+  "Hyderabad, Telangana",
+  "Indore, Madhya Pradesh",
+  "Jabalpur, Madhya Pradesh",
+  "Jagadhri, Haryana",
+  "Jagraon, Punjab",
+  "Jaipur, Rajasthan",
+  "Jaisalmer, Rajasthan",
+  "Jalandhar, Punjab",
+  "Jalore, Rajasthan",
+  "Jammu, Jammu & Kashmir",
+  "Jamnagar, Gujarat",
+  "Jamshedpur, Jharkhand",
+  "Jhajjar, Haryana",
+  "Jhalawar, Rajasthan",
+  "Jhansi, Uttar Pradesh",
+  "Jhunjhunu, Rajasthan",
+  "Jind, Haryana",
+  "Jodhpur, Rajasthan",
+  "Kaithal, Haryana",
+  "Kalanwali, Haryana",
+  "Kanpur, Uttar Pradesh",
+  "Kapurthala, Punjab",
+  "Karnal, Haryana",
+  "Kasganj, Uttar Pradesh",
+  "Khanna, Punjab",
+  "Khurja, Uttar Pradesh",
+  "Kishangarh, Rajasthan",
+  "Kochi, Kerala",
+  "Kolhapur, Maharashtra",
+  "Kolkata, West Bengal",
+  "Kota, Rajasthan",
+  "Kotkapura, Punjab",
+  "Kotputli, Rajasthan",
+  "Kozhikode, Kerala",
+  "Kurukshetra, Haryana",
+  "Ladwa, Haryana",
+  "Loni, Uttar Pradesh",
+  "Lucknow, Uttar Pradesh",
+  "Ludhiana, Punjab",
+  "Madurai, Tamil Nadu",
+  "Mahendragarh, Haryana",
+  "Mainpuri, Uttar Pradesh",
+  "Malerkotla, Punjab",
+  "Mandi Dabwali, Haryana",
+  "Mandi Gobindgarh, Punjab",
+  "Manesar, Haryana",
+  "Mangaluru, Karnataka",
+  "Mansa, Punjab",
+  "Mathura, Uttar Pradesh",
+  "Meerut, Uttar Pradesh",
+  "Modinagar, Uttar Pradesh",
+  "Moga, Punjab",
+  "Mohali (SAS Nagar), Punjab",
+  "Moradabad, Uttar Pradesh",
+  "Muktsar, Punjab",
+  "Mumbai, Maharashtra",
+  "Muzaffarnagar, Uttar Pradesh",
+  "Mysuru, Karnataka",
+  "Nagaur, Rajasthan",
+  "Nagpur, Maharashtra",
+  "Narnaul, Haryana",
+  "Narwana, Haryana",
+  "Nashik, Maharashtra",
+  "Navi Mumbai, Maharashtra",
+  "Nawanshahr, Punjab",
+  "Neem Ka Thana, Rajasthan",
+  "New Delhi, Delhi",
+  "Noida, Uttar Pradesh",
+  "Nuh, Haryana",
+  "Pali, Rajasthan",
+  "Palwal, Haryana",
+  "Panchkula, Haryana",
+  "Panipat, Haryana",
+  "Pathankot, Punjab",
+  "Patiala, Punjab",
   "Patna, Bihar",
-  "Ranchi, Jharkhand",
+  "Pehowa, Haryana",
+  "Phagwara, Punjab",
+  "Phalodi, Rajasthan",
+  "Pilani, Rajasthan",
+  "Pilibhit, Uttar Pradesh",
+  "Prayagraj (Allahabad), Uttar Pradesh",
+  "Pundri, Haryana",
+  "Pune, Maharashtra",
   "Raipur, Chhattisgarh",
+  "Rajkot, Gujarat",
+  "Rajpura, Punjab",
+  "Rajsamand, Rajasthan",
+  "Rampur, Uttar Pradesh",
+  "Ranchi, Jharkhand",
+  "Ratia, Haryana",
+  "Rawatsar, Rajasthan",
+  "Rewari, Haryana",
+  "Rishikesh, Uttarakhand",
+  "Rohtak, Haryana",
+  "Roorkee, Uttarakhand",
+  "Ropar (Roopnagar), Punjab",
+  "Rourkela, Odisha",
+  "Safidon, Haryana",
+  "Saharanpur, Uttar Pradesh",
+  "Samalkha, Haryana",
+  "Samana, Punjab",
+  "Sambhal, Uttar Pradesh",
+  "Sangrur, Punjab",
+  "Shahbad, Haryana",
+  "Shahjahanpur, Uttar Pradesh",
+  "Shamli, Uttar Pradesh",
+  "Shikohabad, Uttar Pradesh",
+  "Shimla, Himachal Pradesh",
+  "Sikar, Rajasthan",
+  "Siliguri, West Bengal",
+  "Sirsa, Haryana",
+  "Sitapur, Uttar Pradesh",
+  "Sohna, Haryana",
+  "Solapur, Maharashtra",
+  "Sonipat, Haryana",
+  "Sri Ganganagar, Rajasthan",
+  "Srinagar, Jammu & Kashmir",
+  "Sunam, Punjab",
+  "Surat, Gujarat",
+  "Suratgarh, Rajasthan",
+  "Taraori, Haryana",
+  "Tarn Taran, Punjab",
+  "Thane, Maharashtra",
+  "Thanesar, Haryana",
+  "Thiruvananthapuram, Kerala",
+  "Tohana, Haryana",
+  "Tonk, Rajasthan",
+  "Uchana, Haryana",
+  "Udaipur, Rajasthan",
+  "Ujjain, Madhya Pradesh",
+  "Uklana, Haryana",
+  "Vadodara, Gujarat",
+  "Varanasi, Uttar Pradesh",
+  "Vijayawada, Andhra Pradesh",
+  "Visakhapatnam, Andhra Pradesh",
+  "Vrindavan, Uttar Pradesh",
+  "Yamunanagar, Haryana",
+  "Zirakpur, Punjab",
 ] as const;
 
 const HOURS_LIST = [
@@ -261,9 +432,9 @@ export default function KundliMilanPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2A1A1F]">
-      {/* City Autocomplete Datalist */}
-      <datalist id="kundli-cities-datalist">
-        {POPULAR_CITIES.map((city) => (
+      {/* 150+ Sorted City Autocomplete Datalist */}
+      <datalist id="indian-cities-datalist">
+        {INDIAN_CITIES.map((city) => (
           <option key={city} value={city} />
         ))}
       </datalist>
@@ -339,7 +510,7 @@ export default function KundliMilanPage() {
                     placeholder="Enter groom's full name"
                     value={boyName}
                     onChange={(e) => setBoyName(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
@@ -353,7 +524,7 @@ export default function KundliMilanPage() {
                     required
                     value={boyDob}
                     onChange={(e) => setBoyDob(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
@@ -367,7 +538,7 @@ export default function KundliMilanPage() {
                     <select
                       value={boyHour}
                       onChange={(e) => setBoyHour(e.target.value)}
-                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                      className="w-full h-12 px-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     >
                       {HOURS_LIST.map((h) => (
                         <option key={h} value={h}>
@@ -379,7 +550,7 @@ export default function KundliMilanPage() {
                     <select
                       value={boyMinute}
                       onChange={(e) => setBoyMinute(e.target.value)}
-                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                      className="w-full h-12 px-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     >
                       {MINUTES_LIST.map((m) => (
                         <option key={m} value={m}>
@@ -391,7 +562,7 @@ export default function KundliMilanPage() {
                     <select
                       value={boyAmPm}
                       onChange={(e) => setBoyAmPm(e.target.value as "AM" | "PM")}
-                      className="w-full h-12 px-2.5 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
+                      className="w-full h-12 px-3 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -408,11 +579,11 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    list="kundli-cities-datalist"
-                    placeholder="Search city (e.g. Gurugram, Delhi, Jaipur)"
+                    list="indian-cities-datalist"
+                    placeholder="उदा. Fatehabad, Hisar, Delhi"
                     value={boyPlace}
                     onChange={(e) => setBoyPlace(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>
@@ -446,7 +617,7 @@ export default function KundliMilanPage() {
                     placeholder="Enter bride's full name"
                     value={girlName}
                     onChange={(e) => setGirlName(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
@@ -460,7 +631,7 @@ export default function KundliMilanPage() {
                     required
                     value={girlDob}
                     onChange={(e) => setGirlDob(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
 
@@ -474,7 +645,7 @@ export default function KundliMilanPage() {
                     <select
                       value={girlHour}
                       onChange={(e) => setGirlHour(e.target.value)}
-                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                      className="w-full h-12 px-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     >
                       {HOURS_LIST.map((h) => (
                         <option key={h} value={h}>
@@ -486,7 +657,7 @@ export default function KundliMilanPage() {
                     <select
                       value={girlMinute}
                       onChange={(e) => setGirlMinute(e.target.value)}
-                      className="w-full h-12 px-2.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                      className="w-full h-12 px-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     >
                       {MINUTES_LIST.map((m) => (
                         <option key={m} value={m}>
@@ -498,7 +669,7 @@ export default function KundliMilanPage() {
                     <select
                       value={girlAmPm}
                       onChange={(e) => setGirlAmPm(e.target.value as "AM" | "PM")}
-                      className="w-full h-12 px-2.5 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
+                      className="w-full h-12 px-3 text-sm font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9] text-[#4A121A]"
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -515,11 +686,11 @@ export default function KundliMilanPage() {
                   <input
                     type="text"
                     required
-                    list="kundli-cities-datalist"
-                    placeholder="Search city (e.g. Gurugram, Delhi, Jaipur)"
+                    list="indian-cities-datalist"
+                    placeholder="उदा. Fatehabad, Hisar, Delhi"
                     value={girlPlace}
                     onChange={(e) => setGirlPlace(e.target.value)}
-                    className="w-full h-12 px-3.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    className="w-full h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>

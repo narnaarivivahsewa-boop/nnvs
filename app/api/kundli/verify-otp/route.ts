@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return NextResponse.json(
         {
-          success: false,
+          error: "Please enter a valid 10-digit Indian mobile number.",
           message: "Please enter a valid 10-digit Indian mobile number.",
+          success: false,
         },
         { status: 400 }
       );
@@ -23,14 +24,15 @@ export async function POST(req: NextRequest) {
     if (!userOtp || userOtp.length < 4) {
       return NextResponse.json(
         {
-          success: false,
+          error: "Please provide the valid OTP sent to your phone.",
           message: "Please provide the valid OTP sent to your phone.",
+          success: false,
         },
         { status: 400 }
       );
     }
 
-    // 1. Fetch OTP record & match hashed OTP
+    // 1. Fetch OTP record & match
     const verification = await prisma.otpVerification.findUnique({
       where: { phoneNumber: cleanPhone },
     });
@@ -38,8 +40,9 @@ export async function POST(req: NextRequest) {
     if (!verification) {
       return NextResponse.json(
         {
-          success: false,
+          error: "No active OTP request found for this number. Please request a new OTP.",
           message: "No active OTP request found for this number. Please request a new OTP.",
+          success: false,
         },
         { status: 400 }
       );
@@ -48,19 +51,26 @@ export async function POST(req: NextRequest) {
     if (new Date() > verification.expiresAt) {
       return NextResponse.json(
         {
-          success: false,
+          error: "The OTP has expired. Please request a new OTP.",
           message: "The OTP has expired. Please request a new OTP.",
+          success: false,
         },
         { status: 400 }
       );
     }
 
+    // Verify against Fast2SMS official gateway and local hash fallback
+    const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
+    const verifyResult = await verifyFast2SmsOTP(cleanPhone, userOtp);
     const hashedInput = hashOTP(userOtp);
-    if (hashedInput !== verification.otpHash) {
+    const isHashValid = hashedInput === verification.otpHash;
+
+    if (!verifyResult.success && !isHashValid) {
       return NextResponse.json(
         {
+          error: verifyResult.error || "Incorrect OTP entered. Please check and try again.",
+          message: verifyResult.error || "Incorrect OTP entered. Please check and try again.",
           success: false,
-          message: "Incorrect OTP entered. Please check and try again.",
         },
         { status: 400 }
       );
@@ -141,11 +151,11 @@ export async function POST(req: NextRequest) {
     console.error("[Kundli Verify OTP Error]:", error);
     return NextResponse.json(
       {
-        success: false,
+        error: "Failed to verify OTP. Please try again.",
         message: "Failed to verify OTP. Please try again.",
+        success: false,
       },
       { status: 500 }
     );
   }
 }
-
