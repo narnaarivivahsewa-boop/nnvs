@@ -200,7 +200,7 @@ export default function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Profiles", href: "/profiles" },
-    { name: "AI Kundli", href: "/kundli-milan" },
+    { name: "Free Kundali Milan", href: "/kundli-milan" },
     { name: "Wedding Services", href: "/services" },
     { name: "About", href: "/about" },
     { name: "Contact", href: "/contact" },

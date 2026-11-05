@@ -48,6 +48,21 @@ export interface AshtakootScore {
   boyAttribute: string;
   girlAttribute: string;
   isFavorable: boolean;
+  significance: string;
+  benefits: string;
+  risksIfZero: string;
+  remedy: string;
+}
+
+export interface CompatibilityForecast {
+  level: "Uttam" | "Madhyam" | "Samanya" | "Ashubh";
+  title: string;
+  titleHindi: string;
+  lifeExpectancyOutlook: string;
+  mutualUnderstandingForecast: string;
+  financialProspects: string;
+  offspringFamilyOutlook: string;
+  overallAdvice: string;
 }
 
 export interface ManglikAnalysis {
@@ -84,6 +99,7 @@ export interface KundliMilanResult {
   };
   scores: AshtakootScore[];
   manglikAnalysis: ManglikAnalysis;
+  forecast: CompatibilityForecast;
 }
 
 const RASI_NAMES: readonly string[] = [
@@ -446,10 +462,14 @@ function calculateVarnaScore(boy: CelestialProfile, girl: CelestialProfile): Ash
     nameHindi: "वर्ण",
     obtained,
     total: 1,
-    description: "Measures spiritual and ego compatibility.",
+    description: "Measures spiritual, ego and ideological compatibility.",
     boyAttribute: boy.varna,
     girlAttribute: girl.varna,
     isFavorable: obtained === 1,
+    significance: "आध्यात्मिक अनुकूलता एवं सामाजिक अहंकार का संतुलन (Spiritual & Ego Compatibility)",
+    benefits: "दोनों के बीच वैचारिक समानता, अहंकार का अभाव और पारिवारिक कर्तव्यों के प्रति परस्पर सम्मान रहता है।",
+    risksIfZero: "वैचारिक टकराव, अहंकार (Ego Clashes) और एक-दूसरे के कार्यक्षेत्र को लेकर असंतोष उभर सकता है।",
+    remedy: "भगवान विष्णु एवं माता लक्ष्मी की संयुक्त आराधना करें। गुरुवार को चने की दाल, हल्दी व केले का दान करें।",
   };
 }
 
@@ -480,6 +500,10 @@ function calculateVashyaScore(boy: CelestialProfile, girl: CelestialProfile): As
     boyAttribute: boy.vashya,
     girlAttribute: girl.vashya,
     isFavorable: obtained >= 1,
+    significance: "पारस्परिक आकर्षण, समर्पण एवं नियंत्रण का सामंजस्य (Mutual Attraction & Control Harmony)",
+    benefits: "दांपत्य में गहरा स्नेह और स्वाभाविक आकर्षण रहता है। दोनों एक-दूसरे की प्राथमिकताओं का आदर करते हैं।",
+    risksIfZero: "एक साथी का दूसरे पर अत्यधिक प्रभुत्व जमाने का प्रयास या संवादहीनता, जिससे भावनात्मक दूरी बन सकती है।",
+    remedy: "शुक्रवार को कन्याओं को खीर अथवा सफेद मिठाई खिलाएं। शिव-पार्वती का ध्यान कर 'ॐ नमः शिवाय' का नियमित जप करें।",
   };
 }
 
@@ -511,6 +535,10 @@ function calculateTaraScore(boy: CelestialProfile, girl: CelestialProfile): Asht
     boyAttribute: `Tara #${t1}`,
     girlAttribute: `Tara #${t2}`,
     isFavorable: obtained >= 1.5,
+    significance: "भाग्य, आरोग्य, दीर्घायु व कल्याण (Destiny, Health & Longevity)",
+    benefits: "विवाह उपरांत दोनों के सौभाग्य में वृद्धि, मानसिक शांति और जीवन में सुरक्षा की गहरी भावना रहती है।",
+    risksIfZero: "स्वास्थ्य में अप्रत्याशित उतार-चढ़ाव, कार्यों में अनावश्यक बाधाएं या मानसिक व्यग्रता हो सकती है।",
+    remedy: "तारा दोष निवारण हेतु जन्म नक्षत्र के स्वामी ग्रह की शांति कराएं। शनिवार को तेल अथवा काले तिल व उड़द का दान करें।",
   };
 }
 
@@ -560,6 +588,10 @@ function calculateYoniScore(boy: CelestialProfile, girl: CelestialProfile): Asht
     boyAttribute: boy.yoniAnimal,
     girlAttribute: girl.yoniAnimal,
     isFavorable: obtained >= 2,
+    significance: "शारीरिक, मानसिक अंतरंगता व जैविक सामंजस्य (Physical & Biological Harmony)",
+    benefits: "दांपत्य जीवन में गहरा शारीरिक व मानसिक तालमेल, संतुष्टि और स्नेह की प्रगाढ़ता बनी रहती है।",
+    risksIfZero: "पारस्परिक अंतरंग असंतोष, स्वभाव में चिड़चिड़ापन या परस्पर आकर्षण में समय के साथ कमी आ सकती है।",
+    remedy: "माता कात्यायनी मंत्र का जप करें। गौ माता को हरा चारा और गुड़ खिलाकर उनका आशीर्वाद प्राप्त करें।",
   };
 }
 
@@ -663,6 +695,10 @@ function calculateGrahaMaitriScore(boy: CelestialProfile, girl: CelestialProfile
     boyAttribute: `${boy.rasiLord} (${boy.rasiName.split(" ")[0]})`,
     girlAttribute: `${girl.rasiLord} (${girl.rasiName.split(" ")[0]})`,
     isFavorable: obtained >= 3,
+    significance: "मानसिक विचार, दृष्टिकोण, बुद्धि व मित्रता (Intellectual Harmony & Friendship)",
+    benefits: "दोनों सबसे अच्छे मित्र की तरह रहते हैं। आर्थिक निर्णय, गृहस्थी और पारिवारिक योजनाएं सौहार्दपूर्ण रहती हैं।",
+    risksIfZero: "दैनिक बातचीत में मतभेद, जीवन दृष्टिकोण में भिन्नता तथा भावनात्मक अकेलेपन का अनुभव हो सकता है।",
+    remedy: "सूर्य व चंद्र देव को प्रतिदिन अर्घ्य दें। आदित्य हृदय स्तोत्र का पाठ करें अथवा संयुक्त श्री सूक्त का जप करें।",
   };
 }
 
@@ -693,6 +729,10 @@ function calculateGanaScore(boy: CelestialProfile, girl: CelestialProfile): Asht
     boyAttribute: boy.gana,
     girlAttribute: girl.gana,
     isFavorable: obtained >= 5,
+    significance: "स्वभाव, व्यवहार, खान-पान व जीवनशैली (Behavior, Temperament & Lifestyle)",
+    benefits: "सामाजिक व्यवहार, पारिवारिक संस्कारों और जीवनशैली में सहज तालमेल रहता है, जिससे घर में शांति रहती है।",
+    risksIfZero: "गण दोष होने पर विचारों में हठधर्मिता, आदतों में भारी असंतुलन और घरेलू तनाव उत्पन्न हो सकता है।",
+    remedy: "भगवान शिव का रुद्राभिषेक कराएं अथवा 'ॐ नमः शिवाय' महामंत्र का प्रतिदिन 1 माला जप दोनों मिलकर करें।",
   };
 }
 
@@ -722,6 +762,10 @@ function calculateBhakootScore(boy: CelestialProfile, girl: CelestialProfile): A
     boyAttribute: `House ${1}`,
     girlAttribute: `House ${dist}`,
     isFavorable: obtained === 7,
+    significance: "पारिवारिक सुख, वंश वृद्धि, आर्थिक समृद्धि व दांपत्य का स्थायित्व (Emotional Bond & Family Prosperity)",
+    benefits: "वित्तीय समृद्धि, संतान सुख, दोनों परिवारों के बीच आत्मीय संबंध और दीर्घायु वैवाहिक जीवन की प्राप्ति।",
+    risksIfZero: "भकूट दोष (षडाष्टक / द्विर्द्वादश) होने पर आर्थिक तंगी, स्वास्थ्य या संतान उत्पत्ति में अनावश्यक विलंब हो सकता है।",
+    remedy: "महामृत्युंजय मंत्र का सवा लाख जप अथवा योग्य ब्राह्मण से भकूट दोष निवारण संकल्प पूजा करवाएं। गोदान अथवा अन्न दान करें।",
   };
 }
 
@@ -742,6 +786,10 @@ function calculateNadiScore(boy: CelestialProfile, girl: CelestialProfile): Asht
     boyAttribute: boy.nadi,
     girlAttribute: girl.nadi,
     isFavorable: obtained === 8,
+    significance: "आनुवंशिक स्वास्थ्य, रक्त संबंध व स्वस्थ संतान (Genetic Compatibility & Progeny)",
+    benefits: "स्वस्थ, बुद्धिमान व दीर्घायु संतान, आनुवंशिक अनुकूलता, निरोगी काया और उत्तम वंश वृद्धि का आशीर्वाद।",
+    risksIfZero: "नाड़ी दोष होने पर संतान प्राप्ति में कठिनाई, रक्त संबंधी असंतुलन या दांपत्य में अकारण अशांति हो सकती है।",
+    remedy: "स्वर्ण नाड़ी दान, महामृत्युंजय अनुष्ठान या गाय दान (गोदान) करने से नाड़ी दोष का पूर्ण शमन होता है। भगवान शिव की आराधना करें।",
   };
 }
 
@@ -874,24 +922,67 @@ export function calculateKundliMilan(
     "Overall compatibility score is below 18 points. Traditional Vedic astrology suggests astrological remedies before proceeding.";
   let isRecommended = false;
 
+  let forecast: CompatibilityForecast;
+
   if (totalScore >= 28) {
     verdict = "Excellent Match (Uttam)";
     verdictHindi = "उत्तम मिलन";
     verdictDescription =
       "Outstanding alignment across temperament, destiny, and mental harmony. Highly recommended alliance for a prosperous marital life.";
     isRecommended = true;
+    forecast = {
+      level: "Uttam",
+      title: "उत्कृष्ट एवं अत्यंत शुभ वैवाहिक गठबंधन (Uttam Match)",
+      titleHindi: "परम सुखद दांपत्य योग",
+      lifeExpectancyOutlook: "दीर्घायु, उत्तम स्वास्थ्य और दोनों परिवारों के बीच आजीवन सुरक्षा व सहयोग का प्रबल योग।",
+      mutualUnderstandingForecast: "अत्यंत उच्च वैचारिक अनुकूलता, गहरा आपसी विश्वास और प्रत्येक पारिवारिक निर्णय में परस्पर आदर।",
+      financialProspects: "आर्थिक उन्नति, व्यापार/करियर में निरंतर वृद्धि और संयुक्त संपत्ति में निरंतर मंगलकारी योग।",
+      offspringFamilyOutlook: "स्वस्थ, बुद्धिमान एवं सुसंस्कृत संतान सुख, कुल की मान-प्रतिष्ठा में वृद्धि और खुशहाली।",
+      overallAdvice: "यह कुंडली मिलन शास्त्रों में सर्वोत्तम श्रेणी (28-36 गुण) का माना गया है। विवाह हेतु सहर्ष आगे बढ़ें।",
+    };
   } else if (totalScore >= 21) {
     verdict = "Very Good Match (Madhyam)";
     verdictHindi = "मध्यम मिलन";
     verdictDescription =
       "Favorable overall compatibility. Most core life parameters are harmonious and supportive of a fulfilling marriage.";
     isRecommended = true;
+    forecast = {
+      level: "Madhyam",
+      title: "सकारात्मक एवं अनुकूल वैवाहिक संबंध (Madhyam Match)",
+      titleHindi: "सुखद व संतुलित गृहस्थी योग",
+      lifeExpectancyOutlook: "संतोषजनक स्वास्थ्य व सामान्य जीवन प्रत्याशा। दैनिक दिनचर्या व खानपान में संतुलन बनाए रखना हितकर रहेगा।",
+      mutualUnderstandingForecast: "अधिकांश जीवन मूल्यों में सामंजस्य। कभी-कभार के मतभेद संवाद और आपसी समझदारी से सहज ही सुलझ जाएंगे।",
+      financialProspects: "स्थिर आर्थिक स्थिति। धैर्यपूर्वक और सोच-समझकर किए गए संयुक्त निवेश दीर्घकाल में अत्यंत लाभप्रद सिद्ध होंगे।",
+      offspringFamilyOutlook: "अनुकूल संतान सुख और परिवार के बुजुर्गों का भरपूर स्नेह व शुभाशीर्वाद प्राप्त होगा।",
+      overallAdvice: "वैवाहिक दृष्टि से यह एक अच्छा और शुभ मिलन है। पारिवारिक रीति-रिवाजों का सम्मान करते हुए आगे बढ़ सकते हैं।",
+    };
   } else if (totalScore >= 18) {
     verdict = "Average Match (Samanya)";
     verdictHindi = "सामान्य मिलन";
     verdictDescription =
       "Acceptable score meeting the minimum traditional requirement of 18 gunas. Elder guidance and mutual understanding will help overcome minor frictions.";
     isRecommended = true;
+    forecast = {
+      level: "Samanya",
+      title: "स्वीकार्य सामान्य मिलन (Samanya Match)",
+      titleHindi: "धैर्य व समझदारी आधारित संबंध",
+      lifeExpectancyOutlook: "जीवनसाथियों को एक-दूसरे के स्वास्थ्य और मानसिक सुकून का विशेष ध्यान रखने की आवश्यकता रहेगी।",
+      mutualUnderstandingForecast: "विचारों में भिन्नता संभव है। क्रोध व हठ से बचकर खुले मन से बातचीत करने से दांपत्य सुदृढ़ बनेगा।",
+      financialProspects: "आर्थिक निर्णयों में अतिरिक्त सावधानी और पूर्व-नियोजन आवश्यक होगा ताकि आकस्मिक व्यय पर नियंत्रण रहे।",
+      offspringFamilyOutlook: "संतान सुख सामान्य रहेगा। कुलदेवता व इष्टदेव की नियमित पूजा से गृहस्थी में शांति व बरकत बनी रहेगी।",
+      overallAdvice: "न्यूनतम 18 गुण मिल रहे हैं। परिवार के बुजुर्गों के मार्गदर्शन और समय-समय पर बताए गए वैदिक उपायों का पालन करें।",
+    };
+  } else {
+    forecast = {
+      level: "Ashubh",
+      title: "सावधानी एवं वैदिक निवारण अपेक्षित (Remedies Required)",
+      titleHindi: "विशेष ज्योतिषीय परामर्श आवश्यक",
+      lifeExpectancyOutlook: "ग्रहों के प्रतिकूल प्रभाव के कारण स्वास्थ्य व मानसिक शांति में व्यवधान आने की संभावना रहती है।",
+      mutualUnderstandingForecast: "अहंकार व स्वभाव भिन्नता के कारण दैनिक जीवन में तनाव या संवादहीनता बढ़ सकती है।",
+      financialProspects: "अचानक आर्थिक उतार-चढ़ाव। वित्तीय मामलों में अत्यंत सतर्कता बरतने की सलाह दी जाती है।",
+      offspringFamilyOutlook: "संतान प्राप्ति अथवा पारिवारिक संबंधों में अड़चनें आ सकती हैं।",
+      overallAdvice: "18 से कम गुण होने के कारण आगे बढ़ने से पूर्व किसी योग्य ज्योतिषाचार्य से महामृत्युंजय व दोष निवारण पूजा अवश्य कराएं।",
+    };
   }
 
   return {
@@ -920,6 +1011,7 @@ export function calculateKundliMilan(
     },
     scores,
     manglikAnalysis,
+    forecast,
   };
 }
 

@@ -17,6 +17,13 @@ import {
   Star,
   RefreshCw,
   Check,
+  Download,
+  Printer,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  PhoneCall,
+  MessageCircle,
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 
@@ -302,6 +309,38 @@ export default function KundliMilanPage() {
   const [showPricingPopup, setShowPricingPopup] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  // Expandable Ashtakoot Accordions State (default all 8 open for rich engagement)
+  const [expandedKoots, setExpandedKoots] = useState<Record<string, boolean>>({
+    Nadi: true,
+    Bhakoot: true,
+    Gana: true,
+    "Graha Maitri": true,
+    Yoni: true,
+    Tara: true,
+    Vashya: true,
+    Varna: true,
+  });
+
+  const toggleKoot = (name: string) => {
+    setExpandedKoots((prev) => ({
+      ...prev,
+      [name]: !prev[name],
+    }));
+  };
+
+  const toggleAllKoots = (expand: boolean) => {
+    setExpandedKoots({
+      Nadi: expand,
+      Bhakoot: expand,
+      Gana: expand,
+      "Graha Maitri": expand,
+      Yoni: expand,
+      Tara: expand,
+      Vashya: expand,
+      Varna: expand,
+    });
+  };
+
   // Resend Countdown Timer
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -432,6 +471,50 @@ export default function KundliMilanPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2A1A1F]">
+      {/* Print Stylesheet for Authentic Vedic Kundali Milan Certificate */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        @media print {
+          nav, header, footer, .no-print {
+            display: none !important;
+          }
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            font-size: 10.5pt !important;
+          }
+          .print-only {
+            display: block !important;
+          }
+          .print-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
+            padding: 8mm !important;
+            background: #ffffff !important;
+            border: 2px solid #4A121A !important;
+          }
+          .print-break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+        }
+        @media screen {
+          .print-only {
+            display: none !important;
+          }
+        }
+      `,
+        }}
+      />
+
       {/* 150+ Sorted City Autocomplete Datalist */}
       <datalist id="indian-cities-datalist">
         {INDIAN_CITIES.map((city) => (
@@ -440,7 +523,7 @@ export default function KundliMilanPage() {
       </datalist>
 
       {/* Hero Header */}
-      <section className="bg-gradient-to-b from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white py-12 sm:py-14 px-4 sm:px-6 lg:px-8 border-b border-[#C5A059]/30 relative overflow-hidden">
+      <section className="no-print bg-gradient-to-b from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white py-12 sm:py-14 px-4 sm:px-6 lg:px-8 border-b border-[#C5A059]/30 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#C5A059_1px,transparent_1px)] [background-size:16px_16px]" />
         <div className="w-full max-w-lg md:max-w-4xl mx-auto text-center relative z-10 px-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#C5A059]/20 border border-[#C5A059]/40 text-[#DFBA73] text-xs font-semibold tracking-wider uppercase mb-4">
@@ -448,7 +531,7 @@ export default function KundliMilanPage() {
             100% Free & Accurate Vedic Matchmaking
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight font-serif text-[#FFFDF9]">
-            Free Kundli Milan <span className="text-[#DFBA73]">(गुण मिलान)</span>
+            Free Kundali Milan <span className="text-[#DFBA73]">(फ्री कुंडली मिलान)</span>
           </h1>
           <p className="mt-3.5 text-sm sm:text-base md:text-lg text-rose-100 max-w-2xl mx-auto">
             Traditional 36-Guna Ashtakoot matching and Manglik Dosha analysis for prospective brides and grooms according to Vedic astrology.
@@ -473,7 +556,7 @@ export default function KundliMilanPage() {
 
       {/* Main Form Container */}
       <main className="w-full max-w-lg md:max-w-4xl mx-auto px-4 py-8 sm:py-10">
-        <form onSubmit={handleInitiateMilan} className="space-y-8">
+        <form onSubmit={handleInitiateMilan} className="no-print space-y-8">
           {formError && (
             <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 flex-shrink-0 text-red-500" />
@@ -716,8 +799,44 @@ export default function KundliMilanPage() {
         {/* Results Section */}
         {milanResult && (
           <div ref={resultsRef} className="mt-14 space-y-10 scroll-mt-6">
+            {/* Top Action Bar with PDF Download Button & Astrological Helpline */}
+            <div className="no-print flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-white border-2 border-[#C5A059]/40 shadow-sm">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="w-12 h-12 rounded-xl bg-[#4A121A] text-[#DFBA73] flex items-center justify-center font-bold flex-shrink-0 shadow-sm">
+                  <FileText className="w-6 h-6 text-[#DFBA73]" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-base text-[#4A121A] font-serif">
+                    Vedic Kundali Milan Report Ready
+                  </h4>
+                  <p className="text-xs text-[#7A5835]">
+                    36 Guna Ashtakoot Score &amp; Complete Remedial Assessment
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="h-12 min-h-[48px] w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-[#4A121A] via-[#601722] to-[#4A121A] text-[#FFFDF9] hover:from-[#3A0C13] hover:to-[#50131E] border border-[#C5A059] shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-[#DFBA73]" />
+                  <span>Download Complete Kundali Milan Report (PDF)</span>
+                </button>
+                <a
+                  href="tel:+919871592002"
+                  className="h-12 min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-xs border border-[#C5A059] bg-[#FAF5EB] text-[#4A121A] hover:bg-[#F2E8D7] transition shadow-xs"
+                  title="Astrological Consultation Helpline"
+                >
+                  <PhoneCall className="w-3.5 h-3.5 text-[#C5A059]" />
+                  <span>+91-9871592002</span>
+                </a>
+              </div>
+            </div>
+
             {/* Overall Score Banner */}
-            <div className="rounded-2xl bg-gradient-to-br from-white via-[#FFFDF9] to-[#FDF7EC] border-2 border-[#C5A059]/40 shadow-lg p-6 sm:p-8">
+            <div className="no-print rounded-2xl bg-gradient-to-br from-white via-[#FFFDF9] to-[#FDF7EC] border-2 border-[#C5A059]/40 shadow-lg p-6 sm:p-8">
               <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-6 border-b border-[#E8DFD3]">
                 <div className="text-center md:text-left space-y-2">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#4A121A]/10 text-[#4A121A]">
@@ -814,84 +933,463 @@ export default function KundliMilanPage() {
               </div>
             </div>
 
-            {/* Ashtakoot 8 Guna Cards */}
-            <div>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-xl font-extrabold text-[#4A121A] font-serif">
-                    Ashtakoot Guna Breakdown (36 Gunas)
-                  </h3>
-                  <p className="text-xs text-[#7A5835]">अष्टकूट गुण मिलान विवरण</p>
+            {/* Comprehensive Relationship & Life Forecast Card */}
+            {milanResult.forecast && (
+              <div className="no-print rounded-2xl bg-white border border-[#C5A059]/50 shadow-md p-6 sm:p-8 space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-[#F0E8DC]">
+                  <div>
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#4A121A] text-[#DFBA73] mb-1.5">
+                      Compatibility Level: {milanResult.forecast.level} ({milanResult.forecast.titleHindi})
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A121A] font-serif">
+                      {milanResult.forecast.title}
+                    </h3>
+                  </div>
+                  <span
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold ${
+                      milanResult.forecast.level === "Uttam"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : milanResult.forecast.level === "Madhyam"
+                        ? "bg-blue-100 text-blue-800 border border-blue-300"
+                        : milanResult.forecast.level === "Samanya"
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-red-100 text-red-800 border border-red-300"
+                    }`}
+                  >
+                    श्रेणी: {milanResult.forecast.level}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold text-[#4A121A] bg-[#DFBA73]/30 px-3 py-1 rounded-full border border-[#C5A059]">
-                  Max Points: 36
-                </span>
+
+                {/* 4-Quadrant Life Compatibility Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Quadrant 1: Health & Longevity */}
+                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8DFD3]">
+                    <div className="flex items-center gap-2 mb-2 text-[#4A121A] font-bold text-sm">
+                      <Heart className="w-4 h-4 text-rose-600" />
+                      <span>आयु, स्वास्थ्य व जीवन सुरक्षा (Health &amp; Longevity)</span>
+                    </div>
+                    <p className="text-xs text-[#4A3E39] leading-relaxed">
+                      {milanResult.forecast.lifeExpectancyOutlook}
+                    </p>
+                  </div>
+
+                  {/* Quadrant 2: Mutual Understanding */}
+                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8DFD3]">
+                    <div className="flex items-center gap-2 mb-2 text-[#4A121A] font-bold text-sm">
+                      <Sparkles className="w-4 h-4 text-[#C5A059]" />
+                      <span>वैचारिक सामंजस्य व समझदारी (Mutual Understanding)</span>
+                    </div>
+                    <p className="text-xs text-[#4A3E39] leading-relaxed">
+                      {milanResult.forecast.mutualUnderstandingForecast}
+                    </p>
+                  </div>
+
+                  {/* Quadrant 3: Financial & Career Growth */}
+                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8DFD3]">
+                    <div className="flex items-center gap-2 mb-2 text-[#4A121A] font-bold text-sm">
+                      <Star className="w-4 h-4 text-amber-600" />
+                      <span>आर्थिक समृद्धि व करियर सहयोग (Financial Prospects)</span>
+                    </div>
+                    <p className="text-xs text-[#4A3E39] leading-relaxed">
+                      {milanResult.forecast.financialProspects}
+                    </p>
+                  </div>
+
+                  {/* Quadrant 4: Offspring & Family */}
+                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8DFD3]">
+                    <div className="flex items-center gap-2 mb-2 text-[#4A121A] font-bold text-sm">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>संतान सुख व कुल वृद्धि (Progeny &amp; Family Harmony)</span>
+                    </div>
+                    <p className="text-xs text-[#4A3E39] leading-relaxed">
+                      {milanResult.forecast.offspringFamilyOutlook}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Master Vedic Astrological Guidance */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-[#FAF5EB] to-[#FFFDF9] border border-[#C5A059]/40 text-xs text-[#4A3E39]">
+                  <strong className="block font-bold text-[#4A121A] text-sm mb-1">
+                    🕉️ वैदिक ज्योतिषाचार्य परामर्श (Vedic Astrological Guidance):
+                  </strong>
+                  <p className="leading-relaxed">{milanResult.forecast.overallAdvice}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Comprehensive 8-Koot Detailed Interpretation Section */}
+            <div className="no-print space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A121A] font-serif">
+                    Comprehensive 8-Koot Detailed Interpretation (अष्टकूट विस्तृत विश्लेषण)
+                  </h3>
+                  <p className="text-xs text-[#7A5835] mt-0.5">
+                    Click each Koot to explore benefits, friction risks, and specific Vedic remedies
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleAllKoots(true)}
+                    className="text-xs font-semibold text-[#4A121A] hover:underline px-2.5 py-1 rounded bg-[#FAF5EB] border border-[#DACBB4]"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleAllKoots(false)}
+                    className="text-xs font-semibold text-[#7A5835] hover:underline px-2.5 py-1 rounded bg-[#FAF5EB] border border-[#DACBB4]"
+                  >
+                    Collapse All
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {milanResult.scores.map((koot: AshtakootScore) => (
-                  <div
-                    key={koot.name}
-                    className="bg-white rounded-xl p-5 border border-[#E8DFD3] shadow-sm hover:shadow-md transition-shadow relative"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <h4 className="font-bold text-base text-[#4A121A]">{koot.name}</h4>
-                        <span className="text-xs text-[#7A5835] font-medium">{koot.nameHindi}</span>
-                      </div>
-                      <span
-                        className={`text-sm font-extrabold px-2.5 py-0.5 rounded-full ${
-                          koot.obtained === koot.total
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : koot.obtained > 0
-                            ? "bg-blue-100 text-blue-800 border border-blue-300"
-                            : "bg-red-100 text-red-800 border border-red-300"
-                        }`}
+              {/* 8 Koot Accordion Cards */}
+              <div className="space-y-4">
+                {milanResult.scores.map((koot: AshtakootScore, idx: number) => {
+                  const isOpen = Boolean(expandedKoots[koot.name]);
+                  const isPerfect = koot.obtained === koot.total;
+                  const isPartial = koot.obtained > 0 && koot.obtained < koot.total;
+
+                  return (
+                    <div
+                      key={koot.name}
+                      className="bg-white rounded-2xl border border-[#E8DFD3] shadow-sm hover:border-[#C5A059] transition-all overflow-hidden"
+                    >
+                      {/* Accordion Header */}
+                      <button
+                        type="button"
+                        onClick={() => toggleKoot(koot.name)}
+                        className="w-full p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left bg-gradient-to-r from-white to-[#FAF7F2] hover:bg-[#FDF7EC] transition-colors cursor-pointer"
                       >
-                        {koot.obtained} / {koot.total}
-                      </span>
-                    </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#4A121A]/10 text-[#4A121A] font-bold text-xs flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-base text-[#4A121A]">
+                                {koot.name} Koot ({koot.nameHindi})
+                              </h4>
+                              <span className="text-xs text-gray-400 font-normal">
+                                • Max: {koot.total} Guna
+                              </span>
+                            </div>
+                            <p className="text-xs text-[#7A5835] mt-0.5 line-clamp-1">
+                              {koot.significance || koot.description}
+                            </p>
+                          </div>
+                        </div>
 
-                    <p className="text-xs text-[#4A3E39] mb-3 line-clamp-2">{koot.description}</p>
+                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                          {/* Attributes Pill */}
+                          <div className="text-[11px] bg-white px-2.5 py-1 rounded-lg border border-gray-200 text-[#4A3E39]">
+                            <span>वर: <strong>{koot.boyAttribute}</strong></span>
+                            <span className="mx-1.5 text-gray-300">|</span>
+                            <span>कन्या: <strong>{koot.girlAttribute}</strong></span>
+                          </div>
 
-                    <div className="pt-2.5 border-t border-gray-100 text-xs space-y-1">
-                      <div className="flex justify-between text-gray-500">
-                        <span>Groom:</span>
-                        <strong className="text-gray-800">{koot.boyAttribute}</strong>
-                      </div>
-                      <div className="flex justify-between text-gray-500">
-                        <span>Bride:</span>
-                        <strong className="text-gray-800">{koot.girlAttribute}</strong>
-                      </div>
+                          {/* Score Badge */}
+                          <span
+                            className={`text-xs sm:text-sm font-extrabold px-3 py-1 rounded-full ${
+                              isPerfect
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                : isPartial
+                                ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                : "bg-red-100 text-red-800 border border-red-300"
+                            }`}
+                          >
+                            {koot.obtained} / {koot.total}
+                          </span>
+
+                          <div className="p-1 rounded-md text-gray-400 hover:text-[#4A121A]">
+                            {isOpen ? (
+                              <ChevronUp className="w-5 h-5" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Accordion Expanded Content */}
+                      {isOpen && (
+                        <div className="p-4 sm:p-6 border-t border-[#F0E8DC] bg-white space-y-4">
+                          {/* Core Significance Banner */}
+                          <div className="p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4]/60 text-xs text-[#4A3E39] flex items-start gap-2">
+                            <Sparkles className="w-4 h-4 text-[#C5A059] shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="text-[#4A121A]">कूट का महत्व एवं प्रभाव: </strong>
+                              <span>{koot.significance}</span>
+                            </div>
+                          </div>
+
+                          {/* Fayde vs Nuksan Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Fayde (Positive Aspects) */}
+                            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/80">
+                              <div className="flex items-center gap-2 mb-1.5 text-emerald-900 font-bold text-xs uppercase tracking-wider">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>फायदे (अगर गुण मिला):</span>
+                              </div>
+                              <p className="text-xs text-emerald-950 leading-relaxed">
+                                {koot.benefits}
+                              </p>
+                            </div>
+
+                            {/* Nuksan & Prabhav (Friction Risks) */}
+                            <div className="p-4 rounded-xl bg-rose-50/60 border border-rose-200/80">
+                              <div className="flex items-center gap-2 mb-1.5 text-rose-900 font-bold text-xs uppercase tracking-wider">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                <span>नुकसान व संभावित प्रभाव (अगर गुण कम/शून्य हैं):</span>
+                              </div>
+                              <p className="text-xs text-rose-950 leading-relaxed">
+                                {koot.risksIfZero}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Vedic Upay & Nivaran Box */}
+                          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-xs text-[#4A3E39]">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs sm:text-sm">
+                                <Sparkles className="w-4 h-4 text-amber-600" />
+                                <span>वैदिक उपाय एवं निवारण (Vedic Remedies &amp; Guidance):</span>
+                              </div>
+                              <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded">
+                                Authentic Vedic
+                              </span>
+                            </div>
+                            <p className="leading-relaxed text-amber-950">
+                              {koot.remedy}
+                            </p>
+                            <p className="mt-2 pt-2 border-t border-amber-200 text-[11px] text-[#7A5835]">
+                              💡 विशेष दोष निवारण संकल्प, महामृत्युंजय अनुष्ठान या ₹117 टोकन मार्गदर्शन हेतु NNVS सहायता केंद्र पर सीधे संपर्क करें: <strong>+91-9871592002</strong>
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            {/* Bottom Register CTA Card */}
-            <div className="rounded-2xl bg-[#4A121A] text-white p-6 sm:p-8 border-2 border-[#C5A059] shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+            {/* Bottom PDF Download & Register Actions Bar */}
+            <div className="no-print rounded-2xl bg-gradient-to-r from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white p-6 sm:p-8 border-2 border-[#C5A059] shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2 text-center md:text-left">
                 <span className="inline-block text-xs uppercase tracking-wider text-[#DFBA73] font-bold">
-                  Next Step in Your Matrimonial Journey
+                  Complete Vedic Matrimonial Dossier
                 </span>
                 <h3 className="text-2xl font-extrabold font-serif text-[#FFFDF9]">
-                  Find Verified Matches Compatible With Your Kundli
+                  Download Official Kundali Match Certificate
                 </h3>
                 <p className="text-sm text-rose-100 max-w-xl">
-                  Register on RishteClub (NNVS Matrimony) to explore thousands of verified matrimonial biodatas across Agarwal, Baniya, Brahmin, Punjabi, and Khatri communities.
+                  Save your verified 36 Guna Ashtakoot calculation, Manglik dosha analysis, and Astrological remedies as an official PDF report.
                 </p>
               </div>
 
-              <div className="flex-shrink-0">
+              <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="w-full sm:w-auto h-12 min-h-[48px] inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-[#DFBA73] text-[#4A121A] hover:bg-[#E6C280] active:scale-95 transition-all shadow-md cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-[#4A121A]" />
+                  <span>Download Report (PDF)</span>
+                </button>
+
                 <Link
                   href={`/register?phone=${verifiedPhone}`}
-                  className="h-12 min-h-[48px] inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-[#DFBA73] text-[#4A121A] hover:bg-[#E6C280] active:scale-95 transition-all shadow-md"
+                  className="w-full sm:w-auto h-12 min-h-[48px] inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border border-[#DFBA73] text-[#FFFDF9] hover:bg-[#601722] active:scale-95 transition-all"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Register Profile Now
+                  <Sparkles className="w-4 h-4 text-[#DFBA73]" />
+                  <span>Register Profile</span>
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </Link>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* PRINTABLE VEDIC KUNDALI MATCHMAKING CERTIFICATE (PRINT-ONLY)            */}
+            {/* ========================================================================= */}
+            <div className="print-only print-container text-black bg-white">
+              {/* Sacred Invocation Header */}
+              <div className="text-center pb-3 border-b-2 border-[#4A121A] mb-4">
+                <p className="text-xs font-bold tracking-widest text-[#4A121A]">
+                  ॥ ॐ श्री गणेशाय नमः ॥ &nbsp;•&nbsp; ॥ शुभ विवाह ॥ &nbsp;•&nbsp; ॥ जय श्री श्याम ॥
+                </p>
+                <h1 className="text-xl font-black uppercase tracking-wider text-[#4A121A] mt-1">
+                  RishteClub Vedic Matrimonial Matchmaking Certificate
+                </h1>
+                <p className="text-[11px] text-gray-600 font-medium">
+                  Managed by NNVS Matrimony (Official Registration Certificate) • rishteclub.com
+                </p>
+                <div className="flex justify-between items-center text-[10px] text-gray-500 pt-1 mt-1 border-t border-gray-200">
+                  <span>Certificate ID: <strong>RC-KUNDLI-{verifiedPhone.slice(-4)}-{Date.now().toString().slice(-6)}</strong></span>
+                  <span>Verified Phone: <strong>+91 {verifiedPhone}</strong></span>
+                  <span>Date: <strong>{new Date().toLocaleDateString("en-IN")}</strong></span>
+                </div>
+              </div>
+
+              {/* Groom & Bride Details Table */}
+              <div className="grid grid-cols-2 gap-3 mb-4 print-break-inside-avoid">
+                <div className="border border-gray-400 p-2.5 rounded-sm">
+                  <h4 className="font-bold text-xs uppercase text-[#4A121A] border-b border-gray-300 pb-1 mb-1">
+                    Groom (वर विवरण): {milanResult.boyInfo.name}
+                  </h4>
+                  <table className="w-full text-[10.5px]">
+                    <tbody>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Rasi (राशि):</td>
+                        <td className="font-bold">{milanResult.boyInfo.rasi}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Nakshatra:</td>
+                        <td className="font-bold">{milanResult.boyInfo.nakshatra} (Pada {milanResult.boyInfo.charan})</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Nakshatra Lord:</td>
+                        <td className="font-bold">{milanResult.boyInfo.nakshatraLord}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Manglik Status:</td>
+                        <td className="font-bold">{milanResult.boyInfo.manglik ? "Manglik" : "Non-Manglik"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border border-gray-400 p-2.5 rounded-sm">
+                  <h4 className="font-bold text-xs uppercase text-[#4A121A] border-b border-gray-300 pb-1 mb-1">
+                    Bride (कन्या विवरण): {milanResult.girlInfo.name}
+                  </h4>
+                  <table className="w-full text-[10.5px]">
+                    <tbody>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Rasi (राशि):</td>
+                        <td className="font-bold">{milanResult.girlInfo.rasi}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Nakshatra:</td>
+                        <td className="font-bold">{milanResult.girlInfo.nakshatra} (Pada {milanResult.girlInfo.charan})</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Nakshatra Lord:</td>
+                        <td className="font-bold">{milanResult.girlInfo.nakshatraLord}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-gray-600 py-0.5">Manglik Status:</td>
+                        <td className="font-bold">{milanResult.girlInfo.manglik ? "Manglik" : "Non-Manglik"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Score Summary Box */}
+              <div className="border-2 border-[#4A121A] p-2.5 bg-gray-50 rounded-sm mb-4 flex items-center justify-between print-break-inside-avoid">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-600 block">
+                    Final Matchmaking Verdict
+                  </span>
+                  <div className="text-base font-extrabold text-[#4A121A]">
+                    {milanResult.verdict} ({milanResult.verdictHindi})
+                  </div>
+                  <p className="text-[10px] text-gray-700 mt-0.5">
+                    {milanResult.verdictDescription}
+                  </p>
+                </div>
+                <div className="text-right pl-4 border-l border-gray-300">
+                  <div className="text-2xl font-black text-[#4A121A]">
+                    {milanResult.totalScore} / {milanResult.maxScore}
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-700">
+                    {milanResult.percentage}% Guna Match
+                  </span>
+                </div>
+              </div>
+
+              {/* Ashtakoot 8-Factor Score Table */}
+              <div className="mb-4 print-break-inside-avoid">
+                <h4 className="font-bold text-xs uppercase text-[#4A121A] mb-1">
+                  Ashtakoot Guna Milan Breakdown (36 Gunas)
+                </h4>
+                <table className="w-full text-[10px] border-collapse border border-gray-400">
+                  <thead>
+                    <tr className="bg-gray-100 border-b border-gray-400">
+                      <th className="border border-gray-400 p-1.5 text-left">#</th>
+                      <th className="border border-gray-400 p-1.5 text-left">Koot Name</th>
+                      <th className="border border-gray-400 p-1.5 text-left">Groom Attribute</th>
+                      <th className="border border-gray-400 p-1.5 text-left">Bride Attribute</th>
+                      <th className="border border-gray-400 p-1.5 text-center">Max</th>
+                      <th className="border border-gray-400 p-1.5 text-center">Obtained</th>
+                      <th className="border border-gray-400 p-1.5 text-left">Key Guidance / Remedy</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {milanResult.scores.map((koot: AshtakootScore, i: number) => (
+                      <tr key={koot.name} className="border-b border-gray-300">
+                        <td className="border border-gray-300 p-1.5 text-center">{i + 1}</td>
+                        <td className="border border-gray-300 p-1.5 font-bold">
+                          {koot.name} ({koot.nameHindi})
+                        </td>
+                        <td className="border border-gray-300 p-1.5">{koot.boyAttribute}</td>
+                        <td className="border border-gray-300 p-1.5">{koot.girlAttribute}</td>
+                        <td className="border border-gray-300 p-1.5 text-center font-bold">{koot.total}</td>
+                        <td className="border border-gray-300 p-1.5 text-center font-extrabold">
+                          {koot.obtained}
+                        </td>
+                        <td className="border border-gray-300 p-1.5 text-[9.5px]">
+                          {koot.remedy}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Manglik Analysis & Forecast Summary */}
+              <div className="border border-gray-400 p-2.5 rounded-sm mb-4 text-[10px] print-break-inside-avoid">
+                <h4 className="font-bold text-xs uppercase text-[#4A121A] mb-1">
+                  Manglik Dosha &amp; Vedic Forecast Summary
+                </h4>
+                <p className="mb-1">
+                  <strong>Manglik Status:</strong> {milanResult.manglikAnalysis.details}
+                </p>
+                {milanResult.forecast && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-300">
+                    <div>
+                      <strong>आयु व स्वास्थ्य:</strong> {milanResult.forecast.lifeExpectancyOutlook}
+                    </div>
+                    <div>
+                      <strong>वैचारिक सामंजस्य:</strong> {milanResult.forecast.mutualUnderstandingForecast}
+                    </div>
+                    <div>
+                      <strong>आर्थिक समृद्धि:</strong> {milanResult.forecast.financialProspects}
+                    </div>
+                    <div>
+                      <strong>संतान सुख:</strong> {milanResult.forecast.offspringFamilyOutlook}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Official Seal / Signature Bar */}
+              <div className="pt-3 border-t-2 border-[#4A121A] flex justify-between items-end text-[9.5px] text-gray-600 print-break-inside-avoid">
+                <div>
+                  <p className="font-bold text-[#4A121A]">RishteClub Matrimonial Verification Division</p>
+                  <p>Helpline: +91-9871592002 • contact@rishteclub.com • rishteclub.com</p>
+                  <p>Certified Vedic Astrological Horoscope Compatibility Record</p>
+                </div>
+                <div className="text-right">
+                  <div className="border border-gray-400 px-3 py-1.5 inline-block text-[9px] uppercase tracking-wider font-bold text-gray-500">
+                    [ OFFICIAL VERIFIED SEAL ]
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -900,7 +1398,7 @@ export default function KundliMilanPage() {
 
       {/* OTP Verification Modal */}
       {isOtpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E8DFD3] relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsOtpModalOpen(false)}
@@ -953,7 +1451,7 @@ export default function KundliMilanPage() {
                   type="button"
                   disabled={sendingOtp || phone.replace(/\D/g, "").length < 10}
                   onClick={handleSendOtp}
-                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {sendingOtp ? (
                     <span className="inline-flex items-center gap-2">
@@ -989,17 +1487,17 @@ export default function KundliMilanPage() {
                   type="button"
                   disabled={verifyingOtp || otp.length < 4}
                   onClick={handleVerifyOtp}
-                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+                  className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {verifyingOtp ? (
                     <span className="inline-flex items-center gap-2">
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Verifying & Calculating Milan...
+                      Verifying &amp; Calculating Milan...
                     </span>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-[#DFBA73]" />
-                      Verify & Reveal Milan Report
+                      Verify &amp; Reveal Milan Report
                     </>
                   )}
                 </button>
@@ -1031,9 +1529,9 @@ export default function KundliMilanPage() {
         </div>
       )}
 
-      {/* Delayed Registration Popup Modal (3-4 seconds delay) */}
+      {/* Delayed Registration Popup Modal (3.5 seconds delay) */}
       {showPricingPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-[#C5A059] relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowPricingPopup(false)}
@@ -1059,7 +1557,7 @@ export default function KundliMilanPage() {
             </div>
 
             {/* Pricing Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
               {/* Female Card */}
               <div className="rounded-2xl p-4 bg-gradient-to-b from-pink-50 to-white border border-pink-200 text-center relative">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-pink-700 block mb-1">
@@ -1103,6 +1601,29 @@ export default function KundliMilanPage() {
               </div>
             </div>
 
+            {/* Helpline Information in Modal */}
+            <div className="mb-5 p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4] text-center text-xs text-[#4A121A]">
+              <span className="font-bold block text-[#7A5835] text-[11px] uppercase tracking-wider mb-0.5">
+                📞 Matrimonial Support &amp; Astrological Helpline
+              </span>
+              <div className="flex items-center justify-center gap-4 mt-1 font-bold">
+                <a href="tel:+919871592002" className="text-[#4A121A] hover:underline flex items-center gap-1">
+                  <PhoneCall className="w-3.5 h-3.5 text-[#C5A059]" />
+                  +91-9871592002
+                </a>
+                <span className="text-gray-300">|</span>
+                <a
+                  href="https://wa.me/919871592002?text=Hello%20RishteClub%20Team%2C%20I%20checked%20Free%20Kundali%20Milan%20and%20want%20to%20register."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 hover:underline flex items-center gap-1"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  WhatsApp Support
+                </a>
+              </div>
+            </div>
+
             {/* Direct Register CTA */}
             <div className="space-y-3">
               <Link
@@ -1117,7 +1638,7 @@ export default function KundliMilanPage() {
               <button
                 type="button"
                 onClick={() => setShowPricingPopup(false)}
-                className="w-full min-h-[44px] flex items-center justify-center text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                className="w-full min-h-[44px] flex items-center justify-center text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
               >
                 Continue Viewing Kundli Milan Report
               </button>
