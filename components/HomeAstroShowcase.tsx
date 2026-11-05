@@ -48,7 +48,7 @@ export default function HomeAstroShowcase() {
 
             <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-4">
               <Link
-                href="/astrology"
+                href="/kundli-milan"
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#C5A059] to-[#DFBA73] px-8 py-4 text-sm font-bold text-[#300B11] shadow-xl hover:scale-105 transition"
               >
                 <Moon className="h-4 w-4" />
@@ -121,7 +121,7 @@ export default function HomeAstroShowcase() {
               </div>
 
               <Link
-                href="/astrology"
+                href="/kundli-milan"
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] py-3 text-xs font-bold text-[#DFBA73] hover:bg-[#380D13] transition"
               >
                 <span>Calculate Your Match Now</span>

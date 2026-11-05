@@ -55,7 +55,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/astrology" className="transition hover:text-[#DFBA73] font-semibold text-[#DFBA73]">
+                <Link href="/kundli-milan" className="transition hover:text-[#DFBA73] font-semibold text-[#DFBA73]">
                   AI Kundli Milan ✨
                 </Link>
               </li>
@@ -199,7 +199,7 @@ export default function Footer() {
               { name: "Brahmin Vivah", href: "/matrimony/brahmin" },
               { name: "Punjabi & Khatri Matrimony", href: "/matrimony/punjabi" },
               { name: "All Marriage Profiles", href: "/profiles" },
-              { name: "Free Kundli Milan ✨", href: "/astrology" },
+              { name: "Free Kundli Milan ✨", href: "/kundli-milan" },
               { name: "Wedding Vendors & Services", href: "/services" },
               { name: "Register Shaadi Biodata", href: "/register" },
             ].map((tag) => (

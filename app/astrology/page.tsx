@@ -492,12 +492,53 @@ export default function AstrologyPage() {
           <p className="mx-auto max-w-2xl text-sm sm:text-base text-[#EAD8D0] leading-relaxed">
             Match horoscopes instantly with verified RishteClub profiles using 36 Guna Ashtakoota algorithms, Manglik dosha checks, and AI Vedic insights without needing external phone calls.
           </p>
+
+          <div className="pt-2">
+            <Link
+              href="/kundli-milan"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#C5A059] to-[#DFBA73] px-6 py-2.5 text-xs sm:text-sm font-bold text-[#300B11] shadow-lg hover:scale-105 transition border border-[#FFFDF9]/40"
+            >
+              <Sparkles className="h-4 w-4 text-[#300B11]" />
+              <span>Looking for Free Open Kundli Milan (Groom + Bride)? Click Here →</span>
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Main Astrological Workspace */}
       <main className="flex-1 py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
+
+          {/* Top Banner: Free Open Kundli Milan (Groom + Bride manual entry) */}
+          <div className="rounded-3xl bg-gradient-to-r from-[#FFFDF9] via-[#FAF5EB] to-[#F5EADB] border-2 border-[#C5A059] p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-[#4A121A] text-[#DFBA73] flex items-center justify-center shrink-0 shadow border border-[#C5A059]">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <h2 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
+                    Free Open Kundli Milan (Manual Groom + Bride Entry)
+                  </h2>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4A121A] bg-[#DFBA73] px-2.5 py-0.5 rounded-full border border-[#C5A059]">
+                    100% Free · No Login Required
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-[#7A5835] leading-relaxed max-w-2xl">
+                  Want to match any boy and girl without logging in? Enter names, birth dates, birth times, and cities to get an instant 36 Guna Ashtakoot report with Manglik analysis.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/kundli-milan"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] hover:bg-[#601722] px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg transition transform hover:scale-[1.02] shrink-0 border border-[#C5A059]"
+            >
+              <Sparkles className="h-4 w-4 text-[#DFBA73]" />
+              <span>Open Free Kundli Milan</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
 
           {/* Admin Matchmaker Studio Notification Banner */}
           {!authLoading && isAdmin && (
@@ -531,34 +572,35 @@ export default function AstrologyPage() {
 
           {/* Unauthenticated Members Gate Notice */}
           {!authLoading && !isAuthenticated && (
-            <div className="rounded-3xl bg-amber-50/90 border border-amber-300/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-5 animate-fadeIn">
+            <div className="rounded-3xl bg-amber-50/90 border border-amber-300/80 p-5 sm:p-6 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-5 animate-fadeIn">
               <div className="flex items-start sm:items-center gap-4">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#4A121A] to-[#6A1A26] text-[#DFBA73] flex items-center justify-center shrink-0 shadow">
                   <Lock className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#4A121A]">
-                    Registered Members: Auto-fetch Your Kundli
+                    Guest Visitor? Use Free Kundli Milan OR Login for Database Matching
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-700 leading-relaxed max-w-2xl">
-                    Apne registered account se login karein. Aapki profile details automatically fetch ho jayengi aur aapke liye opposite gender profiles ka 36 Guna Milan & Lal Kitab Upaye turant calculate hoga.
+                    Guests can use our <strong>Free Kundli Milan</strong> with manual Groom + Bride entry without needing an account. Registered members can login to auto-fetch their profile and match with verified community profiles.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-3 shrink-0 w-full lg:w-auto">
                 <Link
-                  href="/login?redirect=/astrology"
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-[#380D13] transition"
+                  href="/kundli-milan"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-[#601722] transition border border-[#C5A059]"
                 >
-                  <LogIn className="h-4 w-4 text-[#DFBA73]" />
-                  <span>Login to Auto-fetch</span>
+                  <Sparkles className="h-4 w-4 text-[#DFBA73]" />
+                  <span>Free Kundli Milan (Open)</span>
                 </Link>
                 <Link
-                  href="/register"
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center rounded-xl bg-white border border-[#4A121A] px-4 py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
+                  href="/login?redirect=/astrology"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-[#4A121A] px-4 py-2.5 text-xs font-bold text-[#4A121A] hover:bg-[#FAF0DC] transition"
                 >
-                  Register Profile
+                  <LogIn className="h-4 w-4 text-[#C5A059]" />
+                  <span>Member Login</span>
                 </Link>
               </div>
             </div>

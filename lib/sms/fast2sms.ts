@@ -1,17 +1,15 @@
 /**
- * Fast2SMS Smart OTP Gateway - STRICTLY SMS OTP ONLY
+ * Fast2SMS Gateway - Official DLT Route with Sender ID NNVS
+ * Entity ID: 1701179249077069314
+ * Sender ID: NNVS
+ * Approved DLT Template:
+ * "RishteClub me login hetu OTP: {#VAR#}. Valid for 5 mins. Visit: https://rishteclub.com - NNVS MATRIMONY"
+ *
  * Official Endpoints:
- * - Send OTP:   POST https://www.fast2sms.com/dev/otp/send
- *   Headers: Authorization: process.env.FAST2SMS_API_KEY, accept: application/json, content-type: application/json
- *   Body: { "mobile": mobileNumber, "otp_id": process.env.FAST2SMS_OTP_ID }
- * 
- * - Verify OTP: POST https://www.fast2sms.com/dev/otp/verify
- *   Headers: Authorization: process.env.FAST2SMS_API_KEY, accept: application/json, content-type: application/json
- *   Body: { "mobile": mobileNumber, "otp": userEnteredOtp }
- * 
- * - Resend OTP: POST https://www.fast2sms.com/dev/otp/resend
- *   Headers: Authorization: process.env.FAST2SMS_API_KEY, accept: application/json, content-type: application/json
- *   Body: { "mobile": mobileNumber }
+ * - DLT Quick / Manual: POST https://www.fast2sms.com/dev/bulkV2
+ * - Smart OTP Send:     POST https://www.fast2sms.com/dev/otp/send
+ * - Smart OTP Verify:   POST https://www.fast2sms.com/dev/otp/verify
+ * - Smart OTP Resend:   POST https://www.fast2sms.com/dev/otp/resend
  */
 
 export interface Fast2SmsSendResult {
@@ -20,6 +18,7 @@ export interface Fast2SmsSendResult {
   message?: string;
   error?: string;
   statusCode?: number;
+  otp?: string;
 }
 
 export interface Fast2SmsVerifyResult {
@@ -37,6 +36,13 @@ export interface Fast2SmsResendResult {
   statusCode?: number;
 }
 
+export const DLT_APPROVED_TEMPLATE =
+  "RishteClub me login hetu OTP: {#VAR#}. Valid for 5 mins. Visit: https://rishteclub.com - NNVS MATRIMONY";
+
+export function formatDltOtpMessage(otp: string): string {
+  return `RishteClub me login hetu OTP: ${otp}. Valid for 5 mins. Visit: https://rishteclub.com - NNVS MATRIMONY`;
+}
+
 export function getFast2SmsConfig() {
   const env = process.env;
   const apiKeyCandidate =
@@ -51,9 +57,13 @@ export function getFast2SmsConfig() {
 
   const apiKey = String(apiKeyCandidate).replace(/["']/g, "").trim();
 
+  // DLT verified Sender ID and Entity ID
+  const senderId = (env.FAST2SMS_SENDER_ID || "NNVS").replace(/["']/g, "").trim();
+  const entityId = (env.FAST2SMS_ENTITY_ID || "1701179249077069314").replace(/["']/g, "").trim();
+  const templateId = (env.FAST2SMS_DLT_TEMPLATE_ID || env.FAST2SMS_TEMPLATE_ID || "").replace(/["']/g, "").trim();
+
   const otpIdCandidate =
     env.FAST2SMS_OTP_ID ||
-    env.FAST2SMS_TEMPLATE_ID ||
     env.FAST_2_SMS_OTP_ID ||
     env.fast2sms_otp_id ||
     "bfb224b309";
@@ -62,7 +72,7 @@ export function getFast2SmsConfig() {
 
   const relatedKeyNames = Object.keys(env).filter((k) => /fast2|sms/i.test(k));
 
-  return { apiKey, otpId, relatedKeyNames };
+  return { apiKey, senderId, entityId, templateId, otpId, relatedKeyNames };
 }
 
 /**
@@ -78,16 +88,15 @@ export function sanitizeIndianMobile(mobile: string): string | null {
 }
 
 /**
- * Send OTP via Fast2SMS Smart OTP Gateway
- * POST to https://www.fast2sms.com/dev/otp/send
- * Headers: Authorization, accept, content-type
- * Body: { "mobile": mobileNumber, "otp_id": process.env.FAST2SMS_OTP_ID }
+ * Send OTP via Fast2SMS DLT Gateway with Sender ID NNVS
+ * Strictly SMS-only under approved DLT template:
+ * "RishteClub me login hetu OTP: {#VAR#}. Valid for 5 mins. Visit: https://rishteclub.com - NNVS MATRIMONY"
  */
 export async function sendFast2SmsOTP(
   mobile: string,
-  _customOtp?: string
+  customOtp?: string
 ): Promise<Fast2SmsSendResult> {
-  const { apiKey, otpId, relatedKeyNames } = getFast2SmsConfig();
+  const { apiKey, senderId, entityId, templateId, otpId, relatedKeyNames } = getFast2SmsConfig();
 
   if (!apiKey) {
     const diagnostic =
@@ -109,9 +118,116 @@ export async function sendFast2SmsOTP(
     };
   }
 
+  const otpToSend =
+    customOtp && /^\d{4,6}$/.test(customOtp.trim())
+      ? customOtp.trim()
+      : String(Math.floor(100000 + Math.random() * 900000));
+
+  const dltMessage = formatDltOtpMessage(otpToSend);
+
+  // 1. PRIMARY: Dispatch via Fast2SMS DLT route with Sender ID NNVS (Entity: 1701179249077069314)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
+    const dltPayload: {
+      route: string;
+      sender_id: string;
+      entity_id: string;
+      message: string;
+      numbers: string;
+      flash: number;
+      template_id?: string;
+    } = {
+      route: "dlt_manual",
+      sender_id: senderId,
+      entity_id: entityId,
+      message: dltMessage,
+      numbers: cleanMobile,
+      flash: 0,
+    };
+
+    if (templateId) {
+      dltPayload.template_id = templateId;
+    }
+
+    const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+      method: "POST",
+      headers: {
+        authorization: apiKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(dltPayload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json().catch(() => null);
+    console.log(`[Fast2SMS DLT] Dispatch response (${senderId}):`, data);
+
+    if (response.ok && data && data.return === true) {
+      return {
+        success: true,
+        requestId: data.request_id || `NNVS_${Date.now()}`,
+        message: Array.isArray(data.message)
+          ? data.message[0]
+          : data.message || "OTP sent successfully via SMS",
+        statusCode: 200,
+        otp: otpToSend,
+      };
+    }
+
+    // If template_id is provided and dlt_manual returned error, attempt route: "dlt"
+    if (templateId) {
+      const dltRoutePayload = {
+        route: "dlt",
+        sender_id: senderId,
+        message: templateId,
+        variables_values: otpToSend,
+        numbers: cleanMobile,
+        flash: 0,
+      };
+
+      const dltRes = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+        method: "POST",
+        headers: {
+          authorization: apiKey,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(dltRoutePayload),
+      });
+
+      const dltData = await dltRes.json().catch(() => null);
+      if (dltRes.ok && dltData && dltData.return === true) {
+        return {
+          success: true,
+          requestId: dltData.request_id || `NNVS_${Date.now()}`,
+          message: Array.isArray(dltData.message)
+            ? dltData.message[0]
+            : dltData.message || "OTP sent successfully via SMS",
+          statusCode: 200,
+          otp: otpToSend,
+        };
+      }
+    }
+
+    console.warn("[Fast2SMS] DLT dispatch unsuccessful, attempting Smart OTP fallback...", data?.message);
+  } catch (dltErr: unknown) {
+    const err = dltErr as Error | undefined;
+    if (err?.name === "AbortError") {
+      console.warn("[Fast2SMS] DLT request timed out, attempting Smart OTP fallback...");
+    } else {
+      console.warn("[Fast2SMS] DLT request error:", err?.message || dltErr);
+    }
+  }
+
+  // 2. SECONDARY FALLBACK: Fast2SMS Smart OTP Endpoint
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const payload = {
       mobile: cleanMobile,
@@ -141,6 +257,7 @@ export async function sendFast2SmsOTP(
           ? data.message[0]
           : data.message || "OTP sent successfully via SMS",
         statusCode: 200,
+        otp: otpToSend,
       };
     } else {
       const errorMsg =
@@ -153,14 +270,15 @@ export async function sendFast2SmsOTP(
         statusCode: data?.status_code || response.status,
       };
     }
-  } catch (err: any) {
-    if (err.name === "AbortError") {
+  } catch (err: unknown) {
+    const error = err as Error | undefined;
+    if (error?.name === "AbortError") {
       return {
         success: false,
         error: "SMS gateway request timed out. Please try again.",
       };
     }
-    console.error("Fast2SMS send OTP network error:", err?.message || err);
+    console.error("Fast2SMS send OTP network error:", error?.message || err);
     return {
       success: false,
       error: "Unable to reach SMS gateway. Please try again.",
@@ -171,8 +289,6 @@ export async function sendFast2SmsOTP(
 /**
  * Verify Smart OTP via Fast2SMS official verification endpoint
  * POST to https://www.fast2sms.com/dev/otp/verify
- * Headers: Authorization, accept, content-type
- * Body: { "mobile": mobileNumber, "otp": userEnteredOtp }
  */
 export async function verifyFast2SmsOTP(
   mobile: string,
@@ -246,15 +362,16 @@ export async function verifyFast2SmsOTP(
         statusCode: data?.status_code || response.status,
       };
     }
-  } catch (err: any) {
-    if (err.name === "AbortError") {
+  } catch (err: unknown) {
+    const error = err as Error | undefined;
+    if (error?.name === "AbortError") {
       console.error("Fast2SMS verify OTP request timed out");
       return {
         success: false,
         error: "SMS verification request timed out. Please try again.",
       };
     }
-    console.error("Fast2SMS verify OTP network error:", err?.message || err);
+    console.error("Fast2SMS verify OTP network error:", error?.message || err);
     return {
       success: false,
       error: "Unable to reach SMS gateway for verification. Please try again.",
@@ -263,14 +380,22 @@ export async function verifyFast2SmsOTP(
 }
 
 /**
- * Resend Smart OTP via Fast2SMS official resend endpoint
- * POST to https://www.fast2sms.com/dev/otp/resend
- * Headers: Authorization, accept, content-type
- * Body: { "mobile": mobileNumber }
+ * Resend Smart OTP via Fast2SMS
+ * Tries DLT route first with Sender ID NNVS, then falls back to official resend endpoint
  */
 export async function resendFast2SmsOTP(
   mobile: string
 ): Promise<Fast2SmsResendResult> {
+  const dltResult = await sendFast2SmsOTP(mobile);
+  if (dltResult.success) {
+    return {
+      success: true,
+      requestId: dltResult.requestId,
+      message: dltResult.message || "OTP resent successfully via SMS.",
+      statusCode: 200,
+    };
+  }
+
   const { apiKey } = getFast2SmsConfig();
 
   if (!apiKey) {
@@ -294,7 +419,7 @@ export async function resendFast2SmsOTP(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const response = await fetch("https://www.fast2sms.com/dev/otp/resend", {
       method: "POST",
@@ -331,15 +456,16 @@ export async function resendFast2SmsOTP(
         statusCode: data?.status_code || response.status,
       };
     }
-  } catch (err: any) {
-    if (err.name === "AbortError") {
+  } catch (err: unknown) {
+    const error = err as Error | undefined;
+    if (error?.name === "AbortError") {
       console.error("Fast2SMS resend OTP request timed out");
       return {
         success: false,
         error: "SMS resend request timed out. Please try again.",
       };
     }
-    console.error("Fast2SMS resend OTP network error:", err?.message || err);
+    console.error("Fast2SMS resend OTP network error:", error?.message || err);
     return {
       success: false,
       error: "Unable to reach SMS gateway for resend. Please try again.",

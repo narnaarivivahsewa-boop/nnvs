@@ -69,10 +69,9 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Kundli OTP] Generated local OTP for ${cleanPhone}: ${otp}`);
 
-    // 4. Dispatch OTP via Fast2SMS
-    // We first attempt using the active DLT Smart OTP gateway from lib/sms/fast2sms
+    // 4. Dispatch OTP via Fast2SMS DLT Gateway (Sender ID: NNVS)
     const smsResult = await sendFast2SmsOTP(cleanPhone, otp);
-    console.log("[Fast2SMS] Smart OTP dispatch result:", smsResult);
+    console.log("[Fast2SMS] DLT OTP dispatch result:", smsResult);
 
     if (smsResult.success) {
       return NextResponse.json({
@@ -83,37 +82,59 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // If Smart OTP reported an error, log details and fallback to dev/bulkV2 if needed
-    console.warn("[Fast2SMS] Smart OTP dispatch returned error, trying bulkV2 fallback:", smsResult.error);
+    // Direct DLT fallback if wrapper reported an error
+    console.warn("[Fast2SMS] Wrapper returned error, trying direct NNVS DLT fallback:", smsResult.error);
 
     const apiKey = (process.env.FAST2SMS_API_KEY || "").replace(/["']/g, "").trim();
     if (apiKey) {
       try {
+        const senderId = (process.env.FAST2SMS_SENDER_ID || "NNVS").replace(/["']/g, "").trim();
+        const entityId = (process.env.FAST2SMS_ENTITY_ID || "1701179249077069314").replace(/["']/g, "").trim();
+        const templateId = (process.env.FAST2SMS_DLT_TEMPLATE_ID || process.env.FAST2SMS_TEMPLATE_ID || "").replace(/["']/g, "").trim();
+
+        const dltPayload: {
+          route: string;
+          sender_id: string;
+          entity_id: string;
+          message: string;
+          numbers: string;
+          flash: number;
+          template_id?: string;
+        } = {
+          route: "dlt_manual",
+          sender_id: senderId,
+          entity_id: entityId,
+          message: `RishteClub me login hetu OTP: ${otp}. Valid for 5 mins. Visit: https://rishteclub.com - NNVS MATRIMONY`,
+          numbers: cleanPhone,
+          flash: 0,
+        };
+
+        if (templateId) {
+          dltPayload.template_id = templateId;
+        }
+
         const fast2smsRes = await fetch("https://www.fast2sms.com/dev/bulkV2", {
           method: "POST",
           headers: {
             authorization: apiKey,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            route: "otp",
-            variables_values: otp,
-            numbers: cleanPhone,
-          }),
+          body: JSON.stringify(dltPayload),
         });
 
         const data = await fast2smsRes.json().catch(() => ({}));
-        console.log("Fast2SMS API Response:", data);
+        console.log("Fast2SMS Direct DLT Response:", data);
 
         if (data && data.return) {
           return NextResponse.json({
             success: true,
             message: `OTP has been sent to +91 ${cleanPhone.slice(0, 2)}******${cleanPhone.slice(-2)}.`,
             phoneNumber: cleanPhone,
+            requestId: data.request_id || "NNVS_DLT",
           });
         }
       } catch (fallbackErr) {
-        console.error("[Fast2SMS] bulkV2 fallback error:", fallbackErr);
+        console.error("[Fast2SMS] Direct DLT fallback error:", fallbackErr);
       }
     }
 
