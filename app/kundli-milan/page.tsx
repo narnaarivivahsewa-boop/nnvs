@@ -22,8 +22,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  PhoneCall,
-  MessageCircle,
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 
@@ -799,7 +797,7 @@ export default function KundliMilanPage() {
         {/* Results Section */}
         {milanResult && (
           <div ref={resultsRef} className="mt-14 space-y-10 scroll-mt-6">
-            {/* Top Action Bar with PDF Download Button & Astrological Helpline */}
+            {/* Top Action Bar with PDF Download Button */}
             <div className="no-print flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-white border-2 border-[#C5A059]/40 shadow-sm">
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className="w-12 h-12 rounded-xl bg-[#4A121A] text-[#DFBA73] flex items-center justify-center font-bold flex-shrink-0 shadow-sm">
@@ -824,14 +822,6 @@ export default function KundliMilanPage() {
                   <Download className="w-4 h-4 text-[#DFBA73]" />
                   <span>Download Complete Kundali Milan Report (PDF)</span>
                 </button>
-                <a
-                  href="tel:+919871592002"
-                  className="h-12 min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-xs border border-[#C5A059] bg-[#FAF5EB] text-[#4A121A] hover:bg-[#F2E8D7] transition shadow-xs"
-                  title="Astrological Consultation Helpline"
-                >
-                  <PhoneCall className="w-3.5 h-3.5 text-[#C5A059]" />
-                  <span>+91-9871592002</span>
-                </a>
               </div>
             </div>
 
@@ -1167,7 +1157,7 @@ export default function KundliMilanPage() {
                               {koot.remedy}
                             </p>
                             <p className="mt-2 pt-2 border-t border-amber-200 text-[11px] text-[#7A5835]">
-                              💡 विशेष दोष निवारण संकल्प, महामृत्युंजय अनुष्ठान या ₹117 टोकन मार्गदर्शन हेतु NNVS सहायता केंद्र पर सीधे संपर्क करें: <strong>+91-9871592002</strong>
+                              💡 <strong>वैदिक परामर्श:</strong> यदि किसी कूट में दोष अथवा कम अंक प्राप्त हों, तो किसी भी निर्णय से पूर्व महामृत्युंजय जप, गौ सेवा अथवा कुलदेवता की आराधना करें।
                             </p>
                           </div>
                         </div>
@@ -1212,6 +1202,11 @@ export default function KundliMilanPage() {
                 </Link>
               </div>
             </div>
+
+            {/* Subtle Astrological Disclaimer */}
+            <p className="no-print text-center text-xs text-stone-400 mt-8 mb-4 max-w-2xl mx-auto px-4 leading-relaxed">
+              <strong>ज्योतिषीय परामर्श अस्वीकरण:</strong> यह कुंडली मिलान पारंपरिक अष्टकूट गणनाओं पर आधारित एक सांकेतिक विवरण है। हम इसके शत-प्रतिशत सटीक होने अथवा किसी अकाट्य परिणाम का दावा नहीं करते। वैवाहिक संबंध अथवा अंतिम निर्णय लेने से पूर्व कृपया अपने पारिवारिक ज्योतिषी, विद्वान अथवा पुरोहित से व्यक्तिगत परामर्श अवश्य प्राप्त करें।
+            </p>
 
             {/* ========================================================================= */}
             {/* PRINTABLE VEDIC KUNDALI MATCHMAKING CERTIFICATE (PRINT-ONLY)            */}
@@ -1382,7 +1377,7 @@ export default function KundliMilanPage() {
               <div className="pt-3 border-t-2 border-[#4A121A] flex justify-between items-end text-[9.5px] text-gray-600 print-break-inside-avoid">
                 <div>
                   <p className="font-bold text-[#4A121A]">RishteClub Matrimonial Verification Division</p>
-                  <p>Helpline: +91-9871592002 • contact@rishteclub.com • rishteclub.com</p>
+                  <p>Official Vedic Matchmaking Record • contact@rishteclub.com • rishteclub.com</p>
                   <p>Certified Vedic Astrological Horoscope Compatibility Record</p>
                 </div>
                 <div className="text-right">
@@ -1391,6 +1386,11 @@ export default function KundliMilanPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Subtle Astrological Disclaimer in Print Certificate */}
+              <p className="text-[8.5px] text-gray-500 mt-2.5 pt-2 border-t border-gray-300 text-center leading-tight print-break-inside-avoid">
+                <strong>ज्योतिषीय परामर्श अस्वीकरण:</strong> यह कुंडली मिलान पारंपरिक अष्टकूट गणनाओं पर आधारित एक सांकेतिक विवरण है। हम इसके शत-प्रतिशत सटीक होने अथवा किसी अकाट्य परिणाम का दावा नहीं करते। वैवाहिक संबंध अथवा अंतिम निर्णय लेने से पूर्व कृपया अपने पारिवारिक ज्योतिषी, विद्वान अथवा पुरोहित से व्यक्तिगत परामर्श अवश्य प्राप्त करें।
+              </p>
             </div>
           </div>
         )}
@@ -1601,27 +1601,14 @@ export default function KundliMilanPage() {
               </div>
             </div>
 
-            {/* Helpline Information in Modal */}
+            {/* Membership Note in Modal */}
             <div className="mb-5 p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4] text-center text-xs text-[#4A121A]">
               <span className="font-bold block text-[#7A5835] text-[11px] uppercase tracking-wider mb-0.5">
-                📞 Matrimonial Support &amp; Astrological Helpline
+                Official RishteClub Membership
               </span>
-              <div className="flex items-center justify-center gap-4 mt-1 font-bold">
-                <a href="tel:+919871592002" className="text-[#4A121A] hover:underline flex items-center gap-1">
-                  <PhoneCall className="w-3.5 h-3.5 text-[#C5A059]" />
-                  +91-9871592002
-                </a>
-                <span className="text-gray-300">|</span>
-                <a
-                  href="https://wa.me/919871592002?text=Hello%20RishteClub%20Team%2C%20I%20checked%20Free%20Kundali%20Milan%20and%20want%20to%20register."
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 hover:underline flex items-center gap-1"
-                >
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                  WhatsApp Support
-                </a>
-              </div>
+              <p className="text-[11px] text-[#4A3E39]">
+                100% Verified Profiles across Agarwal, Baniya, Brahmin, Punjabi, and Khatri communities.
+              </p>
             </div>
 
             {/* Direct Register CTA */}
