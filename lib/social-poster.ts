@@ -426,9 +426,10 @@ export interface FacebookPublishResult {
 
 /**
  * Publish photo post to Facebook Page via Meta Graph API v21.0
- * Standard Clean Feed Upload:
- * Direct POST /{page-id}/photos with url, caption, published: true, no_story: false
- * Generates direct universal permalink.php URL accessible across all browsers and devices.
+ * 2-Step Timeline Feed Story Flow (Meta New Pages Experience):
+ * - Step A: POST /{page-id}/photos (url, published: false, temporary: false) -> Extracts photo_fbid
+ * - Step B: POST /{page-id}/feed (message: caption, attached_media: [{ media_fbid }]) -> Broadcasts main public Timeline Feed Story
+ * - Fallback: Direct /{page-id}/photos with published: true if feed endpoint fails
  */
 export async function publishToFacebookPage({
   imageUrl,
@@ -477,27 +478,25 @@ export async function publishToFacebookPage({
       await getFacebookPageAccessToken(rawToken, fbPageId);
     fbPageId = resolvedPageId;
 
-    // === STANDARD CLEAN PHOTO PUBLISHING (Direct to Page Feed) ===
-    let postRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+    // === STEP A: Upload Unlisted Photo Asset (published: false) ===
+    let uploadRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         url: imageUrl,
-        caption: caption,
-        message: caption,
-        published: true,
-        no_story: false,
+        published: false,
+        temporary: false,
         access_token: pageToken,
       }),
     });
 
-    let postData = await postRes.json();
+    let uploadData = await uploadRes.json();
 
-    // If initial upload fails with token issue, force-refresh via /me/accounts and retry
-    if (!postRes.ok || postData.error) {
+    // If initial upload fails with token/permission issue, refresh via /me/accounts and retry
+    if (!uploadRes.ok || uploadData.error) {
       console.warn(
-        "[Meta API] Facebook Photo Post notice, refreshing Page token:",
-        postData.error?.message
+        "[Meta API] Photo upload warning, refreshing Page token:",
+        uploadData.error?.message
       );
       try {
         const accRes = await fetch(
@@ -513,42 +512,88 @@ export async function publishToFacebookPage({
             timestamp: Date.now(),
           };
 
-          postRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+          uploadRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               url: imageUrl,
-              caption: caption,
-              message: caption,
-              published: true,
-              no_story: false,
+              published: false,
+              temporary: false,
               access_token: pageToken,
             }),
           });
-          postData = await postRes.json();
+          uploadData = await uploadRes.json();
         }
       } catch (refreshErr) {
         console.error("[Meta API] Page token refresh error:", refreshErr);
       }
     }
 
-    if (!postRes.ok || postData.error) {
+    const photoFbid = uploadData?.id;
+
+    // === STEP B: Broadcast as Main Timeline Feed Story (/feed) ===
+    if (photoFbid) {
+      const feedRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/feed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: caption,
+          attached_media: [{ media_fbid: photoFbid }],
+          access_token: pageToken,
+        }),
+      });
+
+      const feedData = await feedRes.json();
+
+      if (feedRes.ok && feedData?.id) {
+        const feedPostId = feedData.id;
+        const storyFbid = feedPostId.includes("_") ? feedPostId.split("_")[1] : feedPostId;
+        const permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
+
+        console.log(
+          `[Meta API] Feed Timeline Story published successfully: ${feedPostId} (${permalinkUrl})`
+        );
+
+        return {
+          success: true,
+          postId: feedPostId,
+          permalinkUrl,
+        };
+      }
+
+      console.warn(
+        "[Meta API] Feed endpoint failed, falling back to direct /photos publish:",
+        feedData.error?.message
+      );
+    }
+
+    // === FALLBACK: Direct /{page-id}/photos with published: true ===
+    const directRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: imageUrl,
+        caption: caption,
+        message: caption,
+        published: true,
+        no_story: false,
+        access_token: pageToken,
+      }),
+    });
+
+    const directData = await directRes.json();
+    if (!directRes.ok || directData.error) {
       const errMsg =
-        postData.error?.message || `Facebook API returned HTTP ${postRes.status}`;
-      console.error("[Meta API] Facebook Page Post Failed:", postData.error || postData);
+        directData.error?.message ||
+        uploadData.error?.message ||
+        `Facebook API returned HTTP ${directRes.status}`;
+      console.error("[Meta API] Facebook Page Post Failed:", directData.error || directData);
       return { success: false, error: errMsg };
     }
 
-    const photoId = postData.id;
-    const postId = postData.post_id || postData.id;
+    const postId = directData.post_id || directData.id;
     const storyFbid = postId.includes("_") ? postId.split("_")[1] : postId;
-
-    // Universal direct Page-level URL that opens immediately without redirect errors
     const permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
-
-    console.log(
-      `[Meta API] Facebook Photo Post published successfully: ${postId} (${permalinkUrl})`
-    );
 
     return {
       success: true,
