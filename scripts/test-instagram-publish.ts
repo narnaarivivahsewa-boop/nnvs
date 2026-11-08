@@ -35,8 +35,8 @@ async function main() {
   console.log(eveningCaption.slice(0, 120) + "...\n");
 
   console.log("=== 3. Executing Live Test Publish to Instagram @rishteclub ===");
-  // We use the verified high-res public image from rishteclub.com
-  const testImageUrl = "https://www.rishteclub.com/images/wedding/DSC00173.JPG";
+  // We use the dynamic branded 1080x1080 OG post card
+  const testImageUrl = `${config.appUrl}/api/og/social-post?slot=KUNDLI_MILAN&t=${Date.now()}`;
   const testCaption =
     `✨ 100% Free AI Kundali Milan & 36 Guna Match Report ✨\n` +
     `Platform: RishteClub Matrimony (Powered by NNVS)\n\n` +

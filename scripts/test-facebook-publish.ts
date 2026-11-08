@@ -27,7 +27,7 @@ async function main() {
   console.log("Dry Run Response:", JSON.stringify(dryJson, null, 2));
 
   console.log("\n=== 3. Testing Direct Facebook Page Publish Call ===");
-  const testImageUrl = "https://www.rishteclub.com/images/wedding/DSC00173.JPG";
+  const testImageUrl = `${config.appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
   const testCaption = "RishteClub Matrimony - Official Community Matching";
 
   const fbResult = await publishToFacebookPage({
@@ -38,8 +38,8 @@ async function main() {
   });
   console.log("Facebook Page Publish Result:", fbResult);
 
-  console.log("\n=== 4. Testing Live /api/social/publish Parallel Execution ===");
-  const liveReq = new NextRequest("http://localhost:3000/api/social/publish?slot=MORNING", {
+  console.log("\n=== 4. Testing /api/social/publish Dry Run Execution ===");
+  const liveReq = new NextRequest("http://localhost:3000/api/social/publish?slot=MORNING&dryRun=true", {
     method: "POST",
     headers: {
       Authorization: "Bearer rishteclub_secure_cron_key_2026",
@@ -48,6 +48,7 @@ async function main() {
     body: JSON.stringify({
       imageUrl: testImageUrl,
       caption: testCaption,
+      dryRun: true,
     }),
   });
   const liveRes = await POST(liveReq);

@@ -169,6 +169,22 @@ async function handlePublish(req: NextRequest) {
     const appUrl = config.appUrl;
 
     let imageUrl = bodyData.imageUrl || searchParams.get("imageUrl");
+
+    // Strict Banner Ban: Reject static website marriage banners (e.g., DSC00173.JPG or /images/wedding/)
+    if (
+      imageUrl &&
+      (imageUrl.includes("DSC00173") ||
+        imageUrl.includes("/images/wedding/") ||
+        imageUrl.includes("hero") ||
+        imageUrl.endsWith(".JPG") ||
+        imageUrl.endsWith(".jpg"))
+    ) {
+      console.warn(
+        `[Social Publish] Rejected static website banner image (${imageUrl}). Replacing with dynamic OG graphic card.`
+      );
+      imageUrl = null;
+    }
+
     if (!imageUrl) {
       if (slot === "PROFILE_SPOTLIGHT" && candidateData) {
         const ogParams = new URLSearchParams({
@@ -191,6 +207,60 @@ async function handlePublish(req: NextRequest) {
       } else {
         // EVENING / PROMOTION / REGISTRATION
         imageUrl = `${appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
+      }
+    }
+
+    // 4b. Strict 7-Day Deduplication & Cooldown Guard
+    if (!dryRun) {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      try {
+        const recentDuplicate = await prisma.socialPostLog.findFirst({
+          where: {
+            status: "SUCCESS",
+            createdAt: { gte: sevenDaysAgo },
+            OR: [
+              ...(candidateId ? [{ candidateId }] : []),
+              { imageUrl },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (recentDuplicate) {
+          console.warn(
+            `[Social Publish] 7-day cooldown triggered (recent post ID: ${recentDuplicate.id}). Applying rotation & cache-buster.`
+          );
+          if (slot === "PROFILE_SPOTLIGHT") {
+            const freshSpotlight = await fetchSpotlightProfile();
+            if (freshSpotlight && freshSpotlight.candidateId !== candidateId) {
+              candidateId = freshSpotlight.candidateId;
+              candidateData = freshSpotlight.candidateData;
+              const freshParams = new URLSearchParams({
+                slot: "PROFILE_SPOTLIGHT",
+                id: candidateData.id || "",
+                name: candidateData.displayName || "",
+                gender: candidateData.gender || "FEMALE",
+                age: String(candidateData.age || "26"),
+                height: candidateData.height || "",
+                profession: candidateData.profession || "",
+                city: candidateData.city || "",
+                caste: candidateData.caste || "",
+                education: candidateData.education || "",
+                photo: candidateData.photoUrl || "",
+                t: String(Date.now()),
+              });
+              imageUrl = `${appUrl}/api/og/social-post?${freshParams.toString()}`;
+            } else {
+              slot = "PROMOTION";
+              imageUrl = `${appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
+            }
+          } else {
+            const sep = imageUrl.includes("?") ? "&" : "?";
+            imageUrl = `${imageUrl}${sep}nonce=${Date.now()}`;
+          }
+        }
+      } catch (dedupErr) {
+        console.warn("[Social Publish] Deduplication check warning:", dedupErr);
       }
     }
 
@@ -305,7 +375,7 @@ async function handlePublish(req: NextRequest) {
         ? igSettled.value
         : { success: false, error: igSettled.reason?.message || "Instagram publish rejected" };
 
-    const fbResult: { success: boolean; postId?: string; error?: string } =
+    const fbResult: { success: boolean; postId?: string; permalinkUrl?: string; error?: string } =
       fbSettled.status === "fulfilled"
         ? fbSettled.value
         : { success: false, error: fbSettled.reason?.message || "Facebook publish rejected" };
@@ -364,6 +434,7 @@ async function handlePublish(req: NextRequest) {
           : undefined,
         instagramPostId: igResult.mediaId || null,
         facebookPostId: fbResult.postId || null,
+        facebookPermalink: fbResult.permalinkUrl || (fbResult.postId ? `https://www.facebook.com/${fbResult.postId}` : null),
         instagram: {
           success: igResult.success,
           postId: igResult.mediaId,
@@ -373,6 +444,7 @@ async function handlePublish(req: NextRequest) {
         facebook: {
           success: fbResult.success,
           postId: fbResult.postId,
+          permalinkUrl: fbResult.permalinkUrl,
           error: fbResult.error,
         },
         imageUrl,
