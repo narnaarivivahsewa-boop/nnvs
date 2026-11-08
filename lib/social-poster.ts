@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { BUSINESS_INFO } from "@/lib/gst";
 
-export type SocialSlot = "MORNING" | "AFTERNOON" | "EVENING" | "MANUAL";
+export type SocialSlot =
+  | "MORNING"
+  | "AFTERNOON"
+  | "EVENING"
+  | "MANUAL"
+  | "KUNDLI_MILAN"
+  | "REGISTRATION"
+  | "MATCHMAKING_TIPS";
 
 export interface SocialPostParams {
   slot: SocialSlot;
@@ -46,9 +53,10 @@ export interface SocialPostResult {
 
 export function getMetaConfig() {
   const pageAccessToken =
+    process.env.META_IG_ACCESS_TOKEN ||
+    process.env.META_ACCESS_TOKEN ||
     process.env.META_PAGE_ACCESS_TOKEN ||
     process.env.FACEBOOK_PAGE_ACCESS_TOKEN ||
-    process.env.META_ACCESS_TOKEN ||
     "";
 
   const facebookPageId =
@@ -57,18 +65,18 @@ export function getMetaConfig() {
     "";
 
   const instagramAccountId =
-    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ||
+    process.env.META_IG_ACCOUNT_ID ||
     process.env.INSTAGRAM_ACCOUNT_ID ||
+    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ||
     "";
 
   const cronSecret = process.env.CRON_SECRET || "";
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    (process.env.NODE_ENV === "production"
-      ? "https://www.rishteclub.com"
-      : "http://localhost:3000");
+  // Always use a public HTTPS URL for Meta Graph API since Meta's servers cannot crawl localhost
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  const appUrl = configuredAppUrl && !configuredAppUrl.includes("localhost")
+    ? configuredAppUrl
+    : "https://www.rishteclub.com";
 
   return {
     pageAccessToken,
@@ -97,58 +105,94 @@ export function generateSocialCaption(
   const helpline2 = "+91 7015812359";
   const website = "https://www.rishteclub.com";
 
-  if (slot === "MORNING") {
+  // Post 1: Free Kundali Milan Promotion (Morning Slot)
+  if (slot === "MORNING" || slot === "KUNDLI_MILAN") {
     return (
-      `🙏 सुप्रभात • आज का पावन विचार • RishteClub Matrimony 🙏\n\n` +
-      `"विवाह केवल दो व्यक्तियों का नहीं, बल्कि दो परिवारों और दो आत्माओं का पवित्र संगम है। जहाँ सम्मान और विश्वास हो, वही रिश्ता स्वर्ग बनता है।"\n\n` +
-      `✨ अपनों के लिए सही रिश्ता — सरलता, गरिमा और विश्वास के साथ।\n\n` +
-      `📞 WhatsApp / Call Helpline:\n` +
-      `• ${helpline1}\n` +
-      `• ${helpline2}\n\n` +
-      `🌐 100% Verified Profiles: ${website}\n\n` +
-      `#RishteClub #Suvichar #Matrimony #Shaadi #VivahSewa #GoodMorning #IndianWedding #HinduMatrimony #Rishtey #FamilyValues`
-    );
-  }
-
-  if (slot === "AFTERNOON") {
-    const c = data?.candidateData;
-    const isFemale = c?.gender === "FEMALE";
-    const title = isFemale ? "वधू (Verified Bride Candidate)" : "वर (Verified Groom Candidate)";
-    const id = c?.id || "RC-Featured";
-    const age = c?.age || "26";
-    const height = c?.height || "5'5\"";
-    const community = `${c?.caste || "Agarwal / Baniya"} (${c?.gotra || "Gotra Available"})`;
-    const profession = c?.profession || "Working Professional / MNC";
-    const city = c?.city || "Delhi NCR / Haryana";
-
-    return (
-      `✨ 100% VERIFIED CANDIDATE PROFILE HIGHLIGHT ✨\n` +
-      `Platform: RishteClub Matrimony (Managed by NNVS Matrimony)\n\n` +
-      `👤 Candidate: ${title} [ID: #${id}]\n` +
-      `🎂 Age & Height: ${age} Yrs • ${height}\n` +
-      `🏛️ Community & Gotra: ${community}\n` +
-      `💼 Profession: ${profession}\n` +
-      `📍 City / Location: ${city}\n\n` +
-      `🔒 Privacy Note: Candidate profile is anonymized for privacy. Complete biodata with family background is available to verified members on RishteClub.\n\n` +
-      `📞 Contact Our Matchmaker Helpline:\n` +
-      `• WhatsApp: ${helpline1}\n` +
+      `✨ 100% Free AI Kundali Milan & 36 Guna Match Report ✨\n` +
+      `Platform: RishteClub Matrimony (Powered by NNVS)\n\n` +
+      `विवाह से पहले वर-वधू की कुंडली का सटीक अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब बिल्कुल निःशुल्क।\n\n` +
+      `⭐ Key Highlights:\n` +
+      `• 36 Guna Ashtakoot Score & Detailed Hindi Interpretation\n` +
+      `• Manglik Dosha Analysis & Classical Vedic Remedies\n` +
+      `• No App Download Required — Instant Mobile Verification\n` +
+      `• Free Downloadable Vedic Horoscope Compatibility Certificate (PDF)\n\n` +
+      `👉 Check Your Kundali Milan Instantly:\n` +
+      `🌐 ${website}/kundli-milan\n\n` +
+      `📞 Matchmaking & Astrological Helpline:\n` +
+      `• WhatsApp / Call: ${helpline1}\n` +
       `• Calling: ${helpline2}\n\n` +
-      `🌐 View Profiles & Register: ${website}/profiles\n\n` +
-      `#RishteClub #MatrimonialProfile #GroomBiodata #BrideBiodata #HinduMatrimony #DelhiNCRMatrimony #HaryanaVivah #Shaadi #Rishtey`
+      `#KundaliMilan #FreeKundali #GunMilan #VedicAstrology #36Guna #ManglikDosha #RishteClub #HoroscopeMatching #HinduMatrimony #Shaadi #IndianWedding`
     );
   }
 
-  // EVENING (Astrology)
+  // Post 2: Matrimony Registration Awareness (Afternoon Slot)
+  if (slot === "AFTERNOON" || slot === "REGISTRATION") {
+    const c = data?.candidateData;
+    if (c) {
+      const isFemale = c?.gender === "FEMALE";
+      const title = isFemale ? "वधू (Verified Bride Candidate)" : "वर (Verified Groom Candidate)";
+      const id = c?.id || "RC-Featured";
+      const age = c?.age || "26";
+      const height = c?.height || "5'5\"";
+      const community = `${c?.caste || "Agarwal / Baniya"} (${c?.gotra || "Gotra Available"})`;
+      const profession = c?.profession || "Working Professional / MNC";
+      const city = c?.city || "Delhi NCR / Haryana";
+
+      return (
+        `✨ 100% VERIFIED CANDIDATE PROFILE HIGHLIGHT ✨\n` +
+        `Platform: RishteClub Matrimony (Managed by NNVS Matrimony)\n\n` +
+        `👤 Candidate: ${title} [ID: #${id}]\n` +
+        `🎂 Age & Height: ${age} Yrs • ${height}\n` +
+        `🏛️ Community & Gotra: ${community}\n` +
+        `💼 Profession: ${profession}\n` +
+        `📍 City / Location: ${city}\n\n` +
+        `💍 Lifetime Membership Registration:\n` +
+        `👧 Kanya (Bride): ₹471 Lifetime\n` +
+        `👦 Var (Groom): ₹943 Lifetime\n` +
+        `🚫 No recurring monthly fees. Direct family contact.\n\n` +
+        `📞 Contact Matchmaker Helpline:\n` +
+        `• WhatsApp: ${helpline1}\n` +
+        `• Calling: ${helpline2}\n\n` +
+        `🌐 View Profiles & Register: ${website}/register\n\n` +
+        `#RishteClub #MatrimonialProfile #GroomBiodata #BrideBiodata #HinduMatrimony #DelhiNCRMatrimony #HaryanaVivah #Shaadi #Rishtey`
+      );
+    }
+
+    return (
+      `💍 अपनों के लिए सही रिश्ता — RishteClub Matrimony 💍\n` +
+      `Managed by NNVS Matrimony (Registered Matrimonial Service)\n\n` +
+      `पारिवारिक प्रतिष्ठा, सुरक्षा और शुद्ध भारतीय संस्कारों के साथ अपने बच्चों के लिए योग्य जीवनसाथी खोजें।\n\n` +
+      `✨ Transparent Lifetime Membership:\n` +
+      `👧 Kanya (Bride) Lifetime Registration: ₹471\n` +
+      `👦 Var (Groom) Lifetime Registration: ₹943\n` +
+      `🚫 No monthly recurring fees. No middlemen or agent commissions.\n\n` +
+      `🔒 100% Verified Profiles:\n` +
+      `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n` +
+      `• Direct Contact with Respected Families\n` +
+      `• Complete Privacy & Verified Backgrounds\n\n` +
+      `👉 Register Today:\n` +
+      `🌐 ${website}/register\n\n` +
+      `📞 Matchmaker Helpline:\n` +
+      `• WhatsApp / Calling: ${helpline1}\n` +
+      `• Support: ${helpline2}\n\n` +
+      `#RishteClub #Matrimony #Shaadi #Vivah #AgarwalMatrimony #BaniyaMatrimony #BrahminMatrimony #PunjabiMatrimony #DelhiNCRMatrimony #HaryanaVivah #IndianMatrimony`
+    );
+  }
+
+  // Post 3: Matchmaking / Astrological Relationship Tips (Evening Slot)
   return (
-    `✨ वैदिक ज्योतिष एवं कुंडली मिलान अंतर्दृष्टि ✨\n` +
-    `RishteClub AI Kundli Milan & Vedic Insights\n\n` +
-    `⭐ 36 Guna Ashtakoota Milan: विवाह से पूर्व दोनों कुंडलियों का अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) मानसिक, शारीरिक और पारिवारिक सामंजस्य का दर्पण है।\n\n` +
-    `🌿 लाल किताब सरल समाधान: यदि नाड़ी या भकूट में मतभेद हो, तो भयभीत होने के बजाय शास्त्रीय नियमों और सरल लाल किताब उपायों से समाधान संभव है।\n\n` +
-    `🔮 Free AI Kundli Milan: अपनी व अपने जीवनसाथी की जन्म तिथि डालकर तुरंत 36 गुण व मांगलिक विश्लेषण प्राप्त करें।\n\n` +
-    `📞 Astrological Query Helpline:\n` +
-    `• ${helpline1} | ${helpline2}\n\n` +
-    `🌐 AI Kundli Milan Calculator: ${website}/astrology\n\n` +
-    `#RishteClub #KundaliMilan #36Guna #VedicAstrology #ManglikDosha #HoroscopeMatching #LalKitab #IndianWedding #Shaadi`
+    `🌿 सुखद दांपत्य जीवन के वैदिक नियम एवं ज्योतिषीय सूत्र 🌿\n` +
+    `RishteClub Matrimony • Daily Relationship & Horoscope Wisdom\n\n` +
+    `"सच्चा वैवाहिक जीवन केवल ग्रहों की अनुकूलता से नहीं, बल्कि परस्पर सम्मान, धैर्य और एक-दूसरे के विचारों के आदर से सफल होता है।"\n\n` +
+    `⭐ Astrological Compatibility Tips:\n` +
+    `1. नाड़ी और भकूट दोष से भयभीत न हों — शास्त्रीय नियमों में नक्षत्र और चरण भेद से स्वाभाविक परिहार (Cancellation) उपलब्ध होता है।\n` +
+    `2. ग्रह मैत्री और गण मिलान वैचारिक व मानसिक तालमेल का संकेत देते हैं।\n` +
+    `3. दैनिक जीवन में कुलदेवता की आराधना और बुजुर्गों का आशीर्वाद सभी ग्रहों को शांत रखता है।\n\n` +
+    `🔮 Free AI Kundli Milan & 36 Guna Check:\n` +
+    `🌐 ${website}/kundli-milan\n\n` +
+    `📞 Astrological Guidance Helpline:\n` +
+    `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
+    `#AstrologyTips #KundaliMilan #VedicWisdom #RelationshipGoals #MarriageAdvice #LalKitab #RishteClub #FamilyValues #ShaadiKeNuskhe #HinduWedding`
   );
 }
 
@@ -190,12 +234,12 @@ async function postToFacebookPage(
 /**
  * Publish photo post to Instagram Business Account via Meta Graph API Container
  */
-async function postToInstagramBusiness(
+export async function postToInstagramBusiness(
   imageUrl: string,
   caption: string,
   igAccountId: string,
   accessToken: string
-): Promise<{ success: boolean; mediaId?: string; error?: string }> {
+): Promise<{ success: boolean; mediaId?: string; creationId?: string; error?: string }> {
   try {
     // Step 1: Create Instagram Media Container
     const containerUrl = `https://graph.facebook.com/v21.0/${igAccountId}/media`;
@@ -221,10 +265,32 @@ async function postToInstagramBusiness(
       return { success: false, error: "No container ID returned from Instagram" };
     }
 
-    // Short wait for container processing
-    await new Promise((resolve) => setTimeout(resolve, 2500));
+    // Step 2: Safety delay (approx 4-5 seconds) for Instagram to fetch and process media
+    await new Promise((resolve) => setTimeout(resolve, 4500));
 
-    // Step 2: Publish Media Container
+    // Optional status verification loop
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const statusRes = await fetch(
+          `https://graph.facebook.com/v21.0/${creationId}?fields=status_code,status&access_token=${accessToken}`
+        );
+        const statusData = await statusRes.json();
+        if (statusData?.status_code === "FINISHED") {
+          break;
+        } else if (statusData?.status_code === "ERROR") {
+          return {
+            success: false,
+            creationId,
+            error: statusData.status || "Media container processing failed on Instagram",
+          };
+        }
+      } catch (pollErr) {
+        // continue to publish
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    // Step 3: Trigger Publish using Graph API v21.0 media_publish
     const publishUrl = `https://graph.facebook.com/v21.0/${igAccountId}/media_publish`;
     const publishRes = await fetch(publishUrl, {
       method: "POST",
@@ -239,10 +305,10 @@ async function postToInstagramBusiness(
     if (!publishRes.ok || publishData.error) {
       const errMsg = publishData.error?.message || `Instagram Publish failed (${publishRes.status})`;
       console.error("[Meta API] Instagram Publish Failed:", publishData.error || publishData);
-      return { success: false, error: errMsg };
+      return { success: false, creationId, error: errMsg };
     }
 
-    return { success: true, mediaId: publishData.id };
+    return { success: true, creationId, mediaId: publishData.id };
   } catch (err: any) {
     console.error("[Meta API] Instagram Error:", err);
     return { success: false, error: err.message || "Failed to post to Instagram Business" };

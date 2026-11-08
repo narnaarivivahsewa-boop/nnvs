@@ -81,16 +81,9 @@ export async function GET(req: NextRequest) {
     const website = "rishteclub.com";
 
     // -------------------------------------------------------------
-    // TEMPLATE 1: MORNING SUVICHAR / MATRIMONIAL WISDOM
+    // TEMPLATE 1: MORNING / KUNDLI MILAN PROMOTIONAL CARD
     // -------------------------------------------------------------
-    if (slot === "MORNING") {
-      const quoteIndex = dayOfYear % MORNING_SUVICHAR.length;
-      const suvichar = {
-        hindi: searchParams.get("hindi") || MORNING_SUVICHAR[quoteIndex].hindi,
-        english: searchParams.get("english") || MORNING_SUVICHAR[quoteIndex].english,
-        topic: searchParams.get("topic") || MORNING_SUVICHAR[quoteIndex].topic,
-      };
-
+    if (slot === "MORNING" || slot === "KUNDLI_MILAN") {
       return new ImageResponse(
         (
           <div
@@ -101,8 +94,8 @@ export async function GET(req: NextRequest) {
               flexDirection: "column",
               justifyContent: "space-between",
               backgroundColor: "#4A0E17",
-              backgroundImage: "radial-gradient(circle at 50% 30%, #681523 0%, #4A0E17 65%, #2B070E 100%)",
-              padding: "60px",
+              backgroundImage: "radial-gradient(circle at 50% 25%, #681523 0%, #4A0E17 60%, #200408 100%)",
+              padding: "54px",
               boxSizing: "border-box",
               fontFamily: "sans-serif",
               position: "relative",
@@ -113,10 +106,10 @@ export async function GET(req: NextRequest) {
             <div
               style={{
                 position: "absolute",
-                top: "20px",
-                left: "20px",
-                right: "20px",
-                bottom: "20px",
+                top: "16px",
+                left: "16px",
+                right: "16px",
+                bottom: "16px",
                 border: "2px solid rgba(223, 186, 115, 0.4)",
                 pointerEvents: "none",
               }}
@@ -129,20 +122,16 @@ export async function GET(req: NextRequest) {
                 alignItems: "center",
                 justifyContent: "space-between",
                 borderBottom: "2px solid rgba(223, 186, 115, 0.4)",
-                paddingBottom: "24px",
+                paddingBottom: "20px",
               }}
             >
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", alignItems: "baseline" }}>
-                  <span style={{ fontSize: 44, fontWeight: 900, color: "#FFFFFF", letterSpacing: "-1px" }}>
-                    Rishte
-                  </span>
-                  <span style={{ fontSize: 44, fontWeight: 900, color: "#DFBA73", letterSpacing: "-1px" }}>
-                    Club
-                  </span>
+                  <span style={{ fontSize: 42, fontWeight: 900, color: "#FFFFFF" }}>Rishte</span>
+                  <span style={{ fontSize: 42, fontWeight: 900, color: "#DFBA73" }}>Club</span>
                   <span style={{ fontSize: 16, color: "#DFBA73", fontWeight: 700, marginLeft: 4 }}>™</span>
                 </div>
-                <span style={{ fontSize: 14, color: "#DFBA73", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" }}>
+                <span style={{ fontSize: 13, color: "#DFBA73", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" }}>
                   Managed by NNVS Matrimony
                 </span>
               </div>
@@ -151,90 +140,144 @@ export async function GET(req: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  backgroundColor: "rgba(223, 186, 115, 0.15)",
-                  border: "1px solid #DFBA73",
-                  borderRadius: "30px",
-                  padding: "8px 24px",
+                  backgroundColor: "rgba(223, 186, 115, 0.2)",
+                  border: "2px solid #DFBA73",
+                  borderRadius: "24px",
+                  padding: "8px 22px",
                 }}
               >
-                <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700 }}>
-                  🙏 जय श्री श्याम 🙏
+                <span style={{ color: "#DFBA73", fontSize: 16, fontWeight: 800 }}>
+                  ✨ 100% FREE AI KUNDALI MILAN
                 </span>
               </div>
             </div>
 
-            {/* Middle Content: Suvichar Card */}
+            {/* Middle Feature Content */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-                padding: "20px 40px",
+                backgroundColor: "rgba(0, 0, 0, 0.45)",
+                border: "2px solid rgba(223, 186, 115, 0.5)",
+                borderRadius: "24px",
+                padding: "36px 40px",
                 margin: "auto 0",
               }}
             >
-              {/* Badge */}
+              {/* Main Badge & Title */}
+              <div style={{ display: "flex", flexDirection: "column", marginBottom: "22px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "#DFBA73",
+                    color: "#4A0E17",
+                    padding: "6px 18px",
+                    borderRadius: "14px",
+                    fontSize: 15,
+                    fontWeight: 900,
+                    letterSpacing: "1.5px",
+                    textTransform: "uppercase",
+                    width: "fit-content",
+                    marginBottom: "12px",
+                  }}
+                >
+                  36 GUNA ASHTAKOOTA MILAN &amp; DOSHA CHECK
+                </div>
+
+                <span style={{ color: "#FFFFFF", fontSize: 34, fontWeight: 900, lineHeight: 1.25 }}>
+                  Kundali Milan &amp; Horoscope Matching
+                </span>
+                <span style={{ color: "#DFBA73", fontSize: 19, fontWeight: 700, marginTop: "6px" }}>
+                  Accurate Vedic Compatibility Analysis • Free Downloadable PDF Report
+                </span>
+              </div>
+
+              {/* 4 Feature Points */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "22px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(223, 186, 115, 0.25)",
+                    borderRadius: "14px",
+                    padding: "12px 18px",
+                  }}
+                >
+                  <span style={{ color: "#DFBA73", fontSize: 20, fontWeight: 900, marginRight: 12 }}>✦</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
+                    36 Guna Ashtakoot Score with Detailed Hindi &amp; English Interpretation
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(223, 186, 115, 0.25)",
+                    borderRadius: "14px",
+                    padding: "12px 18px",
+                  }}
+                >
+                  <span style={{ color: "#DFBA73", fontSize: 20, fontWeight: 900, marginRight: 12 }}>✦</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
+                    Manglik Dosha Verification &amp; Authentic Classical Vedic Remedies
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(223, 186, 115, 0.25)",
+                    borderRadius: "14px",
+                    padding: "12px 18px",
+                  }}
+                >
+                  <span style={{ color: "#DFBA73", fontSize: 20, fontWeight: 900, marginRight: 12 }}>✦</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
+                    Instant Downloadable Vedic Matchmaking Certificate (PDF)
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(223, 186, 115, 0.25)",
+                    borderRadius: "14px",
+                    padding: "12px 18px",
+                  }}
+                >
+                  <span style={{ color: "#DFBA73", fontSize: 20, fontWeight: 900, marginRight: 12 }}>✦</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
+                    No App Installation Needed — Fast, Confidential &amp; 100% Free
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom CTA Highlight Box */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  backgroundColor: "#DFBA73",
-                  color: "#4A0E17",
-                  padding: "6px 20px",
-                  borderRadius: "20px",
-                  fontSize: 15,
-                  fontWeight: 900,
-                  letterSpacing: "2px",
-                  textTransform: "uppercase",
-                  marginBottom: "28px",
+                  justifyContent: "space-between",
+                  backgroundColor: "rgba(223, 186, 115, 0.16)",
+                  border: "1px solid #DFBA73",
+                  borderRadius: "14px",
+                  padding: "12px 20px",
                 }}
               >
-                ✦ आज का विचार • {suvichar.topic} ✦
-              </div>
-
-              {/* Decorative Quotation Mark */}
-              <div
-                style={{
-                  fontSize: 70,
-                  lineHeight: 1,
-                  color: "#DFBA73",
-                  opacity: 0.6,
-                  marginBottom: "-10px",
-                }}
-              >
-                “
-              </div>
-
-              {/* Hindi Wisdom Text */}
-              <div
-                style={{
-                  fontSize: 32,
-                  lineHeight: 1.5,
-                  color: "#FFFFFF",
-                  fontWeight: 700,
-                  marginBottom: "24px",
-                  maxWidth: "880px",
-                  textShadow: "0 2px 4px rgba(0,0,0,0.5)",
-                }}
-              >
-                {suvichar.hindi}
-              </div>
-
-              {/* English Sub-Translation */}
-              <div
-                style={{
-                  fontSize: 19,
-                  lineHeight: 1.5,
-                  color: "#E8D8C0",
-                  fontStyle: "italic",
-                  maxWidth: "820px",
-                  borderTop: "1px solid rgba(223, 186, 115, 0.3)",
-                  paddingTop: "20px",
-                }}
-              >
-                &ldquo;{suvichar.english}&rdquo;
+                <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 700 }}>
+                  👉 Check Compatibility Free:
+                </span>
+                <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 900, letterSpacing: "0.5px" }}>
+                  rishteclub.com/kundli-milan
+                </span>
               </div>
             </div>
 
@@ -252,7 +295,7 @@ export async function GET(req: NextRequest) {
             >
               <div style={{ display: "flex", alignItems: "center" }}>
                 <span style={{ color: "#DFBA73", fontSize: 22, marginRight: 8 }}>🌐</span>
-                <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700 }}>{website}</span>
+                <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700 }}>{website}/kundli-milan</span>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
@@ -273,9 +316,232 @@ export async function GET(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // TEMPLATE 2: AFTERNOON ANONYMOUS CANDIDATE PROFILE CARD
+    // TEMPLATE 2: AFTERNOON / MATRIMONY REGISTRATION AWARENESS
     // -------------------------------------------------------------
-    if (slot === "AFTERNOON") {
+    if (slot === "AFTERNOON" || slot === "REGISTRATION") {
+      const explicitId = searchParams.get("id");
+
+      // Case A: Dedicated Matrimony Registration Awareness Card (Kanya ₹471, Var ₹943 Lifetime)
+      if (!explicitId || slot === "REGISTRATION") {
+        return new ImageResponse(
+          (
+            <div
+              style={{
+                height: "100%",
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                backgroundColor: "#4A0E17",
+                backgroundImage: "radial-gradient(circle at 50% 25%, #63121F 0%, #4A0E17 65%, #250409 100%)",
+                padding: "54px",
+                boxSizing: "border-box",
+                fontFamily: "sans-serif",
+                position: "relative",
+                border: "16px solid #C5A059",
+              }}
+            >
+              {/* Inner Golden Ornamental Border */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "16px",
+                  left: "16px",
+                  right: "16px",
+                  bottom: "16px",
+                  border: "2px solid rgba(223, 186, 115, 0.4)",
+                  pointerEvents: "none",
+                }}
+              />
+
+              {/* Top Brand Header */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderBottom: "2px solid rgba(223, 186, 115, 0.4)",
+                  paddingBottom: "20px",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", alignItems: "baseline" }}>
+                    <span style={{ fontSize: 42, fontWeight: 900, color: "#FFFFFF" }}>Rishte</span>
+                    <span style={{ fontSize: 42, fontWeight: 900, color: "#DFBA73" }}>Club</span>
+                    <span style={{ fontSize: 16, color: "#DFBA73", fontWeight: 700, marginLeft: 4 }}>™</span>
+                  </div>
+                  <span style={{ fontSize: 13, color: "#DFBA73", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" }}>
+                    Managed by NNVS Matrimony
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(16, 185, 129, 0.2)",
+                    border: "2px solid #10B981",
+                    borderRadius: "24px",
+                    padding: "8px 20px",
+                  }}
+                >
+                  <span style={{ color: "#10B981", fontSize: 16, fontWeight: 800, marginRight: 6 }}>✓</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 16, fontWeight: 800 }}>100% VERIFIED MATRIMONY</span>
+                </div>
+              </div>
+
+              {/* Middle Registration Box */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  backgroundColor: "rgba(0, 0, 0, 0.45)",
+                  border: "2px solid rgba(223, 186, 115, 0.5)",
+                  borderRadius: "24px",
+                  padding: "36px 40px",
+                  margin: "auto 0",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", textAlign: "center", alignItems: "center", marginBottom: "22px" }}>
+                  <span style={{ color: "#FFFFFF", fontSize: 34, fontWeight: 900, lineHeight: 1.25 }}>
+                    Lifetime Matrimonial Registration
+                  </span>
+                  <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700, marginTop: "6px" }}>
+                    Agarwal • Baniya • Brahmin • Punjabi • Khatri • Jain Communities
+                  </span>
+                </div>
+
+                {/* 2 Big Pricing Cards: Kanya vs Var */}
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "24px" }}>
+                  {/* Kanya Card */}
+                  <div
+                    style={{
+                      width: "48%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      backgroundColor: "rgba(225, 29, 72, 0.2)",
+                      border: "2px solid #E11D48",
+                      borderRadius: "18px",
+                      padding: "20px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <span style={{ color: "#FDA4AF", fontSize: 16, fontWeight: 800, letterSpacing: "1px", textTransform: "uppercase" }}>
+                      👧 Kanya (Bride)
+                    </span>
+                    <span style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}>
+                      ₹471
+                    </span>
+                    <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                      One-Time Lifetime Access
+                    </span>
+                  </div>
+
+                  {/* Var Card */}
+                  <div
+                    style={{
+                      width: "48%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      backgroundColor: "rgba(37, 99, 235, 0.2)",
+                      border: "2px solid #3B82F6",
+                      borderRadius: "18px",
+                      padding: "20px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <span style={{ color: "#93C5FD", fontSize: 16, fontWeight: 800, letterSpacing: "1px", textTransform: "uppercase" }}>
+                      👦 Var (Groom)
+                    </span>
+                    <span style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}>
+                      ₹943
+                    </span>
+                    <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                      One-Time Lifetime Access
+                    </span>
+                  </div>
+                </div>
+
+                {/* Key Benefits List */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "18px" }}>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>✓</span>
+                    <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
+                      Direct Contact with Respected Families — Zero Middlemen Commission
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>✓</span>
+                    <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
+                      100% Background &amp; Mobile Verified Matrimonial Biodatas
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>✓</span>
+                    <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
+                      No Recurring Subscriptions — Complete Data Privacy Guaranteed
+                    </span>
+                  </div>
+                </div>
+
+                {/* CTA Callout */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: "rgba(223, 186, 115, 0.16)",
+                    border: "1px solid #DFBA73",
+                    borderRadius: "14px",
+                    padding: "12px 20px",
+                  }}
+                >
+                  <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 700 }}>
+                    👉 Register Your Biodata Today:
+                  </span>
+                  <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 900 }}>
+                    rishteclub.com/register
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom Contact & Helpline Bar */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: "rgba(0, 0, 0, 0.35)",
+                  border: "2px solid rgba(223, 186, 115, 0.5)",
+                  borderRadius: "18px",
+                  padding: "16px 30px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <span style={{ color: "#DFBA73", fontSize: 22, marginRight: 8 }}>🌐</span>
+                  <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700 }}>{website}/register</span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span style={{ color: "#25D366", fontSize: 22, marginRight: 8 }}>📞</span>
+                    <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700 }}>{helpline1}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span style={{ color: "#25D366", fontSize: 22, marginRight: 8 }}>📞</span>
+                    <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700 }}>{helpline2}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ),
+          { width: 1080, height: 1080 }
+        );
+      }
+
+      // Case B: Candidate Profile Card (When Candidate ID is explicitly passed)
       const isFemale = (searchParams.get("gender") || "FEMALE").toUpperCase() === "FEMALE";
       const displayId = searchParams.get("id") || `RC${Math.floor(1000 + Math.random() * 9000)}`;
       const age = searchParams.get("age") || "26";
@@ -702,7 +968,7 @@ export async function GET(req: NextRequest) {
           >
             <div style={{ display: "flex", alignItems: "center" }}>
               <span style={{ color: "#DFBA73", fontSize: 22, marginRight: 8 }}>🌐</span>
-              <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700 }}>{website}/astrology</span>
+              <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700 }}>{website}/kundli-milan</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>

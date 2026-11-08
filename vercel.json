@@ -2,16 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/auto-post?slot=MORNING",
-      "schedule": "0 4 * * *"
+      "path": "/api/social/publish?slot=MORNING",
+      "schedule": "30 3 * * *"
     },
     {
-      "path": "/api/cron/auto-post?slot=AFTERNOON",
+      "path": "/api/social/publish?slot=AFTERNOON",
       "schedule": "30 8 * * *"
     },
     {
-      "path": "/api/cron/auto-post?slot=EVENING",
-      "schedule": "0 14 * * *"
+      "path": "/api/social/publish?slot=EVENING",
+      "schedule": "30 13 * * *"
     }
   ]
 }
