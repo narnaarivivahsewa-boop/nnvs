@@ -5,6 +5,7 @@ import {
   getMetaConfig,
   generateSocialCaption,
   postToInstagramBusiness,
+  publishToFacebookPage,
   SocialSlot,
 } from "@/lib/social-poster";
 
@@ -181,19 +182,23 @@ async function handlePublish(req: NextRequest) {
 
     // 6. Handle Dry Run Simulation
     if (dryRun) {
-      const simulatedId = `SIM_IG_${Date.now()}`;
+      const simulatedIgId = `SIM_IG_${Date.now()}`;
+      const simulatedFbId = `SIM_FB_${Date.now()}`;
+      let logId: string | undefined = undefined;
       try {
-        await prisma.socialPostLog.create({
+        const logRecord = await prisma.socialPostLog.create({
           data: {
             slot,
-            platform: "INSTAGRAM",
+            platform: "META_ALL",
             imageUrl,
             caption,
             status: "SUCCESS",
-            instagramMediaId: simulatedId,
+            instagramMediaId: simulatedIgId,
+            facebookPostId: simulatedFbId,
             triggeredBy,
           },
         });
+        logId = logRecord.id;
       } catch (logErr) {
         console.error("[Social Post Log Error]:", logErr);
       }
@@ -201,25 +206,59 @@ async function handlePublish(req: NextRequest) {
       return NextResponse.json({
         success: true,
         dryRun: true,
-        message: "Dry run successful (simulated without publishing to live Instagram)",
+        message: "Dry run successful (simulated without publishing to live social channels)",
         slot,
         topic,
         imageUrl,
         caption,
-        simulatedMediaId: simulatedId,
+        instagramPostId: simulatedIgId,
+        facebookPostId: simulatedFbId,
+        instagram: { success: true, postId: simulatedIgId },
+        facebook: { success: true, postId: simulatedFbId },
+        logId,
       });
     }
 
-    // 7. Execute 3-Step Instagram Publishing Flow
-    console.log(`[Social Publish] Starting Instagram publish for slot: ${slot} (${topic})...`);
+    // 7. Parallel Execution: Instagram & Facebook Page Publishing
+    console.log(`[Social Publish] Starting parallel publish for slot: ${slot} (${topic})...`);
     console.log(`[Social Publish] Image URL: ${imageUrl}`);
 
-    const publishResult = await postToInstagramBusiness(
-      imageUrl,
-      caption,
-      igAccountId,
-      accessToken
-    );
+    const igToken = process.env.META_IG_ACCESS_TOKEN || accessToken;
+    const fbToken = process.env.META_PAGE_ACCESS_TOKEN || accessToken;
+
+    const [igSettled, fbSettled] = await Promise.allSettled([
+      igAccountId && igToken
+        ? postToInstagramBusiness(imageUrl, caption, igAccountId, igToken)
+        : Promise.resolve({ success: false, error: "Missing Instagram credentials" }),
+      config.facebookPageId && fbToken
+        ? publishToFacebookPage({
+            imageUrl,
+            caption,
+            pageId: config.facebookPageId,
+            accessToken: fbToken,
+          })
+        : Promise.resolve({ success: false, error: "Missing Facebook credentials" }),
+    ]);
+
+    const igResult: { success: boolean; mediaId?: string; creationId?: string; error?: string } =
+      igSettled.status === "fulfilled"
+        ? igSettled.value
+        : { success: false, error: igSettled.reason?.message || "Instagram publish rejected" };
+
+    const fbResult: { success: boolean; postId?: string; error?: string } =
+      fbSettled.status === "fulfilled"
+        ? fbSettled.value
+        : { success: false, error: fbSettled.reason?.message || "Facebook publish rejected" };
+
+    const isSuccess = igResult.success || fbResult.success;
+    const platform =
+      igResult.success && fbResult.success
+        ? "META_ALL"
+        : igResult.success
+        ? "INSTAGRAM"
+        : fbResult.success
+        ? "FACEBOOK"
+        : "NONE";
 
     // 8. Log Execution Result to Database
     let logId: string | undefined = undefined;
@@ -227,12 +266,13 @@ async function handlePublish(req: NextRequest) {
       const logRecord = await prisma.socialPostLog.create({
         data: {
           slot,
-          platform: "INSTAGRAM",
+          platform,
           imageUrl,
           caption,
-          status: publishResult.success ? "SUCCESS" : "FAILED",
-          instagramMediaId: publishResult.mediaId || null,
-          error: publishResult.error || null,
+          status: isSuccess ? "SUCCESS" : "FAILED",
+          instagramMediaId: igResult.mediaId || null,
+          facebookPostId: fbResult.postId || null,
+          error: [igResult.error, fbResult.error].filter(Boolean).join(" | ") || null,
           triggeredBy,
         },
       });
@@ -242,41 +282,41 @@ async function handlePublish(req: NextRequest) {
     }
 
     // 9. Return Response
-    if (!publishResult.success) {
-      console.error("[Social Publish Error]:", publishResult.error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: publishResult.error || "Failed to publish post to Instagram",
-          containerId: publishResult.creationId,
-          slot,
-          topic,
-          imageUrl,
-          logId,
+    return NextResponse.json(
+      {
+        success: isSuccess,
+        message: isSuccess
+          ? `Post published successfully to ${platform}`
+          : "Failed to publish post to social channels",
+        slot,
+        topic,
+        platform,
+        instagramPostId: igResult.mediaId || null,
+        facebookPostId: fbResult.postId || null,
+        instagram: {
+          success: igResult.success,
+          postId: igResult.mediaId,
+          containerId: igResult.creationId,
+          error: igResult.error,
         },
-        { status: 400 }
-      );
-    }
-
-    console.log(`[Social Publish Success] Instagram Media ID: ${publishResult.mediaId}`);
-    return NextResponse.json({
-      success: true,
-      message: "Instagram post successfully published to @rishteclub",
-      slot,
-      topic,
-      postId: publishResult.mediaId,
-      containerId: publishResult.creationId,
-      imageUrl,
-      caption,
-      logId,
-      timestamp: new Date().toISOString(),
-    });
+        facebook: {
+          success: fbResult.success,
+          postId: fbResult.postId,
+          error: fbResult.error,
+        },
+        imageUrl,
+        caption,
+        logId,
+        timestamp: new Date().toISOString(),
+      },
+      { status: isSuccess ? 200 : 400 }
+    );
   } catch (error: any) {
     console.error("[Social Publish Exception]:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Internal server error occurred while publishing to Instagram",
+        error: error?.message || "Internal server error occurred while publishing to social channels",
       },
       { status: 500 }
     );

@@ -53,16 +53,17 @@ export interface SocialPostResult {
 
 export function getMetaConfig() {
   const pageAccessToken =
+    process.env.META_PAGE_ACCESS_TOKEN ||
     process.env.META_IG_ACCESS_TOKEN ||
     process.env.META_ACCESS_TOKEN ||
-    process.env.META_PAGE_ACCESS_TOKEN ||
     process.env.FACEBOOK_PAGE_ACCESS_TOKEN ||
     "";
 
   const facebookPageId =
+    process.env.META_FB_PAGE_ID ||
     process.env.META_PAGE_ID ||
     process.env.FACEBOOK_PAGE_ID ||
-    "";
+    "122125395483335905";
 
   const instagramAccountId =
     process.env.META_IG_ACCOUNT_ID ||
@@ -197,7 +198,91 @@ export function generateSocialCaption(
 }
 
 /**
- * Publish photo post to Facebook Page via Meta Graph API
+ * Publish photo post to Facebook Page via Meta Graph API v21.0
+ */
+export async function publishToFacebookPage({
+  imageUrl,
+  caption,
+  pageId,
+  accessToken,
+}: {
+  imageUrl: string;
+  caption: string;
+  pageId?: string;
+  accessToken?: string;
+}): Promise<{ success: boolean; postId?: string; error?: string }> {
+  try {
+    const config = getMetaConfig();
+    let fbPageId = pageId || config.facebookPageId || process.env.META_FB_PAGE_ID || "1103030792895654";
+    let fbToken = accessToken || config.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN || "";
+
+    if (!fbPageId || !fbToken) {
+      return {
+        success: false,
+        error: "Missing Facebook Page ID (META_FB_PAGE_ID) or Page Access Token (META_PAGE_ACCESS_TOKEN)",
+      };
+    }
+
+    let url = `https://graph.facebook.com/v21.0/${fbPageId}/photos`;
+    let res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: imageUrl,
+        message: caption,
+        caption: caption,
+        access_token: fbToken,
+      }),
+    });
+
+    let data = await res.json();
+
+    // If initial attempt fails (e.g. user token passed or page ID mismatch), resolve via /me/accounts
+    if (!res.ok || data.error) {
+      console.warn("[Meta API] Direct Facebook Page Post notice:", data.error?.message);
+      try {
+        const accRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${fbToken}`);
+        const accData = await accRes.json();
+        if (accData?.data?.length > 0) {
+          const matchedPage = accData.data.find((p: any) => p.id === fbPageId) || accData.data[0];
+          fbPageId = matchedPage.id;
+          fbToken = matchedPage.access_token;
+          console.log(`[Meta API] Resolved Page: ${matchedPage.name} (ID: ${fbPageId})`);
+
+          url = `https://graph.facebook.com/v21.0/${fbPageId}/photos`;
+          res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: imageUrl,
+              message: caption,
+              caption: caption,
+              access_token: fbToken,
+            }),
+          });
+          data = await res.json();
+        }
+      } catch (resolveErr) {
+        console.error("[Meta API] Page resolution error:", resolveErr);
+      }
+    }
+
+    if (!res.ok || data.error) {
+      const errMsg = data.error?.message || `Facebook API returned HTTP ${res.status}`;
+      console.error("[Meta API] Facebook Page Post Failed:", data.error || data);
+      return { success: false, error: errMsg };
+    }
+
+    const postId = data.post_id || data.id;
+    return { success: true, postId };
+  } catch (err: any) {
+    console.error("[Meta API] Facebook Page Error:", err);
+    return { success: false, error: err.message || "Failed to post to Facebook Page" };
+  }
+}
+
+/**
+ * Backward compatible wrapper for postToFacebookPage
  */
 async function postToFacebookPage(
   imageUrl: string,
@@ -205,30 +290,7 @@ async function postToFacebookPage(
   pageId: string,
   accessToken: string
 ): Promise<{ success: boolean; postId?: string; error?: string }> {
-  try {
-    const url = `https://graph.facebook.com/v21.0/${pageId}/photos`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: imageUrl,
-        caption: caption,
-        access_token: accessToken,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      const errMsg = data.error?.message || `Facebook API returned HTTP ${res.status}`;
-      console.error("[Meta API] Facebook Post Failed:", data.error || data);
-      return { success: false, error: errMsg };
-    }
-
-    return { success: true, postId: data.post_id || data.id };
-  } catch (err: any) {
-    console.error("[Meta API] Facebook Error:", err);
-    return { success: false, error: err.message || "Failed to post to Facebook Page" };
-  }
+  return publishToFacebookPage({ imageUrl, caption, pageId, accessToken });
 }
 
 /**
