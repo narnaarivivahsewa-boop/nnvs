@@ -67,7 +67,7 @@ export function getMetaConfig() {
     process.env.META_FB_PAGE_ID ||
     process.env.META_PAGE_ID ||
     process.env.FACEBOOK_PAGE_ID ||
-    "122125395483335905";
+    "1103030792895654";
 
   const instagramAccountId =
     process.env.META_IG_ACCOUNT_ID ||
@@ -347,6 +347,57 @@ export async function fetchSpotlightProfile(): Promise<{
 }
 
 /**
+ * Memory cache for resolved Facebook Page tokens to prevent redundant API calls
+ */
+let cachedFacebookPageData: { pageId: string; pageToken: string; timestamp: number } | null = null;
+
+async function getFacebookPageAccessToken(
+  rawToken: string,
+  targetPageId: string
+): Promise<{ pageId: string; pageToken: string }> {
+  // Use cached token if resolved within the last 10 minutes
+  if (
+    cachedFacebookPageData &&
+    Date.now() - cachedFacebookPageData.timestamp < 10 * 60 * 1000
+  ) {
+    return {
+      pageId: cachedFacebookPageData.pageId,
+      pageToken: cachedFacebookPageData.pageToken,
+    };
+  }
+
+  try {
+    const accRes = await fetch(
+      `https://graph.facebook.com/v21.0/me/accounts?access_token=${rawToken}`
+    );
+    const accData = await accRes.json();
+    if (accData?.data?.length > 0) {
+      const matchedPage =
+        accData.data.find((p: any) => p.id === targetPageId) ||
+        accData.data.find((p: any) =>
+          p.name?.toLowerCase().includes("rishteclub")
+        ) ||
+        accData.data[0];
+
+      const resolved = {
+        pageId: matchedPage.id,
+        pageToken: matchedPage.access_token,
+        timestamp: Date.now(),
+      };
+      cachedFacebookPageData = resolved;
+      console.log(
+        `[Meta API] Resolved Page Access Token for: "${matchedPage.name}" (ID: ${matchedPage.id})`
+      );
+      return { pageId: resolved.pageId, pageToken: resolved.pageToken };
+    }
+  } catch (err) {
+    console.warn("[Meta API] Page token upfront resolution warning:", err);
+  }
+
+  return { pageId: targetPageId, pageToken: rawToken };
+}
+
+/**
  * Publish photo post to Facebook Page via Meta Graph API v21.0
  */
 export async function publishToFacebookPage({
@@ -362,15 +413,35 @@ export async function publishToFacebookPage({
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   try {
     const config = getMetaConfig();
-    let fbPageId = pageId || config.facebookPageId || process.env.META_FB_PAGE_ID || "1103030792895654";
-    let fbToken = accessToken || config.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN || "";
+    let fbPageId =
+      pageId ||
+      config.facebookPageId ||
+      process.env.META_FB_PAGE_ID ||
+      "1103030792895654";
 
-    if (!fbPageId || !fbToken) {
+    // Autocorrect old or mismatched ID
+    if (fbPageId === "122125395483335905") {
+      fbPageId = "1103030792895654";
+    }
+
+    const rawToken =
+      accessToken ||
+      config.pageAccessToken ||
+      process.env.META_PAGE_ACCESS_TOKEN ||
+      "";
+
+    if (!rawToken) {
       return {
         success: false,
-        error: "Missing Facebook Page ID (META_FB_PAGE_ID) or Page Access Token (META_PAGE_ACCESS_TOKEN)",
+        error:
+          "Missing Facebook Page Access Token (META_PAGE_ACCESS_TOKEN). Ensure valid token is configured.",
       };
     }
+
+    // Resolve Page Access Token from System User token upfront
+    const { pageId: resolvedPageId, pageToken } =
+      await getFacebookPageAccessToken(rawToken, fbPageId);
+    fbPageId = resolvedPageId;
 
     let url = `https://graph.facebook.com/v21.0/${fbPageId}/photos`;
     let res = await fetch(url, {
@@ -380,23 +451,40 @@ export async function publishToFacebookPage({
         url: imageUrl,
         message: caption,
         caption: caption,
-        access_token: fbToken,
+        published: true,
+        no_story: false,
+        access_token: pageToken,
       }),
     });
 
     let data = await res.json();
 
-    // If initial attempt fails (e.g. user token passed or page ID mismatch), resolve via /me/accounts
+    // If initial attempt still reports permission or token issue, force-refresh via /me/accounts
     if (!res.ok || data.error) {
-      console.warn("[Meta API] Direct Facebook Page Post notice:", data.error?.message);
+      console.warn(
+        "[Meta API] Direct Facebook Page Post notice:",
+        data.error?.message
+      );
       try {
-        const accRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${fbToken}`);
+        const accRes = await fetch(
+          `https://graph.facebook.com/v21.0/me/accounts?access_token=${rawToken}`
+        );
         const accData = await accRes.json();
         if (accData?.data?.length > 0) {
-          const matchedPage = accData.data.find((p: any) => p.id === fbPageId) || accData.data[0];
+          const matchedPage =
+            accData.data.find((p: any) => p.id === fbPageId) ||
+            accData.data.find((p: any) =>
+              p.name?.toLowerCase().includes("rishteclub")
+            ) ||
+            accData.data[0];
+
           fbPageId = matchedPage.id;
-          fbToken = matchedPage.access_token;
-          console.log(`[Meta API] Resolved Page: ${matchedPage.name} (ID: ${fbPageId})`);
+          const freshPageToken = matchedPage.access_token;
+          cachedFacebookPageData = {
+            pageId: fbPageId,
+            pageToken: freshPageToken,
+            timestamp: Date.now(),
+          };
 
           url = `https://graph.facebook.com/v21.0/${fbPageId}/photos`;
           res = await fetch(url, {
@@ -406,18 +494,21 @@ export async function publishToFacebookPage({
               url: imageUrl,
               message: caption,
               caption: caption,
-              access_token: fbToken,
+              published: true,
+              no_story: false,
+              access_token: freshPageToken,
             }),
           });
           data = await res.json();
         }
       } catch (resolveErr) {
-        console.error("[Meta API] Page resolution error:", resolveErr);
+        console.error("[Meta API] Page resolution retry error:", resolveErr);
       }
     }
 
     if (!res.ok || data.error) {
-      const errMsg = data.error?.message || `Facebook API returned HTTP ${res.status}`;
+      const errMsg =
+        data.error?.message || `Facebook API returned HTTP ${res.status}`;
       console.error("[Meta API] Facebook Page Post Failed:", data.error || data);
       return { success: false, error: errMsg };
     }
@@ -426,7 +517,10 @@ export async function publishToFacebookPage({
     return { success: true, postId };
   } catch (err: any) {
     console.error("[Meta API] Facebook Page Error:", err);
-    return { success: false, error: err.message || "Failed to post to Facebook Page" };
+    return {
+      success: false,
+      error: err.message || "Failed to post to Facebook Page",
+    };
   }
 }
 
