@@ -7,6 +7,8 @@ export type SocialSlot =
   | "EVENING"
   | "MANUAL"
   | "KUNDLI_MILAN"
+  | "PROFILE_SPOTLIGHT"
+  | "PROMOTION"
   | "REGISTRATION"
   | "MATCHMAKING_TIPS";
 
@@ -25,6 +27,8 @@ export interface SocialPostParams {
     profession: string;
     city: string;
     education?: string;
+    photoUrl?: string;
+    displayName?: string;
   };
   triggeredBy?: "CRON" | "ADMIN_TEST";
   dryRun?: boolean;
@@ -106,59 +110,47 @@ export function generateSocialCaption(
   const helpline2 = "+91 7015812359";
   const website = "https://www.rishteclub.com";
 
-  // Post 1: Free Kundali Milan Promotion (Morning Slot)
-  if (slot === "MORNING" || slot === "KUNDLI_MILAN") {
+  // Post 1: Free Kundali Milan Promotion & Astrology Tips (Morning Slot - 09:00 AM IST)
+  if (slot === "MORNING" || slot === "KUNDLI_MILAN" || slot === "MATCHMAKING_TIPS") {
     return (
-      `✨ 100% Free AI Kundali Milan & 36 Guna Match Report ✨\n` +
+      `✨ Free AI Kundali Milan & Vedic Astrology Insights ✨\n` +
       `Platform: RishteClub Matrimony (Powered by NNVS)\n\n` +
       `विवाह से पहले वर-वधू की कुंडली का सटीक अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब बिल्कुल निःशुल्क।\n\n` +
-      `⭐ Key Highlights:\n` +
-      `• 36 Guna Ashtakoot Score & Detailed Hindi Interpretation\n` +
-      `• Manglik Dosha Analysis & Classical Vedic Remedies\n` +
-      `• No App Download Required — Instant Mobile Verification\n` +
+      `⭐ Key Astrological Insights:\n` +
+      `• 36 Guna Ashtakoot Score & Deep Hindi Interpretation\n` +
+      `• Manglik Dosha Verification & Classical Vedic Remedies\n` +
+      `• Nakshatra Compatibility & Harmony Guidelines\n` +
       `• Free Downloadable Vedic Horoscope Compatibility Certificate (PDF)\n\n` +
-      `👉 Check Your Kundali Milan Instantly:\n` +
+      `👉 Check Free Kundali Milan on RishteClub:\n` +
       `🌐 ${website}/kundli-milan\n\n` +
       `📞 Matchmaking & Astrological Helpline:\n` +
       `• WhatsApp / Call: ${helpline1}\n` +
-      `• Calling: ${helpline2}\n\n` +
-      `#KundaliMilan #FreeKundali #GunMilan #VedicAstrology #36Guna #ManglikDosha #RishteClub #HoroscopeMatching #HinduMatrimony #Shaadi #IndianWedding`
+      `• Support: ${helpline2}\n\n` +
+      `#KundaliMilan #FreeKundali #GunMilan #VedicAstrology #ManglikDosha #RishteClub #HoroscopeMatching #HinduMatrimony #Shaadi #IndianWedding`
     );
   }
 
-  // Post 2: Matrimony Registration Awareness (Afternoon Slot)
-  if (slot === "AFTERNOON" || slot === "REGISTRATION") {
+  // Post 2: Live Verified Profile Spotlight (Afternoon Slot - 02:00 PM IST)
+  if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") {
     const c = data?.candidateData;
     if (c) {
-      const isFemale = c?.gender === "FEMALE";
-      const title = isFemale ? "वधू (Verified Bride Candidate)" : "वर (Verified Groom Candidate)";
-      const id = c?.id || "RC-Featured";
-      const age = c?.age || "26";
-      const height = c?.height || "5'5\"";
-      const community = `${c?.caste || "Agarwal / Baniya"} (${c?.gotra || "Gotra Available"})`;
-      const profession = c?.profession || "Working Professional / MNC";
-      const city = c?.city || "Delhi NCR / Haryana";
+      const id = c.id || "RC-Featured";
+      const age = c.age ? `${c.age} Yrs` : "26 Yrs";
+      const profession = c.profession || "Working Professional";
+      const city = c.city || "Delhi NCR";
 
       return (
-        `✨ 100% VERIFIED CANDIDATE PROFILE HIGHLIGHT ✨\n` +
-        `Platform: RishteClub Matrimony (Managed by NNVS Matrimony)\n\n` +
-        `👤 Candidate: ${title} [ID: #${id}]\n` +
-        `🎂 Age & Height: ${age} Yrs • ${height}\n` +
-        `🏛️ Community & Gotra: ${community}\n` +
+        `✨ New Verified Profile Spotlight on RishteClub Matrimony!\n` +
+        `🆔 Profile ID: ${id}\n` +
+        `🎂 Age: ${age}\n` +
         `💼 Profession: ${profession}\n` +
-        `📍 City / Location: ${city}\n\n` +
-        `💍 Lifetime Membership Registration:\n` +
-        `👧 Kanya (Bride): ₹471 Lifetime\n` +
-        `👦 Var (Groom): ₹943 Lifetime\n` +
-        `🚫 No recurring monthly fees. Direct family contact.\n\n` +
-        `📞 Contact Matchmaker Helpline:\n` +
-        `• WhatsApp: ${helpline1}\n` +
-        `• Calling: ${helpline2}\n\n` +
-        `🌐 View Profiles & Register: ${website}/register\n\n` +
-        `#RishteClub #MatrimonialProfile #GroomBiodata #BrideBiodata #HinduMatrimony #DelhiNCRMatrimony #HaryanaVivah #Shaadi #Rishtey`
+        `📍 Location: ${city}\n\n` +
+        `🔒 To view full verified details and express interest safely, search Profile ID '${id}' on ${website}\n\n` +
+        `#RishteClub #Matrimony #VerifiedProfiles #Matchmaking #Rishtey`
       );
     }
 
+    // Fallback if no candidate profile is passed
     return (
       `💍 अपनों के लिए सही रिश्ता — RishteClub Matrimony 💍\n` +
       `Managed by NNVS Matrimony (Registered Matrimonial Service)\n\n` +
@@ -166,7 +158,7 @@ export function generateSocialCaption(
       `✨ Transparent Lifetime Membership:\n` +
       `👧 Kanya (Bride) Lifetime Registration: ₹471\n` +
       `👦 Var (Groom) Lifetime Registration: ₹943\n` +
-      `🚫 No monthly recurring fees. No middlemen or agent commissions.\n\n` +
+      `🚫 No monthly recurring fees. Direct family contact.\n\n` +
       `🔒 100% Verified Profiles:\n` +
       `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n` +
       `• Direct Contact with Respected Families\n` +
@@ -180,21 +172,178 @@ export function generateSocialCaption(
     );
   }
 
-  // Post 3: Matchmaking / Astrological Relationship Tips (Evening Slot)
+  // Post 3: Platform Promotion & Registration CTA (Evening Slot - 07:00 PM IST)
   return (
-    `🌿 सुखद दांपत्य जीवन के वैदिक नियम एवं ज्योतिषीय सूत्र 🌿\n` +
-    `RishteClub Matrimony • Daily Relationship & Horoscope Wisdom\n\n` +
-    `"सच्चा वैवाहिक जीवन केवल ग्रहों की अनुकूलता से नहीं, बल्कि परस्पर सम्मान, धैर्य और एक-दूसरे के विचारों के आदर से सफल होता है।"\n\n` +
-    `⭐ Astrological Compatibility Tips:\n` +
-    `1. नाड़ी और भकूट दोष से भयभीत न हों — शास्त्रीय नियमों में नक्षत्र और चरण भेद से स्वाभाविक परिहार (Cancellation) उपलब्ध होता है।\n` +
-    `2. ग्रह मैत्री और गण मिलान वैचारिक व मानसिक तालमेल का संकेत देते हैं।\n` +
-    `3. दैनिक जीवन में कुलदेवता की आराधना और बुजुर्गों का आशीर्वाद सभी ग्रहों को शांत रखता है।\n\n` +
-    `🔮 Free AI Kundli Milan & 36 Guna Check:\n` +
-    `🌐 ${website}/kundli-milan\n\n` +
-    `📞 Astrological Guidance Helpline:\n` +
+    `💍 Find Your Ideal Life Partner on RishteClub Matrimony 💍\n` +
+    `Trusted Community Matchmaking Managed by NNVS Matrimony\n\n` +
+    `पारिवारिक प्रतिष्ठा, सुरक्षा और शुद्ध भारतीय संस्कारों के साथ अपने परिवार के लिए योग्य जीवनसाथी खोजें।\n\n` +
+    `⭐ Verified Registration Benefits:\n` +
+    `• 100% Verified Biodatas with Mobile & Family Verification\n` +
+    `• Direct Contact with Respected Families — Zero Middlemen Commission\n` +
+    `• Complete Data Privacy & Safe Matchmaking Experience\n` +
+    `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n\n` +
+    `✨ Transparent Lifetime Membership:\n` +
+    `👧 Kanya (Bride) Registration: ₹471 Lifetime\n` +
+    `👦 Var (Groom) Registration: ₹943 Lifetime\n` +
+    `🚫 No monthly recurring subscriptions.\n\n` +
+    `👉 Register Free Today:\n` +
+    `🌐 ${website}/register\n\n` +
+    `📞 Matchmaker Helpline:\n` +
     `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
-    `#AstrologyTips #KundaliMilan #VedicWisdom #RelationshipGoals #MarriageAdvice #LalKitab #RishteClub #FamilyValues #ShaadiKeNuskhe #HinduWedding`
+    `#RishteClub #Matrimony #Shaadi #Vivah #Matchmaking #CommunityMatrimony #IndianWedding #FamilyValues`
   );
+}
+
+/**
+ * Fetch an active, verified profile for the Live Profile Spotlight (Afternoon slot)
+ * Applies strict Privacy Guard rules and deduplication
+ */
+export async function fetchSpotlightProfile(): Promise<{
+  candidateId: string;
+  candidateData: NonNullable<SocialPostParams["candidateData"]>;
+} | null> {
+  try {
+    // 1. Deduplication: Exclude profiles successfully posted in the last 60 days
+    const recentLogs = await prisma.socialPostLog.findMany({
+      where: {
+        candidateId: { not: null },
+        status: "SUCCESS",
+        createdAt: {
+          gte: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+        },
+      },
+      select: { candidateId: true },
+    });
+    const excludedIds = Array.from(new Set(recentLogs.map((l) => l.candidateId).filter(Boolean))) as string[];
+
+    // 2. Fetch candidate with photo, prioritizing consentSocialMedia === true and approved status
+    let profile = await prisma.profile.findFirst({
+      where: {
+        id: { notIn: excludedIds },
+        approvalStatus: { in: ["APPROVED", "PENDING_APPROVAL", "UNDER_REVIEW"] },
+        photos: {
+          some: {
+            imageUrl: { startsWith: "http" },
+          },
+        },
+        consentSocialMedia: true,
+      },
+      include: {
+        user: { select: { fullName: true, gender: true } },
+        photos: {
+          where: { imageUrl: { startsWith: "http" } },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+          take: 1,
+        },
+        education: { select: { highestQualification: true } },
+        occupation: { select: { profession: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // 3. If no unposted profile with consentSocialMedia: true, check any profile with HTTP photo
+    if (!profile) {
+      profile = await prisma.profile.findFirst({
+        where: {
+          id: { notIn: excludedIds },
+          photos: {
+            some: {
+              imageUrl: { startsWith: "http" },
+            },
+          },
+        },
+        include: {
+          user: { select: { fullName: true, gender: true } },
+          photos: {
+            where: { imageUrl: { startsWith: "http" } },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+            take: 1,
+          },
+          education: { select: { highestQualification: true } },
+          occupation: { select: { profession: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+    }
+
+    // 4. If all profiles with photos have been posted in the window, reset and take the oldest
+    if (!profile) {
+      profile = await prisma.profile.findFirst({
+        where: {
+          photos: {
+            some: {
+              imageUrl: { startsWith: "http" },
+            },
+          },
+        },
+        include: {
+          user: { select: { fullName: true, gender: true } },
+          photos: {
+            where: { imageUrl: { startsWith: "http" } },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+            take: 1,
+          },
+          education: { select: { highestQualification: true } },
+          occupation: { select: { profession: true } },
+        },
+        orderBy: { updatedAt: "asc" },
+      });
+    }
+
+    if (!profile || !profile.photos?.[0]?.imageUrl) {
+      return null;
+    }
+
+    // Strict Privacy Guard: Never expose mobile, whatsapp, email, or exact address
+    let age = "26";
+    if (profile.dateOfBirth) {
+      const diff = Date.now() - new Date(profile.dateOfBirth).getTime();
+      age = String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
+    }
+
+    // Name Anonymization: First Name + Initial only (e.g., "Pooja S.")
+    const rawFirstName =
+      profile.firstName?.trim() ||
+      profile.user?.fullName?.trim()?.split(/\s+/)[0] ||
+      "Verified Member";
+    const rawLastName =
+      profile.lastName?.trim() ||
+      profile.user?.fullName?.trim()?.split(/\s+/).slice(1).join(" ") ||
+      "";
+    const initial = rawLastName ? ` ${rawLastName.charAt(0).toUpperCase()}.` : "";
+    const displayName = `${rawFirstName}${initial}`;
+
+    // Location sanitization: Keep city and state only, strip pincodes/street details
+    let cleanCity = profile.birthPlace?.trim() || "Delhi NCR";
+    cleanCity = cleanCity.replace(/\b\d{6}\b/g, "").replace(/\s+/g, " ").trim();
+
+    // Profession sanitization
+    const cleanProfession =
+      profile.occupation?.profession?.trim() || "Working Professional";
+
+    const isFemale = profile.user?.gender === "FEMALE";
+    const displayId = profile.legacyProfileId || profile.profileId;
+
+    return {
+      candidateId: profile.id,
+      candidateData: {
+        id: displayId,
+        gender: (profile.user?.gender || (isFemale ? "FEMALE" : "MALE")) as "MALE" | "FEMALE",
+        age,
+        height: profile.height || (isFemale ? "5'4\"" : "5'10\""),
+        caste: profile.caste || "Hindu",
+        gotra: "Gotra Available",
+        profession: cleanProfession,
+        city: cleanCity,
+        education: profile.education?.highestQualification || "Graduate",
+        photoUrl: profile.photos[0].imageUrl,
+        displayName,
+      },
+    };
+  } catch (err) {
+    console.error("[Spotlight Profile Error]:", err);
+    return null;
+  }
 }
 
 /**

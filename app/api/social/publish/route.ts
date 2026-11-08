@@ -6,7 +6,9 @@ import {
   generateSocialCaption,
   postToInstagramBusiness,
   publishToFacebookPage,
+  fetchSpotlightProfile,
   SocialSlot,
+  SocialPostParams,
 } from "@/lib/social-poster";
 
 export const runtime = "nodejs";
@@ -28,6 +30,8 @@ function resolveSlotFromTime(specifiedSlot?: string | null): SocialSlot {
       s === "EVENING" ||
       s === "MANUAL" ||
       s === "KUNDLI_MILAN" ||
+      s === "PROFILE_SPOTLIGHT" ||
+      s === "PROMOTION" ||
       s === "REGISTRATION" ||
       s === "MATCHMAKING_TIPS"
     ) {
@@ -37,18 +41,20 @@ function resolveSlotFromTime(specifiedSlot?: string | null): SocialSlot {
 
   const istHour = getIstHour();
   if (istHour >= 4 && istHour < 12) {
-    return "MORNING"; // 09:00 AM IST Window: Free Kundali Milan Promotion
+    return "MORNING"; // 09:00 AM IST Window: Free Kundali Milan Promotion & Astrology Tips
   } else if (istHour >= 12 && istHour < 17) {
-    return "AFTERNOON"; // 02:00 PM IST Window: Matrimony Registration Awareness
+    return "AFTERNOON"; // 02:00 PM IST Window: Live Verified Profile Spotlight
   } else {
-    return "EVENING"; // 07:00 PM IST Window: Matchmaking / Astrological Relationship Tips
+    return "EVENING"; // 07:00 PM IST Window: Platform Promotion & Registration Awareness
   }
 }
 
-function resolveTopicFromSlot(slot: SocialSlot): "KUNDLI_MILAN" | "REGISTRATION" | "MATCHMAKING_TIPS" {
+function resolveTopicFromSlot(
+  slot: SocialSlot
+): "KUNDLI_MILAN" | "PROFILE_SPOTLIGHT" | "PROMOTION" {
   if (slot === "MORNING" || slot === "KUNDLI_MILAN") return "KUNDLI_MILAN";
-  if (slot === "AFTERNOON" || slot === "REGISTRATION") return "REGISTRATION";
-  return "MATCHMAKING_TIPS";
+  if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") return "PROFILE_SPOTLIGHT";
+  return "PROMOTION";
 }
 
 /**
@@ -106,9 +112,32 @@ async function handlePublish(req: NextRequest) {
     }
 
     const slotParam = bodyData.slot || searchParams.get("slot");
-    const slot = resolveSlotFromTime(slotParam);
-    const topic = resolveTopicFromSlot(slot);
+    let slot = resolveSlotFromTime(slotParam);
     const dryRun = bodyData.dryRun === true || searchParams.get("dryRun") === "true";
+
+    let candidateId: string | undefined = undefined;
+    let candidateData: SocialPostParams["candidateData"] = undefined;
+
+    // Slot 2: Afternoon Slot -> LIVE VERIFIED PROFILE SPOTLIGHT
+    if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") {
+      if (bodyData.candidateData) {
+        candidateData = bodyData.candidateData;
+        candidateId = bodyData.candidateId || candidateData?.id;
+        slot = "PROFILE_SPOTLIGHT";
+      } else {
+        const spotlight = await fetchSpotlightProfile();
+        if (spotlight && spotlight.candidateData) {
+          candidateId = spotlight.candidateId;
+          candidateData = spotlight.candidateData;
+          slot = "PROFILE_SPOTLIGHT";
+        } else {
+          console.warn("[Social Publish] No spotlight profile with photo available. Falling back to PROMOTION.");
+          slot = "PROMOTION";
+        }
+      }
+    }
+
+    const topic = resolveTopicFromSlot(slot);
 
     // 3. Check Admin Setting Toggle
     try {
@@ -117,9 +146,10 @@ async function handlePublish(req: NextRequest) {
         await prisma.socialPostLog.create({
           data: {
             slot,
-            platform: "INSTAGRAM",
+            platform: "META_ALL",
             status: "SKIPPED",
-            error: "Instagram auto-posting disabled in admin settings (socialAutoPostingEnabled: false)",
+            candidateId: candidateId || null,
+            error: "Social auto-posting disabled in admin settings (socialAutoPostingEnabled: false)",
             triggeredBy: "CRON",
           },
         });
@@ -127,7 +157,7 @@ async function handlePublish(req: NextRequest) {
         return NextResponse.json({
           success: true,
           skipped: true,
-          message: "Instagram auto-posting is currently toggled OFF in Admin Settings",
+          message: "Social auto-posting is currently toggled OFF in Admin Settings",
         });
       }
     } catch (dbErr) {
@@ -140,14 +170,33 @@ async function handlePublish(req: NextRequest) {
 
     let imageUrl = bodyData.imageUrl || searchParams.get("imageUrl");
     if (!imageUrl) {
-      // Dynamic OG post image route optimized for 1080x1080 Instagram feed
-      const ogSlot = topic === "KUNDLI_MILAN" ? "MORNING" : topic === "REGISTRATION" ? "AFTERNOON" : "EVENING";
-      imageUrl = `${appUrl}/api/og/social-post?slot=${ogSlot}&topic=${topic}&t=${Date.now()}`;
+      if (slot === "PROFILE_SPOTLIGHT" && candidateData) {
+        const ogParams = new URLSearchParams({
+          slot: "PROFILE_SPOTLIGHT",
+          id: candidateData.id || "",
+          name: candidateData.displayName || "",
+          gender: candidateData.gender || "FEMALE",
+          age: String(candidateData.age || "26"),
+          height: candidateData.height || "",
+          profession: candidateData.profession || "",
+          city: candidateData.city || "",
+          caste: candidateData.caste || "",
+          education: candidateData.education || "",
+          photo: candidateData.photoUrl || "",
+          t: String(Date.now()),
+        });
+        imageUrl = `${appUrl}/api/og/social-post?${ogParams.toString()}`;
+      } else if (slot === "MORNING" || slot === "KUNDLI_MILAN") {
+        imageUrl = `${appUrl}/api/og/social-post?slot=KUNDLI_MILAN&t=${Date.now()}`;
+      } else {
+        // EVENING / PROMOTION / REGISTRATION
+        imageUrl = `${appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
+      }
     }
 
     let caption = bodyData.caption || searchParams.get("caption");
     if (!caption) {
-      caption = generateSocialCaption(slot);
+      caption = generateSocialCaption(slot, { candidateData });
     }
 
     // 5. Verify Meta Instagram Credentials
@@ -193,6 +242,7 @@ async function handlePublish(req: NextRequest) {
             imageUrl,
             caption,
             status: "SUCCESS",
+            candidateId: candidateId || null,
             instagramMediaId: simulatedIgId,
             facebookPostId: simulatedFbId,
             triggeredBy,
@@ -209,6 +259,16 @@ async function handlePublish(req: NextRequest) {
         message: "Dry run successful (simulated without publishing to live social channels)",
         slot,
         topic,
+        candidateId: candidateId || null,
+        candidateData: candidateData
+          ? {
+              id: candidateData.id,
+              displayName: candidateData.displayName,
+              age: candidateData.age,
+              profession: candidateData.profession,
+              city: candidateData.city,
+            }
+          : undefined,
         imageUrl,
         caption,
         instagramPostId: simulatedIgId,
@@ -270,6 +330,7 @@ async function handlePublish(req: NextRequest) {
           imageUrl,
           caption,
           status: isSuccess ? "SUCCESS" : "FAILED",
+          candidateId: candidateId || null,
           instagramMediaId: igResult.mediaId || null,
           facebookPostId: fbResult.postId || null,
           error: [igResult.error, fbResult.error].filter(Boolean).join(" | ") || null,
@@ -291,6 +352,16 @@ async function handlePublish(req: NextRequest) {
         slot,
         topic,
         platform,
+        candidateId: candidateId || null,
+        candidateData: candidateData
+          ? {
+              id: candidateData.id,
+              displayName: candidateData.displayName,
+              age: candidateData.age,
+              profession: candidateData.profession,
+              city: candidateData.city,
+            }
+          : undefined,
         instagramPostId: igResult.mediaId || null,
         facebookPostId: fbResult.postId || null,
         instagram: {
