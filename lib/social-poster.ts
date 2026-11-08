@@ -67,7 +67,7 @@ export function getMetaConfig() {
     process.env.META_FB_PAGE_ID ||
     process.env.META_PAGE_ID ||
     process.env.FACEBOOK_PAGE_ID ||
-    "1103030792895654";
+    "1445842498610887";
 
   const instagramAccountId =
     process.env.META_IG_ACCOUNT_ID ||
@@ -355,9 +355,10 @@ async function getFacebookPageAccessToken(
   rawToken: string,
   targetPageId: string
 ): Promise<{ pageId: string; pageToken: string }> {
-  // Use cached token if resolved within the last 10 minutes
+  // Use cached token if resolved for the same page within the last 10 minutes
   if (
     cachedFacebookPageData &&
+    cachedFacebookPageData.pageId === targetPageId &&
     Date.now() - cachedFacebookPageData.timestamp < 10 * 60 * 1000
   ) {
     return {
@@ -372,22 +373,41 @@ async function getFacebookPageAccessToken(
     );
     const accData = await accRes.json();
     if (accData?.data?.length > 0) {
-      const matchedPage =
-        accData.data.find((p: any) => p.id === targetPageId) ||
-        accData.data.find((p: any) =>
-          p.name?.toLowerCase().includes("rishteclub")
-        ) ||
-        accData.data[0];
+      const matchedPage = accData.data.find((p: any) => p.id === targetPageId);
 
+      if (matchedPage) {
+        const resolved = {
+          pageId: matchedPage.id,
+          pageToken: matchedPage.access_token,
+          timestamp: Date.now(),
+        };
+        cachedFacebookPageData = resolved;
+        console.log(
+          `[Meta API] Resolved Page Access Token for: "${matchedPage.name}" (ID: ${matchedPage.id})`
+        );
+        return { pageId: resolved.pageId, pageToken: resolved.pageToken };
+      }
+
+      console.warn(
+        `[Meta API] Target Page ID "${targetPageId}" not found in /me/accounts. Available in token: ${accData.data
+          .map((p: any) => `"${p.name}" (${p.id})`)
+          .join(", ")}`
+      );
+    }
+
+    // Try direct page token query for targetPageId in case token has direct access
+    const directRes = await fetch(
+      `https://graph.facebook.com/v21.0/${targetPageId}?fields=id,name,access_token&access_token=${rawToken}`
+    );
+    const directData = await directRes.json();
+    if (directData?.access_token) {
       const resolved = {
-        pageId: matchedPage.id,
-        pageToken: matchedPage.access_token,
+        pageId: directData.id || targetPageId,
+        pageToken: directData.access_token,
         timestamp: Date.now(),
       };
       cachedFacebookPageData = resolved;
-      console.log(
-        `[Meta API] Resolved Page Access Token for: "${matchedPage.name}" (ID: ${matchedPage.id})`
-      );
+      console.log(`[Meta API] Resolved Page Access Token directly for ID ${targetPageId}`);
       return { pageId: resolved.pageId, pageToken: resolved.pageToken };
     }
   } catch (err) {
@@ -417,11 +437,15 @@ export async function publishToFacebookPage({
       pageId ||
       config.facebookPageId ||
       process.env.META_FB_PAGE_ID ||
-      "1103030792895654";
+      "1445842498610887";
 
-    // Autocorrect old or mismatched ID
-    if (fbPageId === "122125395483335905") {
-      fbPageId = "1103030792895654";
+    // Autocorrect old or mismatched IDs if passed
+    if (
+      fbPageId === "122125395483335905" ||
+      fbPageId === "1103030792895654" ||
+      fbPageId === "61595356571839"
+    ) {
+      fbPageId = "1445842498610887";
     }
 
     const rawToken =
@@ -471,12 +495,14 @@ export async function publishToFacebookPage({
         );
         const accData = await accRes.json();
         if (accData?.data?.length > 0) {
-          const matchedPage =
-            accData.data.find((p: any) => p.id === fbPageId) ||
-            accData.data.find((p: any) =>
-              p.name?.toLowerCase().includes("rishteclub")
-            ) ||
-            accData.data[0];
+          const matchedPage = accData.data.find((p: any) => p.id === fbPageId);
+          if (!matchedPage) {
+            console.error(`[Meta API] Page ${fbPageId} is not in /me/accounts.`);
+            return {
+              success: false,
+              error: `Facebook Page ID ${fbPageId} is not assigned to this Meta System User token. In Meta Business Suite, assign Page ${fbPageId} to System User 'Rishteclubposter' with Full Control (Create Content). Current assigned page: ${accData.data.map((p: any) => `"${p.name}" (${p.id})`).join(", ")}`,
+            };
+          }
 
           fbPageId = matchedPage.id;
           const freshPageToken = matchedPage.access_token;
