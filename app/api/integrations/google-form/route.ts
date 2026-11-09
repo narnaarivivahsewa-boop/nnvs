@@ -6,6 +6,9 @@ import {
   extractIndianMobiles,
   extractDriveFileId,
   formatGoogleDrivePhotoUrl,
+  normalizeCandidateName,
+  extractProfileNormalizedPhones,
+  doesSourceCandidateMatch,
 } from "@/lib/integrations/google-sync-helpers";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
@@ -99,17 +102,6 @@ function parseDate(val: any): Date | null {
   const year = d.getUTCFullYear();
   if (year < 1940 || year > 2026) return null;
   return d;
-}
-
-// Normalize candidate name for matching
-function normalizeCandidateName(str?: string | null): string {
-  if (!str) return "";
-  return str
-    .toLowerCase()
-    .replace(/^(mr\.|mrs\.|ms\.|shri|smt\.|dr\.)\s+/i, "")
-    .replace(/\s*\([^)]*\)/g, "") // remove notes like (my son), (daughter), (puniyani), etc.
-    .replace(/[^a-z0-9]/g, "")
-    .trim();
 }
 
 // Determine if an incoming candidate is genuinely the exact same candidate as an existing profile
@@ -308,10 +300,11 @@ export async function POST(req: NextRequest) {
       // Exact Field Extractions from Payload needed early for matching
       const dateOfBirth = parseDate(row.dob || row.dateOfBirth);
 
-      // Check for Existing Records in Database by Old ID, Legacy ID, Profile ID, or Mobile Number
+      // Check for Existing Records in Database by Old ID, Legacy ID, Profile ID, Guarded sourceId, or Mobile Number
       let existingProfile: any = null;
 
-      // 1. Match by Old ID / legacyProfileId / oldNnvsId / profileId / sourceId
+      // 1a. Match strictly by explicit Old ID / legacyProfileId / oldNnvsId / profileId
+      // (Never match by row-number sourceId inside this OR block, because sheet row numbers shift/collide.)
       if (legacyProfileId) {
         const cleanLegacy = String(legacyProfileId).trim();
         const variations = [cleanLegacy, cleanLegacy.toUpperCase(), cleanLegacy.toLowerCase()];
@@ -336,18 +329,35 @@ export async function POST(req: NextRequest) {
               { legacyProfileId: { in: variations, mode: "insensitive" } },
               { oldNnvsId: { in: variations, mode: "insensitive" } },
               { profileId: { in: variations, mode: "insensitive" } },
-              ...(sourceId ? [{ sourceId }, { oldNnvsId: sourceId }] : []),
             ],
           },
           include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
         });
-      } else if (sourceId) {
-        existingProfile = await prisma.profile.findFirst({
+      }
+
+      // 1b. Guarded sourceId lookup: sourceId alone is NOT enough; both mobile and candidate name must match
+      if (!existingProfile && sourceId) {
+        const candidateBySource = await prisma.profile.findFirst({
           where: {
             OR: [{ sourceId }, { oldNnvsId: sourceId }],
           },
           include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
         });
+
+        if (candidateBySource) {
+          if (
+            doesSourceCandidateMatch(
+              { fullName, gender, mobile, allMobiles, legacyProfileId },
+              candidateBySource
+            )
+          ) {
+            existingProfile = candidateBySource;
+          } else {
+            console.warn(
+              `[Google Form Sync] Prevented sourceId row collision on "${sourceId}": incoming (${fullName}, ${mobile}, ${gender}) does not match existing profile ${candidateBySource.profileId} (${candidateBySource.user?.fullName || candidateBySource.firstName}, ${candidateBySource.user?.mobile}). A new profile will be created instead.`
+            );
+          }
+        }
       }
 
       // 2. If not matched by Old ID:
@@ -666,6 +676,27 @@ export async function POST(req: NextRequest) {
         const isAlreadyApproved = existingProfile ? existingProfile.approvalStatus === "APPROVED" : false;
         const isAlreadyVisible = existingProfile ? Boolean(existingProfile.isVisible) : false;
 
+        // Ensure Profile.sourceId (@unique) never throws P2002 if a row-number collision occurred
+        let effectiveSourceId: string | null = sourceId || null;
+        if ((!existingProfile || !existingProfile.sourceId) && effectiveSourceId) {
+          const existingWithSameSource = await prisma.profile.findUnique({
+            where: { sourceId: effectiveSourceId },
+            select: { id: true },
+          });
+          if (existingWithSameSource && existingWithSameSource.id !== existingProfile?.id) {
+            const safePhoneTag = (mobile || "row").replace(/\D/g, "").slice(-10) || String(rowIndex);
+            let disambiguatedSourceId = `${effectiveSourceId}__${safePhoneTag}`;
+            const tagTaken = await prisma.profile.findUnique({
+              where: { sourceId: disambiguatedSourceId },
+              select: { id: true },
+            });
+            if (tagTaken) {
+              disambiguatedSourceId = `${effectiveSourceId}__${safePhoneTag}_${Date.now()}`;
+            }
+            effectiveSourceId = disambiguatedSourceId;
+          }
+        }
+
         const profileData: any = {
           firstName: (fullName.split(" ")[0] || fullName) || existingProfile?.firstName,
           lastName: (fullName.split(" ").slice(1).join(" ") || null) || existingProfile?.lastName || null,
@@ -687,8 +718,10 @@ export async function POST(req: NextRequest) {
             ? (paymentRemark || existingProfile?.paymentRemark || "Google Form Sync")
             : (paymentRemark || "Google Form New Submission - Pending Admin Approval & Verification"),
           source: "GOOGLE_FORM",
-          sourceId: sourceId || existingProfile?.sourceId || null,
-          oldNnvsId: sourceId || legacyProfileId || existingProfile?.oldNnvsId || null,
+          sourceId: existingProfile
+            ? (existingProfile.sourceId || effectiveSourceId || null)
+            : (effectiveSourceId || null),
+          oldNnvsId: legacyProfileId || existingProfile?.oldNnvsId || null,
           legacyProfileId: legacyProfileId || existingProfile?.legacyProfileId || null,
           isVisible: existingProfile ? isAlreadyVisible : false,
           paymentCompleted: true,
@@ -1019,10 +1052,30 @@ async function handlePhotoRepair(body: any) {
     let existingProfile: any = null;
 
     if (sourceId) {
-      existingProfile = await prisma.profile.findUnique({
+      const photoCandidate = await prisma.profile.findUnique({
         where: { sourceId },
-        include: { photos: true },
+        include: { user: true, phoneNumbers: true, photos: true },
       });
+      if (photoCandidate) {
+        const candidateNameInput = String(item.name || item.fullName || "").trim();
+        const candidatePhones = extractProfileNormalizedPhones(photoCandidate);
+        const mobileMatches = Boolean(mobile && candidatePhones.includes(mobile));
+        const legacyMismatch = Boolean(
+          legacyProfileId &&
+            photoCandidate.legacyProfileId &&
+            legacyProfileId.toUpperCase() !== photoCandidate.legacyProfileId.toUpperCase()
+        );
+        const nameOk = candidateNameInput
+          ? normalizeCandidateName(candidateNameInput) ===
+              normalizeCandidateName(`${photoCandidate.firstName || ""} ${photoCandidate.lastName || ""}`.trim()) ||
+            normalizeCandidateName(candidateNameInput) ===
+              normalizeCandidateName(photoCandidate.user?.fullName)
+          : true;
+
+        if (!legacyMismatch && (!mobile || mobileMatches) && nameOk) {
+          existingProfile = photoCandidate;
+        }
+      }
     }
 
     if (!existingProfile && legacyProfileId) {
