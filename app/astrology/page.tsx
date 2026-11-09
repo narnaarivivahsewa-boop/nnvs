@@ -33,6 +33,7 @@ import {
 import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
+import CityCombobox from "@/components/ui/CityCombobox";
 
 // Helper to convert diverse birth time formats to standard 24-hr HH:mm for <input type="time" />
 function to24HourTime(val?: string | null): string {
@@ -183,6 +184,18 @@ export default function AstrologyPage() {
   const [isUpayeUnlocked, setIsUpayeUnlocked] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState(false);
+
+  // Close payment modal on Escape key press
+  useEffect(() => {
+    if (!showPaymentModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowPaymentModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPaymentModal]);
 
   const [qaHistory, setQaHistory] = useState<Array<{ q: string; a: string; time: string }>>([
     {
@@ -864,15 +877,21 @@ export default function AstrologyPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                      <label
+                        htmlFor="astrology-guest-birth-place"
+                        className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1"
+                      >
                         <MapPin className="h-3 w-3 text-[#C5A059]" />
                         <span>Birth City / Place</span>
                       </label>
-                      <input
-                        type="text"
+                      <CityCombobox
+                        id="astrology-guest-birth-place"
+                        name="userBirthPlace"
                         value={userBirthPlace}
-                        onChange={(e) => setUserBirthPlace(e.target.value)}
-                        className="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
+                        onChange={setUserBirthPlace}
+                        placeholder="Type city, town, or village..."
+                        helperText=""
+                        inputClassName="w-full rounded-xl border border-[#D9C8B0] bg-[#FAF8F5] px-3.5 py-2 text-sm font-medium text-gray-900 focus:border-[#4A121A] focus:outline-none"
                       />
                     </div>
 
@@ -1296,11 +1315,22 @@ export default function AstrologyPage() {
 
       {/* ₹99 Lal Kitab Remedies Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-6 animate-scaleUp">
+        <div
+          onClick={() => setShowPaymentModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="astrology-payment-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-scaleUp"
+          >
             <button
+              type="button"
+              aria-label="Close modal"
               onClick={() => setShowPaymentModal(false)}
-              className="absolute top-4 right-4 rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200 transition"
+              className="absolute top-4 right-4 z-20 rounded-full bg-white border border-[#DACBB4] p-2 text-[#4A121A] hover:bg-[#FAF0DC] transition cursor-pointer shadow-xs"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1324,7 +1354,7 @@ export default function AstrologyPage() {
                     <Sparkles className="h-3.5 w-3.5 text-[#C5A059]" />
                     <span>Lal Kitab Premium Remedial Report</span>
                   </div>
-                  <h3 className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
+                  <h3 id="astrology-payment-modal-title" className="font-serif-luxury text-2xl font-bold text-[#4A121A]">
                     Unlock Lal Kitab Upaye
                   </h3>
                   <p className="text-xs text-gray-600">
@@ -1366,6 +1396,14 @@ export default function AstrologyPage() {
                   <p>Supports UPI (GPay, PhonePe, Paytm), Cards & Net Banking</p>
                   <p className="font-semibold text-gray-600 mt-0.5">Official GST Tax Invoice issued instantly</p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-full py-2.5 rounded-xl border border-[#DACBB4] bg-[#FAF7F2] text-xs font-bold text-[#4A121A] hover:bg-[#F3EBDD] transition-colors cursor-pointer"
+                >
+                  Close / Continue Exploring
+                </button>
               </div>
             )}
           </div>

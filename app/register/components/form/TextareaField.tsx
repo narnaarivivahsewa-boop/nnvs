@@ -1,16 +1,18 @@
 "use client";
 
 import { TextareaHTMLAttributes } from "react";
-import { FieldError } from "react-hook-form";
+import { FieldError, UseFormRegisterReturn } from "react-hook-form";
 
 type TextareaFieldProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label: string;
   error?: FieldError;
+  registration?: UseFormRegisterReturn;
 };
 
 export default function TextareaField({
   label,
   error,
+  registration,
   className = "",
   ...props
 }: TextareaFieldProps) {
@@ -24,6 +26,7 @@ export default function TextareaField({
       </label>
 
       <textarea
+        {...registration}
         {...props}
         className={`w-full rounded-xl border px-4 py-3 resize-none outline-none transition-all duration-200
         ${

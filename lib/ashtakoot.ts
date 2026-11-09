@@ -4,11 +4,19 @@
  * Zero 'any' declarations for complete strict type safety.
  */
 
+import {
+  resolveBirthLocation,
+  type ResolvedLocation,
+} from "@/lib/astrology/location-resolver";
+
 export interface BirthDetails {
   name: string;
   dob: string | Date;
   time: string; // HH:mm (24-hour or 12-hour format)
   place: string;
+  latitude?: number;
+  longitude?: number;
+  timezoneOffsetHours?: number;
 }
 
 export type VarnaCategory = "Brahmin" | "Kshatriya" | "Vaishya" | "Shudra";
@@ -21,6 +29,7 @@ export interface CelestialProfile {
   dob: Date;
   time: string;
   place: string;
+  resolvedLocation: ResolvedLocation;
   moonLongitude: number;
   marsLongitude: number;
   rasiIndex: number;
@@ -83,6 +92,7 @@ export interface KundliMilanResult {
   isRecommended: boolean;
   boyInfo: {
     name: string;
+    place?: string;
     rasi: string;
     nakshatra: string;
     nakshatraLord: string;
@@ -91,6 +101,7 @@ export interface KundliMilanResult {
   };
   girlInfo: {
     name: string;
+    place?: string;
     rasi: string;
     nakshatra: string;
     nakshatraLord: string;
@@ -277,15 +288,15 @@ function parseTimeToHours(timeStr: string): number {
 }
 
 /**
- * Computes Julian Day in UT from calendar date and local Indian Standard Time (UTC+5:30).
+ * Computes Julian Day in UT from calendar date, local clock hours, and timezone offset (default IST +5.5).
  */
-function getJulianDay(date: Date, localHours: number): number {
+function getJulianDay(date: Date, localHours: number, timezoneOffsetHours = 5.5): number {
   let y = date.getUTCFullYear();
   let m = date.getUTCMonth() + 1;
   const d = date.getUTCDate();
 
-  // Convert IST (UTC+5:30) to UT
-  let utHours = localHours - 5.5;
+  // Convert Local Time to UT cleanly (handles Indian +5:30 & global hubs)
+  let utHours = localHours - timezoneOffsetHours;
   let dayAdjust = 0;
   if (utHours < 0) {
     utHours += 24;
@@ -367,12 +378,22 @@ function calculateSiderealMarsLongitude(jd: number): number {
 }
 
 /**
- * Derives full celestial profile for a person.
+ * Derives full celestial profile for a person, resolving any city/town/village cleanly.
  */
 export function getCelestialProfile(person: BirthDetails): CelestialProfile {
   const birthDate = person.dob instanceof Date ? person.dob : new Date(person.dob);
+  const safeBirthDate = Number.isNaN(birthDate.getTime())
+    ? new Date("1995-01-01T00:00:00Z")
+    : birthDate;
+  const resolved = resolveBirthLocation(person.place);
+  const effectiveLocation: ResolvedLocation = {
+    ...resolved,
+    latitude: person.latitude ?? resolved.latitude,
+    longitude: person.longitude ?? resolved.longitude,
+    timezoneOffsetHours: person.timezoneOffsetHours ?? resolved.timezoneOffsetHours,
+  };
   const localHours = parseTimeToHours(person.time || "12:00");
-  const jd = getJulianDay(birthDate, localHours);
+  const jd = getJulianDay(safeBirthDate, localHours, effectiveLocation.timezoneOffsetHours);
 
   const moonLong = calculateSiderealMoonLongitude(jd);
   const marsLong = calculateSiderealMarsLongitude(jd);
@@ -420,9 +441,10 @@ export function getCelestialProfile(person: BirthDetails): CelestialProfile {
 
   return {
     name: person.name,
-    dob: birthDate,
+    dob: safeBirthDate,
     time: person.time,
-    place: person.place,
+    place: effectiveLocation.displayPlace,
+    resolvedLocation: effectiveLocation,
     moonLongitude: moonLong,
     marsLongitude: marsLong,
     rasiIndex,
@@ -849,10 +871,16 @@ export type InputDetails =
       boyDob: string | Date;
       boyTime: string;
       boyPlace: string;
+      boyLatitude?: number;
+      boyLongitude?: number;
+      boyTimezoneOffset?: number;
       girlName: string;
       girlDob: string | Date;
       girlTime: string;
       girlPlace: string;
+      girlLatitude?: number;
+      girlLongitude?: number;
+      girlTimezoneOffset?: number;
     };
 
 /**
@@ -877,22 +905,34 @@ export function calculateKundliMilan(
       boyDob: string | Date;
       boyTime: string;
       boyPlace: string;
+      boyLatitude?: number;
+      boyLongitude?: number;
+      boyTimezoneOffset?: number;
       girlName: string;
       girlDob: string | Date;
       girlTime: string;
       girlPlace: string;
+      girlLatitude?: number;
+      girlLongitude?: number;
+      girlTimezoneOffset?: number;
     };
     boyDetails = {
       name: flat.boyName,
       dob: flat.boyDob,
       time: flat.boyTime,
       place: flat.boyPlace,
+      latitude: flat.boyLatitude,
+      longitude: flat.boyLongitude,
+      timezoneOffsetHours: flat.boyTimezoneOffset,
     };
     girlDetails = {
       name: flat.girlName,
       dob: flat.girlDob,
       time: flat.girlTime,
       place: flat.girlPlace,
+      latitude: flat.girlLatitude,
+      longitude: flat.girlLongitude,
+      timezoneOffsetHours: flat.girlTimezoneOffset,
     };
   }
 
@@ -995,6 +1035,7 @@ export function calculateKundliMilan(
     isRecommended,
     boyInfo: {
       name: boyProfile.name,
+      place: boyProfile.place,
       rasi: boyProfile.rasiName,
       nakshatra: boyProfile.nakshatraName,
       nakshatraLord: boyProfile.nakshatraLord,
@@ -1003,6 +1044,7 @@ export function calculateKundliMilan(
     },
     girlInfo: {
       name: girlProfile.name,
+      place: girlProfile.place,
       rasi: girlProfile.rasiName,
       nakshatra: girlProfile.nakshatraName,
       nakshatraLord: girlProfile.nakshatraLord,

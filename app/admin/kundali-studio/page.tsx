@@ -24,6 +24,7 @@ import {
   Info,
 } from "lucide-react";
 import { calculateAuthenticGunaMilan } from "@/lib/astrology/vedic-match";
+import CityCombobox from "@/components/ui/CityCombobox";
 
 interface CandidateProfile {
   id: string;
@@ -253,7 +254,9 @@ export default function AdminKundaliStudioPage() {
         groomForm.birthTime,
         brideForm.birthTime,
         groomForm.manglik,
-        brideForm.manglik
+        brideForm.manglik,
+        groomForm.birthPlace,
+        brideForm.birthPlace
       );
 
       // Sagotra analysis
@@ -585,16 +588,21 @@ export default function AdminKundaliStudioPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-[#7A5835] uppercase tracking-wider mb-1 flex items-center gap-1">
+                <label
+                  htmlFor="admin-groom-birth-place"
+                  className="block text-[11px] font-bold text-[#7A5835] uppercase tracking-wider mb-1 flex items-center gap-1"
+                >
                   <MapPin className="h-3 w-3 text-[#C5A059]" />
                   <span>Birth Place</span>
                 </label>
-                <input
-                  type="text"
+                <CityCombobox
+                  id="admin-groom-birth-place"
+                  name="groomBirthPlace"
                   value={groomForm.birthPlace}
-                  onChange={(e) => setGroomForm({ ...groomForm, birthPlace: e.target.value })}
-                  placeholder="City, State"
-                  className="w-full rounded-xl border border-[#DACBB4] bg-white px-3 py-2 text-xs font-semibold text-[#2D221E] focus:border-[#4A121A] focus:outline-none"
+                  onChange={(val) => setGroomForm({ ...groomForm, birthPlace: val })}
+                  placeholder="City, Town, or Village"
+                  helperText=""
+                  inputClassName="w-full rounded-xl border border-[#DACBB4] bg-white px-3 py-2 text-xs font-semibold text-[#2D221E] focus:border-[#4A121A] focus:outline-none"
                 />
               </div>
 
@@ -847,16 +855,21 @@ export default function AdminKundaliStudioPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-[#7A5835] uppercase tracking-wider mb-1 flex items-center gap-1">
+                <label
+                  htmlFor="admin-bride-birth-place"
+                  className="block text-[11px] font-bold text-[#7A5835] uppercase tracking-wider mb-1 flex items-center gap-1"
+                >
                   <MapPin className="h-3 w-3 text-[#C5A059]" />
                   <span>Birth Place</span>
                 </label>
-                <input
-                  type="text"
+                <CityCombobox
+                  id="admin-bride-birth-place"
+                  name="brideBirthPlace"
                   value={brideForm.birthPlace}
-                  onChange={(e) => setBrideForm({ ...brideForm, birthPlace: e.target.value })}
-                  placeholder="City, State"
-                  className="w-full rounded-xl border border-[#DACBB4] bg-white px-3 py-2 text-xs font-semibold text-[#2D221E] focus:border-[#4A121A] focus:outline-none"
+                  onChange={(val) => setBrideForm({ ...brideForm, birthPlace: val })}
+                  placeholder="City, Town, or Village"
+                  helperText=""
+                  inputClassName="w-full rounded-xl border border-[#DACBB4] bg-white px-3 py-2 text-xs font-semibold text-[#2D221E] focus:border-[#4A121A] focus:outline-none"
                 />
               </div>
 

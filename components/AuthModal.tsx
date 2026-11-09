@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { saveAuthSession } from "@/lib/auth/session-storage";
+import { saveRegistrationVerification } from "@/lib/auth/registration-storage";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -68,6 +69,18 @@ export default function AuthModal({
       setStatus({ type: null, message: "" });
     }
   }, [isOpen]);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -202,7 +215,7 @@ export default function AuthModal({
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || data.success === false) {
         setStatus({
           type: "error",
           message: data.message || "Invalid OTP. Please try again.",
@@ -211,14 +224,20 @@ export default function AuthModal({
       }
 
       if (mode === "REGISTER") {
+        saveRegistrationVerification(cleanMobile, data.registrationToken);
+        setLoading(false);
         setStatus({
           type: "success",
           message: "Mobile verified successfully! Redirecting to complete profile...",
         });
+        if (onSuccess) {
+          onSuccess();
+        }
+        const registerTarget = `/register?mobile=${encodeURIComponent(cleanMobile)}&verified=true`;
         setTimeout(() => {
+          router.push(registerTarget);
           onClose();
-          router.push(`/register?mobile=${encodeURIComponent(cleanMobile)}&verified=true`);
-        }, 800);
+        }, 250);
         return;
       }
 
@@ -257,8 +276,12 @@ export default function AuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity"
+    >
       <div
+        onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-md rounded-3xl bg-[#FAF6EF] p-6 sm:p-8 shadow-2xl border border-[#DACBB4] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
@@ -268,6 +291,7 @@ export default function AuthModal({
 
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-5 right-5 p-2 rounded-full text-[#4A3E39] hover:bg-[#FAF0DC] hover:text-[#4A121A] transition cursor-pointer"
           aria-label="Close modal"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -18,241 +18,13 @@ import {
   RefreshCw,
   Check,
   Download,
-  Printer,
   ChevronDown,
   ChevronUp,
   FileText,
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
-
-/**
- * 200+ Alphabetically Sorted Cities covering all 22 Haryana districts,
- * Punjab, Rajasthan, Delhi-NCR, Western UP, and major Indian metro hubs.
- */
-export const INDIAN_CITIES: readonly string[] = [
-  "Abohar, Punjab",
-  "Agra, Uttar Pradesh",
-  "Ahmedabad, Gujarat",
-  "Ahmednagar, Maharashtra",
-  "Ajmer, Rajasthan",
-  "Aligarh, Uttar Pradesh",
-  "Alwar, Rajasthan",
-  "Ambala, Haryana",
-  "Ambala Cantt, Haryana",
-  "Amravati, Maharashtra",
-  "Amritsar, Punjab",
-  "Anand, Gujarat",
-  "Asansol, West Bengal",
-  "Assandh, Haryana",
-  "Aurangabad, Maharashtra",
-  "Ayodhya, Uttar Pradesh",
-  "Badaun, Uttar Pradesh",
-  "Baghpat, Uttar Pradesh",
-  "Bahadurgarh, Haryana",
-  "Balotra, Rajasthan",
-  "Banswara, Rajasthan",
-  "Baran, Rajasthan",
-  "Bareilly, Uttar Pradesh",
-  "Barmer, Rajasthan",
-  "Barnala, Punjab",
-  "Barwala, Haryana",
-  "Bathinda, Punjab",
-  "Beawar, Rajasthan",
-  "Bengaluru, Karnataka",
-  "Bharatpur, Rajasthan",
-  "Bhavnagar, Gujarat",
-  "Bhilwara, Rajasthan",
-  "Bhiwani, Haryana",
-  "Bhopal, Madhya Pradesh",
-  "Bhubaneswar, Odisha",
-  "Bikaner, Rajasthan",
-  "Bilaspur, Chhattisgarh",
-  "Bokaro Steel City, Jharkhand",
-  "Bulandshahr, Uttar Pradesh",
-  "Bundi, Rajasthan",
-  "Chandausi, Uttar Pradesh",
-  "Chandigarh, Union Territory",
-  "Charkhi Dadri, Haryana",
-  "Chennai, Tamil Nadu",
-  "Chittorgarh, Rajasthan",
-  "Churu, Rajasthan",
-  "Coimbatore, Tamil Nadu",
-  "Cuttack, Odisha",
-  "Dabwali, Haryana",
-  "Dausa, Rajasthan",
-  "Dehradun, Uttarakhand",
-  "Delhi, Delhi",
-  "Deoband, Uttar Pradesh",
-  "Dhanbad, Jharkhand",
-  "Dholpur, Rajasthan",
-  "Didwana, Rajasthan",
-  "Durgapur, West Bengal",
-  "Ellenabad, Haryana",
-  "Etawah, Uttar Pradesh",
-  "Faizabad, Uttar Pradesh",
-  "Faridabad, Haryana",
-  "Fatehabad, Haryana",
-  "Fatehpur, Uttar Pradesh",
-  "Fazilka, Punjab",
-  "Firozabad, Uttar Pradesh",
-  "Firozpur, Punjab",
-  "Gandhinagar, Gujarat",
-  "Gaya, Bihar",
-  "Ghaziabad, Uttar Pradesh",
-  "Gohana, Haryana",
-  "Gorakhpur, Uttar Pradesh",
-  "Greater Noida, Uttar Pradesh",
-  "Gurdaspur, Punjab",
-  "Gurugram, Haryana",
-  "Gwalior, Madhya Pradesh",
-  "Haldwani, Uttarakhand",
-  "Hanumangarh, Rajasthan",
-  "Hapur, Uttar Pradesh",
-  "Haridwar, Uttarakhand",
-  "Hathras, Uttar Pradesh",
-  "Hisar, Haryana",
-  "Hodal, Haryana",
-  "Hoshiarpur, Punjab",
-  "Hyderabad, Telangana",
-  "Indore, Madhya Pradesh",
-  "Jabalpur, Madhya Pradesh",
-  "Jagadhri, Haryana",
-  "Jagraon, Punjab",
-  "Jaipur, Rajasthan",
-  "Jaisalmer, Rajasthan",
-  "Jalandhar, Punjab",
-  "Jalore, Rajasthan",
-  "Jammu, Jammu & Kashmir",
-  "Jamnagar, Gujarat",
-  "Jamshedpur, Jharkhand",
-  "Jhajjar, Haryana",
-  "Jhalawar, Rajasthan",
-  "Jhansi, Uttar Pradesh",
-  "Jhunjhunu, Rajasthan",
-  "Jind, Haryana",
-  "Jodhpur, Rajasthan",
-  "Kaithal, Haryana",
-  "Kalanwali, Haryana",
-  "Kanpur, Uttar Pradesh",
-  "Kapurthala, Punjab",
-  "Karnal, Haryana",
-  "Kasganj, Uttar Pradesh",
-  "Khanna, Punjab",
-  "Khurja, Uttar Pradesh",
-  "Kishangarh, Rajasthan",
-  "Kochi, Kerala",
-  "Kolhapur, Maharashtra",
-  "Kolkata, West Bengal",
-  "Kota, Rajasthan",
-  "Kotkapura, Punjab",
-  "Kotputli, Rajasthan",
-  "Kozhikode, Kerala",
-  "Kurukshetra, Haryana",
-  "Ladwa, Haryana",
-  "Loni, Uttar Pradesh",
-  "Lucknow, Uttar Pradesh",
-  "Ludhiana, Punjab",
-  "Madurai, Tamil Nadu",
-  "Mahendragarh, Haryana",
-  "Mainpuri, Uttar Pradesh",
-  "Malerkotla, Punjab",
-  "Mandi Dabwali, Haryana",
-  "Mandi Gobindgarh, Punjab",
-  "Manesar, Haryana",
-  "Mangaluru, Karnataka",
-  "Mansa, Punjab",
-  "Mathura, Uttar Pradesh",
-  "Meerut, Uttar Pradesh",
-  "Modinagar, Uttar Pradesh",
-  "Moga, Punjab",
-  "Mohali (SAS Nagar), Punjab",
-  "Moradabad, Uttar Pradesh",
-  "Muktsar, Punjab",
-  "Mumbai, Maharashtra",
-  "Muzaffarnagar, Uttar Pradesh",
-  "Mysuru, Karnataka",
-  "Nagaur, Rajasthan",
-  "Nagpur, Maharashtra",
-  "Narnaul, Haryana",
-  "Narwana, Haryana",
-  "Nashik, Maharashtra",
-  "Navi Mumbai, Maharashtra",
-  "Nawanshahr, Punjab",
-  "Neem Ka Thana, Rajasthan",
-  "New Delhi, Delhi",
-  "Noida, Uttar Pradesh",
-  "Nuh, Haryana",
-  "Pali, Rajasthan",
-  "Palwal, Haryana",
-  "Panchkula, Haryana",
-  "Panipat, Haryana",
-  "Pathankot, Punjab",
-  "Patiala, Punjab",
-  "Patna, Bihar",
-  "Pehowa, Haryana",
-  "Phagwara, Punjab",
-  "Phalodi, Rajasthan",
-  "Pilani, Rajasthan",
-  "Pilibhit, Uttar Pradesh",
-  "Prayagraj (Allahabad), Uttar Pradesh",
-  "Pundri, Haryana",
-  "Pune, Maharashtra",
-  "Raipur, Chhattisgarh",
-  "Rajkot, Gujarat",
-  "Rajpura, Punjab",
-  "Rajsamand, Rajasthan",
-  "Rampur, Uttar Pradesh",
-  "Ranchi, Jharkhand",
-  "Ratia, Haryana",
-  "Rawatsar, Rajasthan",
-  "Rewari, Haryana",
-  "Rishikesh, Uttarakhand",
-  "Rohtak, Haryana",
-  "Roorkee, Uttarakhand",
-  "Ropar (Roopnagar), Punjab",
-  "Rourkela, Odisha",
-  "Safidon, Haryana",
-  "Saharanpur, Uttar Pradesh",
-  "Samalkha, Haryana",
-  "Samana, Punjab",
-  "Sambhal, Uttar Pradesh",
-  "Sangrur, Punjab",
-  "Shahbad, Haryana",
-  "Shahjahanpur, Uttar Pradesh",
-  "Shamli, Uttar Pradesh",
-  "Shikohabad, Uttar Pradesh",
-  "Shimla, Himachal Pradesh",
-  "Sikar, Rajasthan",
-  "Siliguri, West Bengal",
-  "Sirsa, Haryana",
-  "Sitapur, Uttar Pradesh",
-  "Sohna, Haryana",
-  "Solapur, Maharashtra",
-  "Sonipat, Haryana",
-  "Sri Ganganagar, Rajasthan",
-  "Srinagar, Jammu & Kashmir",
-  "Sunam, Punjab",
-  "Surat, Gujarat",
-  "Suratgarh, Rajasthan",
-  "Taraori, Haryana",
-  "Tarn Taran, Punjab",
-  "Thane, Maharashtra",
-  "Thanesar, Haryana",
-  "Thiruvananthapuram, Kerala",
-  "Tohana, Haryana",
-  "Tonk, Rajasthan",
-  "Uchana, Haryana",
-  "Udaipur, Rajasthan",
-  "Ujjain, Madhya Pradesh",
-  "Uklana, Haryana",
-  "Vadodara, Gujarat",
-  "Varanasi, Uttar Pradesh",
-  "Vijayawada, Andhra Pradesh",
-  "Visakhapatnam, Andhra Pradesh",
-  "Vrindavan, Uttar Pradesh",
-  "Yamunanagar, Haryana",
-  "Zirakpur, Punjab",
-] as const;
+import CityCombobox from "@/components/ui/CityCombobox";
+import { saveRegistrationVerification } from "@/lib/auth/registration-storage";
 
 const HOURS_LIST = [
   "01", "02", "03", "04", "05", "06",
@@ -305,7 +77,14 @@ export default function KundliMilanPage() {
 
   // Delayed Pricing Popup State (3-4 seconds delay)
   const [showPricingPopup, setShowPricingPopup] = useState(false);
+  const [pricingDismissed, setPricingDismissed] = useState(false);
+  const [isRegisteredUser, setIsRegisteredUser] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  const closePricingPopup = useCallback(() => {
+    setShowPricingPopup(false);
+    setPricingDismissed(true);
+  }, []);
 
   // Expandable Ashtakoot Accordions State (default all 8 open for rich engagement)
   const [expandedKoots, setExpandedKoots] = useState<Record<string, boolean>>({
@@ -348,33 +127,55 @@ export default function KundliMilanPage() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Delayed Registration Popup Trigger (3.5 seconds)
+  // Delayed Registration Popup Trigger (3.5 seconds) — only once per calculation and never if dismissed or already registered
   useEffect(() => {
     if (milanResult && verifiedPhone) {
-      const popupTimer = setTimeout(() => {
-        setShowPricingPopup(true);
-      }, 3500);
-
       if (resultsRef.current) {
         resultsRef.current.scrollIntoView({ behavior: "smooth" });
       }
 
+      if (pricingDismissed || isRegisteredUser) {
+        return;
+      }
+
+      const popupTimer = setTimeout(() => {
+        setShowPricingPopup(true);
+      }, 3500);
+
       return () => clearTimeout(popupTimer);
     }
-  }, [milanResult, verifiedPhone]);
+  }, [milanResult, verifiedPhone, pricingDismissed, isRegisteredUser]);
+
+  // Close open modals on Escape key press
+  useEffect(() => {
+    if (!showPricingPopup && !isOtpModalOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showPricingPopup) {
+          closePricingPopup();
+        } else if (isOtpModalOpen) {
+          setIsOtpModalOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPricingPopup, isOtpModalOpen, closePricingPopup]);
 
   // Handle Form Submission -> Open OTP Modal
   function handleInitiateMilan(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
+    setPricingDismissed(false);
+    setShowPricingPopup(false);
 
     if (!boyName.trim() || !boyDob || !boyPlace.trim()) {
-      setFormError("Please fill in all details for Groom (Boy) including Date of Birth and Birth City.");
+      setFormError("Please fill in all details for Groom (Boy) including Date of Birth and Birth Place / City.");
       return;
     }
 
     if (!girlName.trim() || !girlDob || !girlPlace.trim()) {
-      setFormError("Please fill in all details for Bride (Girl) including Date of Birth and Birth City.");
+      setFormError("Please fill in all details for Bride (Girl) including Date of Birth and Birth Place / City.");
       return;
     }
 
@@ -457,6 +258,11 @@ export default function KundliMilanPage() {
         return;
       }
 
+      if (!data.isRegistered && data.registrationToken && data.verifiedPhone) {
+        saveRegistrationVerification(data.verifiedPhone, data.registrationToken);
+      }
+
+      setIsRegisteredUser(Boolean(data.isRegistered));
       setVerifiedPhone(data.verifiedPhone);
       setMilanResult(data.result);
       setIsOtpModalOpen(false);
@@ -513,13 +319,6 @@ export default function KundliMilanPage() {
         }}
       />
 
-      {/* 150+ Sorted City Autocomplete Datalist */}
-      <datalist id="indian-cities-datalist">
-        {INDIAN_CITIES.map((city) => (
-          <option key={city} value={city} />
-        ))}
-      </datalist>
-
       {/* Hero Header */}
       <section className="no-print bg-gradient-to-b from-[#4A121A] via-[#5C1621] to-[#4A121A] text-white py-12 sm:py-14 px-4 sm:px-6 lg:px-8 border-b border-[#C5A059]/30 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#C5A059_1px,transparent_1px)] [background-size:16px_16px]" />
@@ -564,7 +363,7 @@ export default function KundliMilanPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {/* Boy's Details Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-visible">
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F0E8DC]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
@@ -651,27 +450,30 @@ export default function KundliMilanPage() {
                   </div>
                 </div>
 
-                {/* Birth Place: Searchable City Selection */}
+                {/* Birth Place: Creatable City / Town / Village Combobox */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                  <label
+                    htmlFor="boy-birth-place"
+                    className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1"
+                  >
                     <MapPin className="w-3.5 h-3.5 text-[#C5A059]" />
                     Birth City / Place <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <CityCombobox
+                    id="boy-birth-place"
+                    name="boyPlace"
                     required
-                    list="indian-cities-datalist"
-                    placeholder="उदा. Fatehabad, Hisar, Delhi"
                     value={boyPlace}
-                    onChange={(e) => setBoyPlace(e.target.value)}
-                    className="w-full h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    onChange={setBoyPlace}
+                    placeholder="Type city, town, or village (e.g. Fatehabad, Bhattu Kalan)"
+                    inputClassName="h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>
             </div>
 
             {/* Girl's Details Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-[#E8DFD3] p-5 sm:p-7 relative overflow-visible">
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F0E8DC]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-700 flex items-center justify-center font-bold">
@@ -758,20 +560,23 @@ export default function KundliMilanPage() {
                   </div>
                 </div>
 
-                {/* Birth Place: Searchable City Selection */}
+                {/* Birth Place: Creatable City / Town / Village Combobox */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1">
+                  <label
+                    htmlFor="girl-birth-place"
+                    className="block text-xs font-semibold uppercase tracking-wider text-[#4A3E39] mb-1.5 flex items-center gap-1"
+                  >
                     <MapPin className="w-3.5 h-3.5 text-[#C5A059]" />
                     Birth City / Place <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <CityCombobox
+                    id="girl-birth-place"
+                    name="girlPlace"
                     required
-                    list="indian-cities-datalist"
-                    placeholder="उदा. Fatehabad, Hisar, Delhi"
                     value={girlPlace}
-                    onChange={(e) => setGirlPlace(e.target.value)}
-                    className="w-full h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
+                    onChange={setGirlPlace}
+                    placeholder="Type city, town, or village (e.g. Hisar, Tohana, Ellenabad)"
+                    inputClassName="h-12 px-4 py-3 text-sm rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
               </div>
@@ -871,6 +676,11 @@ export default function KundliMilanPage() {
                     <span className="bg-white px-2.5 py-1 rounded-md border border-gray-200">
                       Lord: <strong>{milanResult.boyInfo.nakshatraLord}</strong>
                     </span>
+                    {milanResult.boyInfo.place && (
+                      <span className="bg-white px-2.5 py-1 rounded-md border border-gray-200">
+                        Place: <strong>{milanResult.boyInfo.place}</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -888,6 +698,11 @@ export default function KundliMilanPage() {
                     <span className="bg-white px-2.5 py-1 rounded-md border border-gray-200">
                       Lord: <strong>{milanResult.girlInfo.nakshatraLord}</strong>
                     </span>
+                    {milanResult.girlInfo.place && (
+                      <span className="bg-white px-2.5 py-1 rounded-md border border-gray-200">
+                        Place: <strong>{milanResult.girlInfo.place}</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1193,7 +1008,7 @@ export default function KundliMilanPage() {
                 </button>
 
                 <Link
-                  href={`/register?phone=${verifiedPhone}`}
+                  href={`/register?phone=${encodeURIComponent(verifiedPhone)}&verified=true`}
                   className="w-full sm:w-auto h-12 min-h-[48px] inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border border-[#DFBA73] text-[#FFFDF9] hover:bg-[#601722] active:scale-95 transition-all"
                 >
                   <Sparkles className="w-4 h-4 text-[#DFBA73]" />
@@ -1398,20 +1213,31 @@ export default function KundliMilanPage() {
 
       {/* OTP Verification Modal */}
       {isOtpModalOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E8DFD3] relative max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setIsOtpModalOpen(false)}
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kundli-otp-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E8DFD3] relative max-h-[90vh] overflow-y-auto"
+          >
             <button
+              type="button"
+              aria-label="Close OTP verification modal"
               onClick={() => setIsOtpModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="text-center mb-5">
+            <div className="text-center mb-5 pr-6">
               <div className="w-12 h-12 rounded-2xl bg-[#4A121A]/10 text-[#4A121A] flex items-center justify-center mx-auto mb-3">
                 <ShieldCheck className="w-6 h-6 text-[#4A121A]" />
               </div>
-              <h3 className="text-xl font-bold text-[#4A121A] font-serif">
+              <h3 id="kundli-otp-modal-title" className="text-xl font-bold text-[#4A121A] font-serif">
                 Verify Your Mobile Number
               </h3>
               <p className="text-xs text-[#7A5835] mt-1">
@@ -1442,6 +1268,14 @@ export default function KundliMilanPage() {
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (!sendingOtp && phone.replace(/\D/g, "").length === 10) {
+                            handleSendOtp();
+                          }
+                        }
+                      }}
                       className="w-full h-12 pl-12 pr-4 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                     />
                   </div>
@@ -1462,6 +1296,14 @@ export default function KundliMilanPage() {
                     "Send Verification Code"
                   )}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOtpModalOpen(false)}
+                  className="w-full py-2 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1479,6 +1321,14 @@ export default function KundliMilanPage() {
                     placeholder="Enter code"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (!verifyingOtp && otp.length >= 4) {
+                          handleVerifyOtp();
+                        }
+                      }
+                    }}
                     className="w-full h-12 text-center tracking-widest text-lg font-bold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#C5A059] bg-[#FFFDF9]"
                   />
                 </div>
@@ -1509,7 +1359,7 @@ export default function KundliMilanPage() {
                       setOtpSent(false);
                       setOtp("");
                     }}
-                    className="hover:underline py-1.5"
+                    className="hover:underline py-1.5 cursor-pointer"
                   >
                     Change Number
                   </button>
@@ -1518,11 +1368,19 @@ export default function KundliMilanPage() {
                     type="button"
                     disabled={resendCooldown > 0 || sendingOtp}
                     onClick={handleSendOtp}
-                    className="text-[#4A121A] font-semibold hover:underline disabled:opacity-40 disabled:cursor-not-allowed py-1.5"
+                    className="text-[#4A121A] font-semibold hover:underline disabled:opacity-40 disabled:cursor-not-allowed py-1.5 cursor-pointer"
                   >
                     {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : "Resend OTP"}
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOtpModalOpen(false)}
+                  className="w-full py-2 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
               </div>
             )}
           </div>
@@ -1531,24 +1389,38 @@ export default function KundliMilanPage() {
 
       {/* Delayed Registration Popup Modal (3.5 seconds delay) */}
       {showPricingPopup && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-[#C5A059] relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={closePricingPopup}
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kundli-register-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-[#C5A059] relative max-h-[90vh] overflow-y-auto"
+          >
+            {/* Clipped Decorative Top Accent Wrapper */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+              <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[#DFBA73]/20" />
+            </div>
+
+            {/* High-Contrast Prominent Close Button */}
             <button
-              onClick={() => setShowPricingPopup(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors z-10"
-              aria-label="Close"
+              type="button"
+              onClick={closePricingPopup}
+              className="sticky top-0 float-right -mt-2 -mr-2 z-30 h-9 w-9 inline-flex items-center justify-center rounded-full bg-white/95 border border-[#DACBB4] text-[#4A121A] shadow-sm hover:bg-[#FAF0DC] hover:text-black transition-colors cursor-pointer"
+              aria-label="Close registration prompt"
+              title="Close popup (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Decorative Top Accent */}
-            <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[#DFBA73]/20 pointer-events-none" />
-
-            <div className="text-center mb-6">
+            <div className="relative z-10 text-center mb-6 pt-1">
               <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#4A121A] text-[#DFBA73] border border-[#C5A059] mb-2">
                 Exclusive RishteClub Membership
               </span>
-              <h3 className="text-2xl font-extrabold text-[#4A121A] font-serif">
+              <h3 id="kundli-register-modal-title" className="text-2xl font-extrabold text-[#4A121A] font-serif">
                 Connect With 100% Verified Rishtey
               </h3>
               <p className="text-xs text-[#7A5835] mt-1 max-w-sm mx-auto">
@@ -1557,7 +1429,7 @@ export default function KundliMilanPage() {
             </div>
 
             {/* Pricing Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+            <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
               {/* Female Card */}
               <div className="rounded-2xl p-4 bg-gradient-to-b from-pink-50 to-white border border-pink-200 text-center relative">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-pink-700 block mb-1">
@@ -1602,7 +1474,7 @@ export default function KundliMilanPage() {
             </div>
 
             {/* Membership Note in Modal */}
-            <div className="mb-5 p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4] text-center text-xs text-[#4A121A]">
+            <div className="relative z-10 mb-5 p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4] text-center text-xs text-[#4A121A]">
               <span className="font-bold block text-[#7A5835] text-[11px] uppercase tracking-wider mb-0.5">
                 Official RishteClub Membership
               </span>
@@ -1611,10 +1483,11 @@ export default function KundliMilanPage() {
               </p>
             </div>
 
-            {/* Direct Register CTA */}
-            <div className="space-y-3">
+            {/* Direct Register CTA & Clear Dismiss Option */}
+            <div className="relative z-10 space-y-3">
               <Link
-                href={`/register?phone=${verifiedPhone}`}
+                href={`/register?phone=${encodeURIComponent(verifiedPhone)}&verified=true`}
+                onClick={() => setShowPricingPopup(false)}
                 className="w-full h-12 min-h-[48px] rounded-xl font-bold text-sm bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-lg flex items-center justify-center gap-2 border border-[#C5A059]"
               >
                 <Sparkles className="w-4 h-4 text-[#DFBA73]" />
@@ -1624,10 +1497,10 @@ export default function KundliMilanPage() {
 
               <button
                 type="button"
-                onClick={() => setShowPricingPopup(false)}
-                className="w-full min-h-[44px] flex items-center justify-center text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                onClick={closePricingPopup}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DACBB4] bg-[#FAF7F2] text-xs font-bold text-[#4A121A] hover:bg-[#F3EBDD] transition-colors cursor-pointer"
               >
-                Continue Viewing Kundli Milan Report
+                Later / Continue Viewing Kundli Report
               </button>
             </div>
           </div>

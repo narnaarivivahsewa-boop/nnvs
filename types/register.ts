@@ -17,7 +17,7 @@ export interface RegisterFormData {
   weight?: string;
   maritalStatus: string;
   religion?: string;
-  caste?: string;
+  caste: string;
   motherTongue?: string;
   country: string;
   state: string;
@@ -62,7 +62,7 @@ export interface RegisterFormData {
   about?: string;
 
   // Photos (Minimum 1, Maximum 3)
-  photos?: string[];
+  photos: string[];
 }
 
 export type ProfileEditFormData = Partial<RegisterFormData>;

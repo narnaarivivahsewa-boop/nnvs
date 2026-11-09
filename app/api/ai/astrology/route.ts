@@ -207,6 +207,8 @@ export async function POST(req: NextRequest) {
       const girlDob = isUserFemale ? userDob : candidate.dateOfBirth;
       const boyTime = isUserFemale ? candidate.birthTime : userBirthTime;
       const girlTime = isUserFemale ? userBirthTime : candidate.birthTime;
+      const boyPlace = isUserFemale ? candidate.birthPlace : userBirthPlace;
+      const girlPlace = isUserFemale ? userBirthPlace : candidate.birthPlace;
       const boyManglik = isUserFemale ? candidate.manglik : userManglik;
       const girlManglik = isUserFemale ? userManglik : candidate.manglik;
 
@@ -216,11 +218,17 @@ export async function POST(req: NextRequest) {
         boyTime,
         girlTime,
         boyManglik,
-        girlManglik
+        girlManglik,
+        boyPlace,
+        girlPlace
       );
 
-      const candidateAstro = getAstrologicalSign(candidate.dateOfBirth, candidate.birthTime);
-      const userAstro = getAstrologicalSign(userDob, userBirthTime);
+      const candidateAstro = getAstrologicalSign(
+        candidate.dateOfBirth,
+        candidate.birthTime,
+        candidate.birthPlace
+      );
+      const userAstro = getAstrologicalSign(userDob, userBirthTime, userBirthPlace);
 
       // Generate context-aware astrological and Lal Kitab remedies answer
       let answer = "";
@@ -288,6 +296,8 @@ export async function POST(req: NextRequest) {
     const girlDob = isUserFemale ? userDob : candidate?.dateOfBirth;
     const boyTime = isUserFemale ? candidate?.birthTime : userBirthTime;
     const girlTime = isUserFemale ? userBirthTime : candidate?.birthTime;
+    const boyPlace = isUserFemale ? candidate?.birthPlace : userBirthPlace;
+    const girlPlace = isUserFemale ? userBirthPlace : candidate?.birthPlace;
     const boyManglik = isUserFemale ? candidate?.manglik : userManglik;
     const girlManglik = isUserFemale ? userManglik : candidate?.manglik;
 
@@ -297,11 +307,17 @@ export async function POST(req: NextRequest) {
       boyTime,
       girlTime,
       boyManglik,
-      girlManglik
+      girlManglik,
+      boyPlace,
+      girlPlace
     );
 
-    const userAstro = getAstrologicalSign(userDob, userBirthTime);
-    const candidateAstro = getAstrologicalSign(candidate?.dateOfBirth, candidate?.birthTime);
+    const userAstro = getAstrologicalSign(userDob, userBirthTime, userBirthPlace);
+    const candidateAstro = getAstrologicalSign(
+      candidate?.dateOfBirth,
+      candidate?.birthTime,
+      candidate?.birthPlace
+    );
 
     let matchQuality = "Fair";
     if (gunaMilan.totalGuna >= 28) matchQuality = "Uttam (Excellent Match)";

@@ -173,6 +173,8 @@ export default function Step5Family({
         label="About Yourself"
         placeholder="Tell us something about yourself..."
         rows={5}
+        registration={register("about")}
+        error={errors.about}
       />
       <div className="rounded-2xl border-2 border-red-100 bg-rose-50/30 p-5 sm:p-6">
         <div className="flex items-center justify-between mb-3">
@@ -233,7 +235,10 @@ export default function Step5Family({
         {photos.length === 0 && (
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs sm:text-sm font-semibold text-red-700">
             <span>⚠️</span>
-            <span>At least 1 photo is mandatory to create/update profile</span>
+            <span>
+              {errors.photos?.message ||
+                "At least 1 photo is mandatory to create/update profile"}
+            </span>
           </div>
         )}
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { FieldErrors, UseFormRegister, Control, useWatch } from "react-hook-form";
+import { FieldErrors, UseFormRegister, Control, useWatch, Controller } from "react-hook-form";
 import InputField from "../form/InputField";
 import SelectField from "../form/SelectField";
+import CityCombobox from "@/components/ui/CityCombobox";
 import {
   GENDERS,
   LOOKING_FOR,
@@ -150,13 +151,32 @@ export default function Step2Personal({
           error={errors.state}
         />
 
-        <InputField
-          label="City"
-          placeholder="Enter City"
-          required
-          registration={register("city")}
-          error={errors.city}
-        />
+        <div>
+          <label className="block mb-2 font-medium text-gray-700">
+            City / Town / Village <span className="text-red-500">*</span>
+          </label>
+          <Controller
+            name="city"
+            control={control}
+            render={({ field }) => (
+              <CityCombobox
+                value={field.value || ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                placeholder="Search city or enter town / village"
+                required
+                error={Boolean(errors.city)}
+                inputClassName="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none transition-all duration-200 focus:border-red-700 focus:ring-2 focus:ring-red-100"
+              />
+            )}
+          />
+          {errors.city && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.city.message}
+            </p>
+          )}
+        </div>
 
         <InputField
           label="Postal / ZIP Code"

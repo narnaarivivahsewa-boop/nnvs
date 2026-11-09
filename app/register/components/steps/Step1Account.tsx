@@ -95,12 +95,25 @@ export default function Step1Account({
           <InputField
             label="Mobile Number (10 digits)"
             type="tel"
-            autoComplete="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={10}
             placeholder="e.g. 9876543210"
             required
             registration={register("mobile")}
             error={errors.mobile}
-            disabled={otpVerified || otpSent}
+            readOnly={otpVerified || otpSent}
+            className={
+              otpVerified || otpSent
+                ? "bg-gray-100 text-gray-600 cursor-not-allowed"
+                : ""
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !otpSent && !otpVerified) {
+                e.preventDefault();
+                onSendOTP();
+              }
+            }}
           />
 
           {/* Send OTP button before sent */}
@@ -152,7 +165,7 @@ export default function Step1Account({
             <div className="flex items-center justify-between pb-3 border-b border-amber-100">
               <div>
                 <label className="block text-sm font-bold text-gray-800">
-                  Enter 6-Digit SMS OTP
+                  Enter SMS OTP (4–6 Digits)
                 </label>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Code sent to {maskedMobile || "your mobile number"} via SMS
@@ -176,6 +189,14 @@ export default function Step1Account({
                 autoComplete="one-time-code"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (!otpLoading && otp.length >= 4) {
+                      onVerifyOTP();
+                    }
+                  }
+                }}
                 maxLength={6}
                 placeholder="• • • • • •"
                 className="w-full sm:w-60 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-center text-2xl font-mono font-bold tracking-widest text-gray-900 outline-none focus:border-[#4A121A] focus:ring-3 focus:ring-red-100"
@@ -185,7 +206,7 @@ export default function Step1Account({
                 <button
                   type="button"
                   onClick={onVerifyOTP}
-                  disabled={otpLoading || otp.length !== 6}
+                  disabled={otpLoading || otp.length < 4}
                   className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-xs transition hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {otpLoading ? "Verifying..." : "Verify OTP ✓"}

@@ -10,7 +10,32 @@ function getSecretKey(): Uint8Array {
 
 export const AUTH_COOKIE_NAME = "nnvs_token";
 export const ACTIVE_PROFILE_COOKIE_NAME = "activeProfileId";
+export const REG_VERIFICATION_COOKIE_NAME = "nnvs_reg_token";
 export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 90; // 90 days in seconds
+export const REG_VERIFICATION_MAX_AGE = 60 * 60 * 2; // 2 hours in seconds
+
+export async function generateRegistrationToken(mobile: string) {
+  const cleanMobile = String(mobile ?? "").replace(/\D/g, "").slice(-10);
+  return await new SignJWT({
+    mobile: cleanMobile,
+    purpose: "REGISTRATION_VERIFIED",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("2h")
+    .sign(getSecretKey());
+}
+
+export async function verifyRegistrationToken(token: string) {
+  const { payload } = await jwtVerify(token, getSecretKey());
+  if (payload.purpose !== "REGISTRATION_VERIFIED") {
+    throw new Error("Invalid registration verification token purpose");
+  }
+  return {
+    mobile: String(payload.mobile),
+    purpose: String(payload.purpose),
+  };
+}
 
 export async function generateToken(
   userId: string,

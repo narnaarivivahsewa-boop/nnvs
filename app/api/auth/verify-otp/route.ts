@@ -1,7 +1,116 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOTP } from "@/lib/auth/otp";
-import { generateToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
+import {
+  generateToken,
+  generateRegistrationToken,
+  verifyRegistrationToken,
+  AUTH_COOKIE_MAX_AGE,
+  REG_VERIFICATION_COOKIE_NAME,
+  REG_VERIFICATION_MAX_AGE,
+} from "@/lib/jwt";
+
+export async function GET(req: NextRequest) {
+  try {
+    const mobileParam = req.nextUrl.searchParams.get("mobile") || "";
+    const cleanMobile = mobileParam.replace(/\D/g, "").slice(-10);
+
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      return NextResponse.json(
+        { success: false, verified: false, message: "Invalid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject if user is already registered
+    const existingUser = await prisma.user.findUnique({
+      where: { mobile: cleanMobile },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      return NextResponse.json({
+        success: false,
+        verified: false,
+        alreadyRegistered: true,
+        message: "Mobile number is already registered. Please proceed to login.",
+      });
+    }
+
+    // 1. Check signed registration verification token (cookie or header)
+    const tokenFromCookie = req.cookies.get(REG_VERIFICATION_COOKIE_NAME)?.value;
+    const tokenFromHeader = req.headers.get("x-reg-token");
+    const candidateToken = tokenFromHeader || tokenFromCookie;
+
+    if (candidateToken) {
+      try {
+        const decoded = await verifyRegistrationToken(candidateToken);
+        if (decoded.mobile === cleanMobile) {
+          return NextResponse.json({
+            success: true,
+            verified: true,
+            mobile: cleanMobile,
+            registrationToken: candidateToken,
+          });
+        }
+      } catch {
+        // Token invalid or expired; continue checking DB
+      }
+    }
+
+    // 2. Check verified REGISTRATION OTP or verified KundliLead within last 2 hours
+    const twoHoursAgo = new Date(Date.now() - REG_VERIFICATION_MAX_AGE * 1000);
+    const [verifiedOtp, verifiedLead] = await Promise.all([
+      prisma.oTP.findFirst({
+        where: {
+          mobile: cleanMobile,
+          type: "REGISTRATION",
+          verified: true,
+          createdAt: { gte: twoHoursAgo },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.kundliLead.findFirst({
+        where: {
+          phoneNumber: cleanMobile,
+          isOtpVerified: true,
+          createdAt: { gte: twoHoursAgo },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    if (verifiedOtp || verifiedLead) {
+      const registrationToken = await generateRegistrationToken(cleanMobile);
+      const res = NextResponse.json({
+        success: true,
+        verified: true,
+        mobile: cleanMobile,
+        registrationToken,
+      });
+      res.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: REG_VERIFICATION_MAX_AGE,
+      });
+      return res;
+    }
+
+    return NextResponse.json({
+      success: true,
+      verified: false,
+      mobile: cleanMobile,
+    });
+  } catch (error) {
+    console.error("Verify OTP Status Check Error:", error);
+    return NextResponse.json(
+      { success: false, verified: false, message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -112,11 +221,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      return NextResponse.json({
+      const registrationToken = await generateRegistrationToken(cleanMobile);
+      const regResponse = NextResponse.json({
         success: true,
         message: "Mobile number verified successfully! ✓",
         verified: true,
+        mobile: cleanMobile,
+        registrationToken,
       });
+
+      regResponse.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: REG_VERIFICATION_MAX_AGE,
+      });
+
+      return regResponse;
     }
 
     // Login Flow

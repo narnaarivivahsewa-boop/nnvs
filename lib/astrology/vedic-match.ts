@@ -12,6 +12,11 @@
  * Total: 36 Gunas
  */
 
+import {
+  resolveBirthLocation,
+  type ResolvedLocation,
+} from "@/lib/astrology/location-resolver";
+
 export interface AstrologicalSign {
   rashi: string;
   rashiIndex: number;
@@ -22,6 +27,7 @@ export interface AstrologicalSign {
   gana: string;
   yoniName: string;
   nadiName: string;
+  location?: ResolvedLocation;
 }
 
 export const RASHIS = [
@@ -113,7 +119,11 @@ const SWORN_ENEMY_YONIS: Array<[number, number]> = [
 /**
  * Calculate Sidereal Moon Longitude using astronomical formulas (Lahiri Ayanamsha)
  */
-export function getMoonSiderealLongitude(dob?: string | Date | null, birthTime?: string | null): number {
+export function getMoonSiderealLongitude(
+  dob?: string | Date | null,
+  birthTime?: string | null,
+  birthPlace?: string | null
+): number {
   let date: Date;
   if (dob instanceof Date) {
     date = new Date(dob);
@@ -127,6 +137,8 @@ export function getMoonSiderealLongitude(dob?: string | Date | null, birthTime?:
     date = new Date("1995-01-01T08:30:00Z");
   }
 
+  const location = resolveBirthLocation(birthPlace);
+
   if (birthTime) {
     const timeStr = String(birthTime).trim();
     const match = timeStr.match(/(\d{1,2})[:.](\d{2})/);
@@ -137,6 +149,7 @@ export function getMoonSiderealLongitude(dob?: string | Date | null, birthTime?:
       if (lower.includes("pm") && hours < 12) hours += 12;
       if (lower.includes("am") && hours === 12) hours = 0;
       date.setUTCHours(hours, minutes, 0, 0);
+      date = new Date(date.getTime() - location.timezoneOffsetHours * 3600000);
     }
   }
 
@@ -153,10 +166,15 @@ export function getMoonSiderealLongitude(dob?: string | Date | null, birthTime?:
 }
 
 /**
- * Derive full astrological profile (Rashi, Nakshatra, Gana, Yoni, Nadi)
+ * Derive full astrological profile (Rashi, Nakshatra, Gana, Yoni, Nadi, Resolved Location)
  */
-export function getAstrologicalSign(dob?: string | Date | null, birthTime?: string | null): AstrologicalSign {
-  const sidereal = getMoonSiderealLongitude(dob, birthTime);
+export function getAstrologicalSign(
+  dob?: string | Date | null,
+  birthTime?: string | null,
+  birthPlace?: string | null
+): AstrologicalSign {
+  const location = resolveBirthLocation(birthPlace);
+  const sidereal = getMoonSiderealLongitude(dob, birthTime, birthPlace);
 
   const rashiIndex = Math.floor(sidereal / 30) % 12;
   const nakshatraIndex = Math.floor(sidereal / (360 / 27)) % 27;
@@ -174,6 +192,7 @@ export function getAstrologicalSign(dob?: string | Date | null, birthTime?: stri
     gana: nakshatra.gana,
     yoniName: YONI_NAMES[nakshatra.yoni],
     nadiName: NADI_NAMES[nakshatra.nadi],
+    location,
   };
 }
 
@@ -186,10 +205,12 @@ export function calculateAuthenticGunaMilan(
   boyTime?: string | null,
   girlTime?: string | null,
   boyManglik?: string | null,
-  girlManglik?: string | null
+  girlManglik?: string | null,
+  boyPlace?: string | null,
+  girlPlace?: string | null
 ) {
-  const boyAstro = getAstrologicalSign(boyDob, boyTime);
-  const girlAstro = getAstrologicalSign(girlDob, girlTime);
+  const boyAstro = getAstrologicalSign(boyDob, boyTime, boyPlace);
+  const girlAstro = getAstrologicalSign(girlDob, girlTime, girlPlace);
 
   const boyRashi = RASHIS[boyAstro.rashiIndex];
   const girlRashi = RASHIS[girlAstro.rashiIndex];

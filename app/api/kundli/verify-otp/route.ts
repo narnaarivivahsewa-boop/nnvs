@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOTP } from "@/lib/auth/otp";
 import { calculateKundliMilan } from "@/lib/ashtakoot";
+import { resolveBirthLocationAsync } from "@/lib/astrology/location-resolver";
+import {
+  generateRegistrationToken,
+  REG_VERIFICATION_COOKIE_NAME,
+  REG_VERIFICATION_MAX_AGE,
+} from "@/lib/jwt";
 
 export async function POST(req: NextRequest) {
   try {
@@ -97,19 +103,31 @@ export async function POST(req: NextRequest) {
     const boyDob = boyDobStr ? new Date(boyDobStr) : new Date("1995-01-01");
     const girlDob = girlDobStr ? new Date(girlDobStr) : new Date("1997-01-01");
 
-    // 3. Run calculateKundliMilan with submitted details
+    // 3. Gracefully resolve birth places (supports cities, towns, villages & custom locations)
+    const [resolvedBoyLoc, resolvedGirlLoc] = await Promise.all([
+      resolveBirthLocationAsync(boyPlace),
+      resolveBirthLocationAsync(girlPlace),
+    ]);
+
+    // 4. Run calculateKundliMilan with submitted details & resolved coordinates
     const result = calculateKundliMilan({
       boyName,
       boyDob,
       boyTime,
-      boyPlace,
+      boyPlace: resolvedBoyLoc.displayPlace,
+      boyLatitude: resolvedBoyLoc.latitude,
+      boyLongitude: resolvedBoyLoc.longitude,
+      boyTimezoneOffset: resolvedBoyLoc.timezoneOffsetHours,
       girlName,
       girlDob,
       girlTime,
-      girlPlace,
+      girlPlace: resolvedGirlLoc.displayPlace,
+      girlLatitude: resolvedGirlLoc.latitude,
+      girlLongitude: resolvedGirlLoc.longitude,
+      girlTimezoneOffset: resolvedGirlLoc.timezoneOffsetHours,
     });
 
-    // 4. Check if already registered
+    // 5. Check if already registered
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -120,7 +138,7 @@ export async function POST(req: NextRequest) {
     });
     const isRegistered = Boolean(existingUser);
 
-    // 5. Upsert/create KundliLead record with isOtpVerified: true
+    // 6. Upsert/create KundliLead record with isOtpVerified: true
     const lead = await prisma.kundliLead.create({
       data: {
         phoneNumber: cleanPhone,
@@ -128,25 +146,42 @@ export async function POST(req: NextRequest) {
         boyName,
         boyDob,
         boyTime,
-        boyPlace,
+        boyPlace: resolvedBoyLoc.displayPlace,
         girlName,
         girlDob,
         girlTime,
-        girlPlace,
+        girlPlace: resolvedGirlLoc.displayPlace,
         gunaScore: result.totalScore,
         manglikStatus: result.manglikAnalysis.status,
         isRegistered,
       },
     });
 
-    // 6. Return response
-    return NextResponse.json({
+    const registrationToken = !isRegistered
+      ? await generateRegistrationToken(cleanPhone)
+      : undefined;
+
+    // 7. Return response
+    const response = NextResponse.json({
       success: true,
       result,
       verifiedPhone: cleanPhone,
       leadId: lead.id,
       isRegistered,
+      registrationToken,
     });
+
+    if (registrationToken) {
+      response.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: REG_VERIFICATION_MAX_AGE,
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error("[Kundli Verify OTP Error]:", error);
     return NextResponse.json(

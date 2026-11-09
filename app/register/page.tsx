@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm, FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { X, AlertCircle } from "lucide-react";
 
 import ProgressBar from "./components/ProgressBar";
 import NavigationButtons from "./components/NavigationButtons";
@@ -16,12 +17,38 @@ import Step5Family from "./components/steps/Step5Family";
 
 import { registerSchema } from "./schema";
 import { RegisterFormData } from "@/types/register";
+import {
+  saveRegistrationVerification,
+  getRegistrationVerification,
+  clearRegistrationVerification,
+} from "@/lib/auth/registration-storage";
 
-export default function RegisterPage() {
+const STEP_FIELD_MAP: Record<number, (keyof RegisterFormData)[]> = {
+  1: ["fullName", "mobile", "email", "profileType", "password", "confirmPassword"],
+  2: [
+    "gender",
+    "lookingFor",
+    "dateOfBirth",
+    "height",
+    "maritalStatus",
+    "caste",
+    "country",
+    "state",
+    "city",
+  ],
+  3: ["highestQualification", "profession"],
+  4: ["minAge", "maxAge", "minHeight", "maxHeight", "preferredReligion", "preferredCaste"],
+  5: ["fatherName", "motherName", "brothers", "sisters", "familyType", "familyStatus", "photos"],
+};
+
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const totalSteps = 5;
 
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // OTP
   const [otpSent, setOtpSent] = useState(false);
@@ -30,6 +57,7 @@ export default function RegisterPage() {
   const [otp, setOtp] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const [maskedMobile, setMaskedMobile] = useState("");
+  const [registrationToken, setRegistrationToken] = useState("");
   const [otpStatus, setOtpStatus] = useState<{
     type: "success" | "error" | "info" | null;
     message: string;
@@ -61,11 +89,25 @@ export default function RegisterPage() {
     message: "",
   });
 
+  // Close duplicate modal on Escape
+  useEffect(() => {
+    if (!duplicateModal.open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDuplicateModal((prev) => ({ ...prev, open: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [duplicateModal.open]);
+
   const {
     register,
     handleSubmit,
     trigger,
     getValues,
+    setValue,
+    setError,
     control,
     formState: { errors },
   } = useForm<RegisterFormData>({
@@ -121,17 +163,110 @@ export default function RegisterPage() {
     },
   });
 
+  // Keep react-hook-form photos field synchronized with uploaded photos array
+  useEffect(() => {
+    setValue("photos", photos, { shouldValidate: step === 5 });
+  }, [photos, setValue, step]);
+
+  // Restore mobile / verified OTP state from URL query params (AuthModal, Login, Kundli) or localStorage
+  useEffect(() => {
+    const rawParamMobile =
+      searchParams.get("mobile") || searchParams.get("phone") || "";
+    const cleanParamMobile = rawParamMobile.replace(/\D/g, "").slice(-10);
+    const stored = getRegistrationVerification(cleanParamMobile || undefined);
+
+    const targetMobile = /^[6-9]\d{9}$/.test(cleanParamMobile)
+      ? cleanParamMobile
+      : stored?.mobile || "";
+
+    if (!/^[6-9]\d{9}$/.test(targetMobile)) return;
+
+    setValue("mobile", targetMobile, { shouldValidate: true });
+
+    let cancelled = false;
+    async function confirmServerVerification() {
+      try {
+        const res = await fetch(
+          `/api/auth/verify-otp?mobile=${encodeURIComponent(targetMobile)}`,
+          {
+            method: "GET",
+            headers: stored?.token ? { "x-reg-token": stored.token } : undefined,
+            cache: "no-store",
+            credentials: "include",
+          }
+        );
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.alreadyRegistered) {
+          setOtpStatus({
+            type: "error",
+            message:
+              data.message ||
+              "This mobile number is already registered. Please proceed to login.",
+          });
+          return;
+        }
+
+        if (res.ok && data.verified) {
+          const activeToken = data.registrationToken || stored?.token || "";
+          setOtpVerified(true);
+          setOtpSent(false);
+          setRegistrationToken(activeToken);
+          saveRegistrationVerification(targetMobile, activeToken);
+          setOtpStatus({
+            type: "success",
+            message: `Mobile number +91 ${targetMobile} is verified! ✓ Complete the remaining details below and click Next.`,
+          });
+        }
+      } catch {
+        // Silent fallback — user can verify directly on Step 1
+      }
+    }
+
+    confirmServerVerification();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setValue]);
+
   const changeMobile = () => {
     setOtp("");
     setOtpSent(false);
     setOtpVerified(false);
+    setRegistrationToken("");
     setResendTimer(0);
     setOtpStatus({ type: null, message: "" });
+    clearRegistrationVerification();
+  };
+
+  const checkEmailAvailability = async (email: string): Promise<boolean> => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return true;
+
+    const emailRes = await fetch("/api/auth/check-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmedEmail }),
+    });
+    const emailResult = await emailRes.json();
+
+    if (!emailRes.ok) {
+      const msg = emailResult.message || "Email is already registered.";
+      setError("email", { type: "manual", message: msg });
+      setOtpStatus({ type: "error", message: msg });
+      return false;
+    }
+
+    return true;
   };
 
   const sendOTP = async () => {
-    const mobile = getValues("mobile")?.trim();
-    const email = getValues("email")?.trim();
+    setFormError("");
+    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
+    const email = getValues("email")?.trim() || "";
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
@@ -141,37 +276,16 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!email) {
-      setOtpStatus({
-        type: "error",
-        message: "Please enter your email address first.",
-      });
-      return;
-    }
+    setValue("mobile", mobile, { shouldValidate: true });
 
     try {
       setOtpLoading(true);
-      setOtpStatus({ type: "info", message: "Checking email and sending SMS OTP..." });
+      setOtpStatus({ type: "info", message: "Sending SMS OTP..." });
 
-      // Check Email First
-      const emailRes = await fetch("/api/auth/check-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-        }),
-      });
-
-      const emailResult = await emailRes.json();
-
-      if (!emailRes.ok) {
-        setOtpStatus({
-          type: "error",
-          message: emailResult.message || "Email check failed.",
-        });
-        return;
+      // Pre-check Email if user already entered it
+      if (email) {
+        const emailAvailable = await checkEmailAvailability(email);
+        if (!emailAvailable) return;
       }
 
       // Send OTP via Fast2SMS backend
@@ -188,7 +302,7 @@ export default function RegisterPage() {
 
       const result = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || result.success === false) {
         if (result.cooldownRemaining) {
           setResendTimer(result.cooldownRemaining);
         }
@@ -204,7 +318,8 @@ export default function RegisterPage() {
       setResendTimer(60); // 60s cooldown
       setOtpStatus({
         type: "success",
-        message: result.message || `OTP sent to ${result.maskedMobile || mobile} via SMS.`,
+        message:
+          result.message || `OTP sent to ${result.maskedMobile || mobile} via SMS.`,
       });
     } catch (err) {
       console.error(err);
@@ -218,8 +333,9 @@ export default function RegisterPage() {
   };
 
   const resendOTP = async () => {
-    const mobile = getValues("mobile")?.trim();
-    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+    setFormError("");
+    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
         type: "error",
         message: "Please enter a valid 10-digit Indian mobile number.",
@@ -242,7 +358,7 @@ export default function RegisterPage() {
 
       const result = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || result.success === false) {
         if (result.cooldownRemaining) {
           setResendTimer(result.cooldownRemaining);
         }
@@ -256,7 +372,8 @@ export default function RegisterPage() {
       setResendTimer(60);
       setOtpStatus({
         type: "success",
-        message: result.message || "OTP resent successfully via Fast2SMS SMS.",
+        message:
+          result.message || "OTP resent successfully via Fast2SMS SMS.",
       });
     } catch (err) {
       console.error(err);
@@ -270,12 +387,22 @@ export default function RegisterPage() {
   };
 
   const verifyOTP = async () => {
-    const mobile = getValues("mobile")?.trim();
+    setFormError("");
+    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
+    const cleanOtp = otp.trim();
 
-    if (otp.length !== 6) {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
         type: "error",
-        message: "Please enter the full 6-digit OTP code.",
+        message: "Please enter a valid 10-digit Indian mobile number.",
+      });
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(cleanOtp)) {
+      setOtpStatus({
+        type: "error",
+        message: "Please enter the valid 4 to 6 digit OTP received via SMS.",
       });
       return;
     }
@@ -291,14 +418,14 @@ export default function RegisterPage() {
         },
         body: JSON.stringify({
           mobile,
-          otp,
+          otp: cleanOtp,
           type: "REGISTRATION",
         }),
       });
 
       const result = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || result.success === false) {
         setOtpStatus({
           type: "error",
           message: result.message || "OTP verification failed.",
@@ -306,10 +433,51 @@ export default function RegisterPage() {
         return;
       }
 
+      // Persist registration verification token before state transition
+      const verifiedToken = result.registrationToken || "";
+      setRegistrationToken(verifiedToken);
+      saveRegistrationVerification(mobile, verifiedToken);
+
       setOtpVerified(true);
+      setOtpSent(false);
+
+      // Check if remaining Step 1 fields are filled & valid to transition straight to Step 2
+      const values = getValues();
+      const hasAllStep1Inputs =
+        values.fullName.trim().length > 0 &&
+        values.email.trim().length > 0 &&
+        values.password.length > 0 &&
+        values.confirmPassword.length > 0;
+
+      if (hasAllStep1Inputs) {
+        const step1Valid = await trigger([
+          "fullName",
+          "mobile",
+          "email",
+          "password",
+          "confirmPassword",
+          "profileType",
+        ]);
+
+        if (step1Valid) {
+          const emailOk = await checkEmailAvailability(values.email);
+          if (emailOk) {
+            setOtpStatus({
+              type: "success",
+              message: "Mobile number verified successfully! ✓ Moving to Step 2...",
+            });
+            setStep(2);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+          return;
+        }
+      }
+
       setOtpStatus({
         type: "success",
-        message: "Mobile number verified successfully! ✓ You can now continue with your registration.",
+        message:
+          "Mobile number verified successfully! ✓ Complete any remaining fields below and click Next to continue.",
       });
     } catch (err) {
       console.error(err);
@@ -323,10 +491,11 @@ export default function RegisterPage() {
   };
 
   const handleNext = async () => {
+    setFormError("");
     let valid = true;
 
     switch (step) {
-      case 1:
+      case 1: {
         valid = await trigger([
           "fullName",
           "mobile",
@@ -339,11 +508,18 @@ export default function RegisterPage() {
         if (!valid) return;
 
         if (!otpVerified) {
-          alert("Please verify your mobile number first.");
+          const msg = "Please verify your mobile number via SMS OTP first.";
+          setOtpStatus({ type: "error", message: msg });
+          setFormError(msg);
+          window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         }
 
+        const emailAvailable = await checkEmailAvailability(getValues("email"));
+        if (!emailAvailable) return;
+
         break;
+      }
 
       case 2:
         valid = await trigger([
@@ -352,20 +528,21 @@ export default function RegisterPage() {
           "dateOfBirth",
           "height",
           "maritalStatus",
+          "caste",
           "country",
           "state",
           "city",
         ]);
 
-        if (!valid) return;
+        if (!valid) {
+          setFormError("Please complete all required personal & location details.");
+          return;
+        }
 
         break;
 
       case 3:
-        valid = await trigger([
-          "highestQualification",
-          "profession",
-        ]);
+        valid = await trigger(["highestQualification", "profession"]);
 
         if (!valid) return;
 
@@ -373,11 +550,11 @@ export default function RegisterPage() {
 
       case 5:
         if (photos.length < 1) {
-          alert("At least 1 photo is mandatory to create/update profile");
+          setFormError("At least 1 photo is mandatory to create/update profile.");
           return;
         }
         if (photos.length > 3) {
-          alert("Maximum 3 photos allowed.");
+          setFormError("Maximum 3 photos allowed.");
           return;
         }
 
@@ -389,28 +566,70 @@ export default function RegisterPage() {
 
     if (step < totalSteps) {
       setStep((prev) => prev + 1);
-    }
-  };
-    const handlePrevious = () => {
-    if (step > 1) {
-      setStep((prev) => prev - 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
+  const handlePrevious = () => {
+    setFormError("");
+    if (step > 1) {
+      setStep((prev) => prev - 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const onInvalid = (formErrors: FieldErrors<RegisterFormData>) => {
+    const errorKeys = Object.keys(formErrors) as (keyof RegisterFormData)[];
+    if (errorKeys.length === 0) return;
+
+    // Locate earliest step containing a validation error
+    let targetStep = step;
+    for (let s = 1; s <= totalSteps; s++) {
+      const stepFields = STEP_FIELD_MAP[s] || [];
+      if (errorKeys.some((k) => stepFields.includes(k))) {
+        targetStep = s;
+        break;
+      }
+    }
+
+    const firstKey = errorKeys[0];
+    const firstMsg =
+      formErrors[firstKey]?.message ||
+      "Please check highlighted required fields before submitting.";
+
+    setStep(targetStep);
+    setFormError(String(firstMsg));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const onSubmit = async (data: RegisterFormData) => {
+    setFormError("");
+
+    if (!otpVerified) {
+      setStep(1);
+      const msg = "Please verify your mobile number via SMS OTP first.";
+      setOtpStatus({ type: "error", message: msg });
+      setFormError(msg);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     if (photos.length < 1) {
-      alert("At least 1 photo is mandatory to create/update profile");
+      setFormError("At least 1 photo is mandatory to create/update profile.");
       return;
     }
     if (photos.length > 3) {
-      alert("Maximum 3 photos allowed.");
+      setFormError("Maximum 3 photos allowed.");
       return;
     }
 
     try {
+      setIsSubmitting(true);
+      const stored = getRegistrationVerification(data.mobile);
       const payload = {
         ...data,
         photos,
+        registrationToken: registrationToken || stored?.token || undefined,
       };
 
       const res = await fetch("/api/register", {
@@ -418,12 +637,13 @@ export default function RegisterPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
       const result = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || result.success === false) {
         if (result.isDuplicate) {
           setDuplicateModal({
             open: true,
@@ -435,27 +655,32 @@ export default function RegisterPage() {
           return;
         }
 
-        alert(result.message || "Registration could not be completed.");
+        setFormError(result.message || "Registration could not be completed.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
 
-      alert("Registration Successful ✅");
+      clearRegistrationVerification();
 
       router.push(
         `/payment?profileId=${encodeURIComponent(
           result.profileId
-        )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(data.gender)}&mobile=${encodeURIComponent(data.mobile)}`
+        )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(
+          data.gender
+        )}&mobile=${encodeURIComponent(data.mobile)}`
       );
     } catch (error) {
       console.error(error);
-      alert("Something went wrong.");
+      setFormError("Something went wrong while submitting registration. Please try again.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
       <div className="w-full max-w-4xl rounded-3xl bg-white p-8 shadow-xl md:p-10">
-
         <h1 className="text-center text-4xl font-bold text-red-800">
           Complete Your Biodata
         </h1>
@@ -464,13 +689,40 @@ export default function RegisterPage() {
           Fill your matrimonial biodata below. Registration Fee: Female ₹399 + GST | Male ₹799 + GST (payable after submission).
         </p>
 
-        <ProgressBar
-          step={step}
-          totalSteps={totalSteps}
-        />
+        <ProgressBar step={step} totalSteps={totalSteps} />
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        {formError && (
+          <div
+            role="alert"
+            className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800"
+          >
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
+              <span>{formError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormError("")}
+              className="text-rose-500 hover:text-rose-800 cursor-pointer shrink-0"
+              aria-label="Dismiss error"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
+        <form
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              step < totalSteps &&
+              (e.target as HTMLElement).tagName === "INPUT"
+            ) {
+              e.preventDefault();
+            }
+          }}
+        >
           {step === 1 && (
             <Step1Account
               register={register}
@@ -499,10 +751,7 @@ export default function RegisterPage() {
           )}
 
           {step === 3 && (
-            <Step3Education
-              register={register}
-              errors={errors}
-            />
+            <Step3Education register={register} errors={errors} />
           )}
 
           {step === 4 && (
@@ -527,18 +776,34 @@ export default function RegisterPage() {
           <NavigationButtons
             step={step}
             totalSteps={totalSteps}
+            isSubmitting={isSubmitting}
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
-
         </form>
-
       </div>
 
       {/* Duplicate Registration Warning Modal */}
       {duplicateModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100 text-center">
+        <div
+          onClick={() => setDuplicateModal({ open: false, message: "" })}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-md rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-gray-100 text-center"
+          >
+            <button
+              type="button"
+              onClick={() => setDuplicateModal({ open: false, message: "" })}
+              aria-label="Close duplicate account notice"
+              className="absolute top-4 right-4 rounded-full p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-800 mb-4">
               <span className="text-2xl font-bold">!</span>
             </div>
@@ -555,7 +820,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => router.push("/login")}
-                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380C13] transition"
+                className="w-full rounded-xl bg-[#4A121A] py-3.5 text-sm font-bold text-white shadow hover:bg-[#380C13] transition cursor-pointer"
               >
                 Login with Registered Mobile
               </button>
@@ -563,7 +828,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setDuplicateModal({ open: false, message: "" })}
-                className="w-full rounded-xl border border-gray-300 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
+                className="w-full rounded-xl border border-gray-300 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
               >
                 Dismiss
               </button>
@@ -572,5 +837,21 @@ export default function RegisterPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
+          <div className="w-full max-w-4xl rounded-3xl bg-white p-10 text-center text-sm font-semibold text-gray-500 shadow-xl">
+            Loading registration form...
+          </div>
+        </div>
+      }
+    >
+      <RegisterContent />
+    </Suspense>
   );
 }

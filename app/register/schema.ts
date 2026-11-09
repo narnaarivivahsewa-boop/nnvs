@@ -26,18 +26,18 @@ export const registerSchema = z
     // ==========================
     // Step 2 - Personal Details
     // ==========================
-    gender: z.string(),
-    lookingFor: z.string(),
-    dateOfBirth: z.string(),
-    height: z.string(),
+    gender: z.string().min(1, "Please select gender"),
+    lookingFor: z.string().min(1, "Please select preference"),
+    dateOfBirth: z.string().min(1, "Date of Birth is required"),
+    height: z.string().min(1, "Please select height"),
     weight: z.string().optional(),
-    maritalStatus: z.string(),
+    maritalStatus: z.string().min(1, "Please select marital status"),
     religion: z.string().optional(),
-    caste: z.string().optional(),
+    caste: z.string().min(1, "Caste / Community is required"),
     motherTongue: z.string().optional(),
-    country: z.string(),
-    state: z.string(),
-    city: z.string(),
+    country: z.string().min(1, "Country is required"),
+    state: z.string().min(1, "State is required"),
+    city: z.string().trim().min(1, "City, town, or village is required"),
     postalCode: z.string().optional(),
 
     // ==========================
@@ -76,10 +76,20 @@ export const registerSchema = z
     about: z.string().optional(),
 
     photos: z
-      .array(z.string().url("Invalid photo URL"))
+      .array(
+        z
+          .string()
+          .refine(
+            (val) =>
+              val.startsWith("https://") ||
+              val.startsWith("http://") ||
+              val.startsWith("/uploads/") ||
+              val.startsWith("data:image/"),
+            "Invalid photo URL"
+          )
+      )
       .min(1, "At least 1 photo is mandatory to create/update profile")
-      .max(3, "Maximum 3 photos allowed")
-      .default([]),
+      .max(3, "Maximum 3 photos allowed"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ["confirmPassword"],

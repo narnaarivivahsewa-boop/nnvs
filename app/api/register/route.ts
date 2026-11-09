@@ -3,6 +3,11 @@ import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { checkDuplicateRegistration } from "@/lib/duplicate-detector";
+import {
+  verifyRegistrationToken,
+  REG_VERIFICATION_COOKIE_NAME,
+  REG_VERIFICATION_MAX_AGE,
+} from "@/lib/jwt";
 
 export async function POST(req: NextRequest) {
   try {
@@ -103,21 +108,48 @@ export async function POST(req: NextRequest) {
     // Verify Mobile OTP Verification Status
     // ===========================
     const cleanMobile = String(mobile ?? "").replace(/\D/g, "").slice(-10);
-    const verifiedOtp = await prisma.oTP.findFirst({
-      where: {
-        mobile: cleanMobile,
-        type: "REGISTRATION",
-        verified: true,
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 60 * 1000), // verified within last 30 minutes
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const twoHoursAgo = new Date(Date.now() - REG_VERIFICATION_MAX_AGE * 1000);
 
-    if (!verifiedOtp) {
+    let hasValidRegToken = false;
+    const tokenCandidate =
+      (typeof body.registrationToken === "string" && body.registrationToken.trim()) ||
+      req.cookies.get(REG_VERIFICATION_COOKIE_NAME)?.value ||
+      "";
+
+    if (tokenCandidate) {
+      try {
+        const decoded = await verifyRegistrationToken(tokenCandidate);
+        if (decoded.mobile === cleanMobile) {
+          hasValidRegToken = true;
+        }
+      } catch {
+        // Invalid/expired registration token — fall through to DB check
+      }
+    }
+
+    const [verifiedOtp, verifiedKundliLead] = hasValidRegToken
+      ? [null, null]
+      : await Promise.all([
+          prisma.oTP.findFirst({
+            where: {
+              mobile: cleanMobile,
+              type: "REGISTRATION",
+              verified: true,
+              createdAt: { gte: twoHoursAgo },
+            },
+            orderBy: { createdAt: "desc" },
+          }),
+          prisma.kundliLead.findFirst({
+            where: {
+              phoneNumber: cleanMobile,
+              isOtpVerified: true,
+              createdAt: { gte: twoHoursAgo },
+            },
+            orderBy: { createdAt: "desc" },
+          }),
+        ]);
+
+    if (!hasValidRegToken && !verifiedOtp && !verifiedKundliLead) {
       return NextResponse.json(
         {
           success: false,
@@ -325,12 +357,19 @@ export async function POST(req: NextRequest) {
     // Success Response
     // ===========================
 
-    return NextResponse.json({
+    const successResponse = NextResponse.json({
       success: true,
       message: "Registration Successful",
       userId: result.user.id,
       profileId: result.profile.profileId,
     });
+
+    successResponse.cookies.set(REG_VERIFICATION_COOKIE_NAME, "", {
+      path: "/",
+      maxAge: 0,
+    });
+
+    return successResponse;
 
   } catch (error: any) {
     console.error("REGISTER ERROR =>", error);
