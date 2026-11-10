@@ -3,6 +3,10 @@ import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
+const OG_CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
+};
+
 // Curated rotation of inspirational matrimonial suvichar for Morning slot
 const MORNING_SUVICHAR = [
   {
@@ -311,7 +315,7 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
         ),
-        { width: 1080, height: 1080 }
+        { width: 1080, height: 1080, headers: OG_CACHE_HEADERS }
       );
     }
 
@@ -321,11 +325,11 @@ export async function GET(req: NextRequest) {
     // -------------------------------------------------------------
     if (
       slot === "PROFILE_SPOTLIGHT" ||
-      ((slot === "AFTERNOON" || slot === "CANDIDATE") &&
+      ((slot === "AFTERNOON" || slot === "SPOTLIGHT" || slot === "CANDIDATE") &&
         (searchParams.get("id") || searchParams.get("photo")))
     ) {
       const isFemale = (searchParams.get("gender") || "FEMALE").toUpperCase() === "FEMALE";
-      const displayId = searchParams.get("id") || `RC${Math.floor(1000 + Math.random() * 9000)}`;
+      const displayId = searchParams.get("id") || `RC-${String(dayOfYear).padStart(3, "0")}`;
       const displayName =
         searchParams.get("name") || (isFemale ? "Verified Bride" : "Verified Groom");
       const age = searchParams.get("age") || "26";
@@ -780,7 +784,7 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
         ),
-        { width: 1080, height: 1080 }
+        { width: 1080, height: 1080, headers: OG_CACHE_HEADERS }
       );
     }
 
@@ -792,7 +796,8 @@ export async function GET(req: NextRequest) {
       slot === "PROMOTION" ||
       slot === "EVENING" ||
       slot === "REGISTRATION" ||
-      slot === "AFTERNOON"
+      slot === "AFTERNOON" ||
+      slot === "SPOTLIGHT"
     ) {
       return new ImageResponse(
         (
@@ -1077,7 +1082,7 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
         ),
-        { width: 1080, height: 1080 }
+        { width: 1080, height: 1080, headers: OG_CACHE_HEADERS }
       );
     }
 
@@ -1237,7 +1242,7 @@ export async function GET(req: NextRequest) {
           </div>
         </div>
       ),
-      { width: 1080, height: 1080 }
+      { width: 1080, height: 1080, headers: OG_CACHE_HEADERS }
     );
   } catch (err: any) {
     console.error("OG Image generation failed:", err);

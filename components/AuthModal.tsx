@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -13,8 +13,15 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import ErrorToast from "@/components/ui/ErrorToast";
 import { saveAuthSession } from "@/lib/auth/session-storage";
 import { saveRegistrationVerification } from "@/lib/auth/registration-storage";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -39,10 +46,15 @@ export default function AuthModal({
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [toastError, setToastError] = useState<string | null>(null);
   const [status, setStatus] = useState<{
     type: "success" | "error" | "info" | null;
     message: string;
   }>({ type: null, message: "" });
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // Sync mode with prop
   useEffect(() => {
@@ -66,6 +78,7 @@ export default function AuthModal({
       setOtpSent(false);
       setLoading(false);
       setResendTimer(0);
+      setToastError(null);
       setStatus({ type: null, message: "" });
     }
   }, [isOpen]);
@@ -87,6 +100,7 @@ export default function AuthModal({
   const handleSendOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setStatus({ type: null, message: "" });
+    setToastError(null);
 
     const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
@@ -101,25 +115,28 @@ export default function AuthModal({
       setLoading(true);
       setStatus({ type: "info", message: "Sending OTP via SMS..." });
 
-      const res = await fetch("/api/auth/send-otp", {
+      const res = await fetchWithTimeout("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: cleanMobile,
           type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
+        const msg = data.message || "Failed to send SMS OTP.";
         setStatus({
           type: "error",
-          message: data.message || "Failed to send SMS OTP.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -129,11 +146,16 @@ export default function AuthModal({
         type: "success",
         message: data.message || "OTP sent successfully to your mobile via SMS.",
       });
-    } catch {
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error. Unable to reach SMS gateway."
+      );
       setStatus({
         type: "error",
-        message: "Network error. Unable to reach SMS gateway.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -141,31 +163,35 @@ export default function AuthModal({
 
   const handleResendOTP = async () => {
     setStatus({ type: null, message: "" });
+    setToastError(null);
     const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
 
     try {
       setLoading(true);
       setStatus({ type: "info", message: "Resending OTP via Fast2SMS..." });
 
-      const res = await fetch("/api/auth/resend-otp", {
+      const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: cleanMobile,
           type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
+        const msg = data.message || "Failed to resend SMS OTP.";
         setStatus({
           type: "error",
-          message: data.message || "Failed to resend SMS OTP.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -174,11 +200,16 @@ export default function AuthModal({
         type: "success",
         message: data.message || "OTP resent successfully via Fast2SMS SMS.",
       });
-    } catch {
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error. Unable to reach SMS gateway."
+      );
       setStatus({
         type: "error",
-        message: "Network error. Unable to reach SMS gateway.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -187,6 +218,7 @@ export default function AuthModal({
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ type: null, message: "" });
+    setToastError(null);
 
     const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
     const cleanOtp = otp.trim();
@@ -203,7 +235,7 @@ export default function AuthModal({
       setLoading(true);
       setStatus({ type: "info", message: "Verifying OTP with Fast2SMS..." });
 
-      const res = await fetch("/api/auth/verify-otp", {
+      const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -211,15 +243,18 @@ export default function AuthModal({
           otp: cleanOtp,
           type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok || data.success === false) {
+        const msg = data.message || "Invalid OTP. Please try again.";
         setStatus({
           type: "error",
-          message: data.message || "Invalid OTP. Please try again.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -265,21 +300,32 @@ export default function AuthModal({
           (data.role === "ADMIN" ? "/admin" : redirectUrl || "/dashboard");
         window.location.href = dest;
       }, 600);
-    } catch {
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error while verifying OTP."
+      );
       setStatus({
         type: "error",
-        message: "Network error while verifying OTP.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity"
-    >
+    <>
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="OTP Verification Error"
+      />
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity"
+      >
       <div
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-md rounded-3xl bg-[#FAF6EF] p-6 sm:p-8 shadow-2xl border border-[#DACBB4] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -486,5 +532,6 @@ export default function AuthModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

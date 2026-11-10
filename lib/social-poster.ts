@@ -4,6 +4,7 @@ import { BUSINESS_INFO } from "@/lib/gst";
 export type SocialSlot =
   | "MORNING"
   | "AFTERNOON"
+  | "SPOTLIGHT"
   | "EVENING"
   | "MANUAL"
   | "KUNDLI_MILAN"
@@ -30,7 +31,7 @@ export interface SocialPostParams {
     photoUrl?: string;
     displayName?: string;
   };
-  triggeredBy?: "CRON" | "ADMIN_TEST";
+  triggeredBy?: "CRON" | "ADMIN_TEST" | "ADMIN_FORCE";
   dryRun?: boolean;
 }
 
@@ -75,7 +76,12 @@ export function getMetaConfig() {
     process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ||
     "";
 
-  const cronSecret = process.env.CRON_SECRET || "";
+  const cronSecret = (process.env.CRON_SECRET || "").trim();
+  const adminSecret = (
+    process.env.ADMIN_SECRET ||
+    process.env.SOCIAL_ADMIN_SECRET ||
+    ""
+  ).trim();
 
   // Always use a public HTTPS URL for Meta Graph API since Meta's servers cannot crawl localhost
   const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
@@ -88,11 +94,69 @@ export function getMetaConfig() {
     facebookPageId,
     instagramAccountId,
     cronSecret,
+    adminSecret,
     appUrl: appUrl.replace(/\/+$/, ""),
     isConfigured: Boolean(pageAccessToken && (facebookPageId || instagramAccountId)),
     hasFacebook: Boolean(pageAccessToken && facebookPageId),
     hasInstagram: Boolean(pageAccessToken && instagramAccountId),
   };
+}
+
+export function getIstHour(date: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const hourRaw = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minuteRaw = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  const hour = hourRaw === 24 ? 0 : hourRaw;
+  return hour + minuteRaw / 60;
+}
+
+export function getIstDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+export function resolveSocialSlotFromTime(
+  specifiedSlot?: string | null,
+  date: Date = new Date()
+): SocialSlot {
+  if (specifiedSlot) {
+    const s = specifiedSlot.trim().toUpperCase();
+    if (
+      s &&
+      s !== "AUTO" &&
+      (s === "MORNING" ||
+        s === "AFTERNOON" ||
+        s === "SPOTLIGHT" ||
+        s === "EVENING" ||
+        s === "MANUAL" ||
+        s === "KUNDLI_MILAN" ||
+        s === "PROFILE_SPOTLIGHT" ||
+        s === "PROMOTION" ||
+        s === "REGISTRATION" ||
+        s === "MATCHMAKING_TIPS")
+    ) {
+      return s as SocialSlot;
+    }
+  }
+
+  const istHour = getIstHour(date);
+  if (istHour >= 4 && istHour < 12) {
+    return "MORNING"; // 09:00 AM IST Window: Free Kundali Milan Promotion & Astrology Tips
+  }
+  if (istHour >= 12 && istHour < 17) {
+    return "SPOTLIGHT"; // 02:00 PM (14:00) IST Window: Live Verified Profile Spotlight
+  }
+  return "EVENING"; // 07:00 PM (19:00) IST Window: Platform Promotion & Registration Awareness
 }
 
 /**
@@ -131,7 +195,7 @@ export function generateSocialCaption(
   }
 
   // Post 2: Live Verified Profile Spotlight (Afternoon Slot - 02:00 PM IST)
-  if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") {
+  if (slot === "AFTERNOON" || slot === "SPOTLIGHT" || slot === "PROFILE_SPOTLIGHT") {
     const c = data?.candidateData;
     if (c) {
       const id = c.id || "RC-Featured";
@@ -347,6 +411,26 @@ export async function fetchSpotlightProfile(): Promise<{
 }
 
 /**
+ * Internal Meta Graph API fetch wrapper with explicit 15-second timeout to avoid Vercel hangs
+ */
+async function fetchMetaGraph(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Memory cache for resolved Facebook Page tokens to prevent redundant API calls
  */
 let cachedFacebookPageData: { pageId: string; pageToken: string; timestamp: number } | null = null;
@@ -368,7 +452,7 @@ async function getFacebookPageAccessToken(
   }
 
   try {
-    const accRes = await fetch(
+    const accRes = await fetchMetaGraph(
       `https://graph.facebook.com/v21.0/me/accounts?access_token=${rawToken}`
     );
     const accData = await accRes.json();
@@ -396,7 +480,7 @@ async function getFacebookPageAccessToken(
     }
 
     // Try direct page token query for targetPageId in case token has direct access
-    const directRes = await fetch(
+    const directRes = await fetchMetaGraph(
       `https://graph.facebook.com/v21.0/${targetPageId}?fields=id,name,access_token&access_token=${rawToken}`
     );
     const directData = await directRes.json();
@@ -479,7 +563,7 @@ export async function publishToFacebookPage({
     fbPageId = resolvedPageId;
 
     // === STEP A: Upload Unlisted Photo Asset (published: false) ===
-    let uploadRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+    let uploadRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -499,7 +583,7 @@ export async function publishToFacebookPage({
         uploadData.error?.message
       );
       try {
-        const accRes = await fetch(
+        const accRes = await fetchMetaGraph(
           `https://graph.facebook.com/v21.0/me/accounts?access_token=${rawToken}`
         );
         const accData = await accRes.json();
@@ -512,7 +596,7 @@ export async function publishToFacebookPage({
             timestamp: Date.now(),
           };
 
-          uploadRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+          uploadRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -533,7 +617,7 @@ export async function publishToFacebookPage({
 
     // === STEP B: Broadcast as Main Timeline Feed Story (/feed) ===
     if (photoFbid) {
-      const feedRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/feed`, {
+      const feedRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/feed`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -568,7 +652,7 @@ export async function publishToFacebookPage({
     }
 
     // === FALLBACK: Direct /{page-id}/photos with published: true ===
-    const directRes = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
+    const directRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -633,7 +717,7 @@ export async function postToInstagramBusiness(
   try {
     // Step 1: Create Instagram Media Container
     const containerUrl = `https://graph.facebook.com/v21.0/${igAccountId}/media`;
-    const containerRes = await fetch(containerUrl, {
+    const containerRes = await fetchMetaGraph(containerUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -669,7 +753,7 @@ export async function postToInstagramBusiness(
     // Optional status verification loop
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const statusRes = await fetch(
+        const statusRes = await fetchMetaGraph(
           `https://graph.facebook.com/v21.0/${creationId}?fields=status_code,status&access_token=${accessToken}`
         );
         const statusData = await statusRes.json();
@@ -690,7 +774,7 @@ export async function postToInstagramBusiness(
 
     // Step 3: Trigger Publish using Graph API v21.0 media_publish
     const publishUrl = `https://graph.facebook.com/v21.0/${igAccountId}/media_publish`;
-    const publishRes = await fetch(publishUrl, {
+    const publishRes = await fetchMetaGraph(publishUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

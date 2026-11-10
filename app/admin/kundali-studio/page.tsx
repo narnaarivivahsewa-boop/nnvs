@@ -25,6 +25,14 @@ import {
 } from "lucide-react";
 import { calculateAuthenticGunaMilan } from "@/lib/astrology/vedic-match";
 import CityCombobox from "@/components/ui/CityCombobox";
+import ErrorToast from "@/components/ui/ErrorToast";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  isAbortError,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 interface CandidateProfile {
   id: string;
@@ -147,6 +155,13 @@ export default function AdminKundaliStudioPage() {
   // Match Calculation State
   const [calculating, setCalculating] = useState(false);
   const [matchResult, setMatchResult] = useState<any>(null);
+  const [toastError, setToastError] = useState<string | null>(null);
+  const groomAbortRef = useRef<AbortController | null>(null);
+  const brideAbortRef = useRef<AbortController | null>(null);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -164,20 +179,46 @@ export default function AdminKundaliStudioPage() {
 
   // Search Groom Debounced
   const fetchGrooms = useCallback(async (query: string) => {
+    groomAbortRef.current?.abort();
+    const controller = new AbortController();
+    groomAbortRef.current = controller;
+
     setSearchingGroom(true);
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `/api/admin/kundali-studio/search?gender=MALE&q=${encodeURIComponent(query)}&limit=25`,
-        { credentials: "include" }
+        {
+          credentials: "include",
+          signal: controller.signal,
+          timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        }
       );
-      const data = await res.json();
-      if (data.success) {
-        setGroomResults(data.profiles || []);
+      const data = await safeParseJson<{
+        success?: boolean;
+        profiles?: CandidateProfile[];
+        message?: string;
+        error?: string;
+      }>(res);
+      if (!res.ok || !data.success) {
+        setToastError(
+          data.message || data.error || "Failed to load groom profiles."
+        );
+        return;
       }
+      setGroomResults(data.profiles || []);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error("Failed to search grooms:", err);
+      setToastError(
+        getFriendlyFetchErrorMessage(
+          err,
+          "Failed to load groom profiles. Please try again."
+        )
+      );
     } finally {
-      setSearchingGroom(false);
+      if (groomAbortRef.current === controller) {
+        setSearchingGroom(false);
+      }
     }
   }, []);
 
@@ -190,21 +231,54 @@ export default function AdminKundaliStudioPage() {
 
   // Search Bride Debounced
   const fetchBrides = useCallback(async (query: string) => {
+    brideAbortRef.current?.abort();
+    const controller = new AbortController();
+    brideAbortRef.current = controller;
+
     setSearchingBride(true);
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `/api/admin/kundali-studio/search?gender=FEMALE&q=${encodeURIComponent(query)}&limit=25`,
-        { credentials: "include" }
+        {
+          credentials: "include",
+          signal: controller.signal,
+          timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        }
       );
-      const data = await res.json();
-      if (data.success) {
-        setBrideResults(data.profiles || []);
+      const data = await safeParseJson<{
+        success?: boolean;
+        profiles?: CandidateProfile[];
+        message?: string;
+        error?: string;
+      }>(res);
+      if (!res.ok || !data.success) {
+        setToastError(
+          data.message || data.error || "Failed to load bride profiles."
+        );
+        return;
       }
+      setBrideResults(data.profiles || []);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error("Failed to search brides:", err);
+      setToastError(
+        getFriendlyFetchErrorMessage(
+          err,
+          "Failed to load bride profiles. Please try again."
+        )
+      );
     } finally {
-      setSearchingBride(false);
+      if (brideAbortRef.current === controller) {
+        setSearchingBride(false);
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      groomAbortRef.current?.abort();
+      brideAbortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -325,6 +399,11 @@ export default function AdminKundaliStudioPage() {
 
   return (
     <div className="space-y-8 print:p-0 print:space-y-4">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Kundali Studio Error"
+      />
       {/* Studio Header Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-[#4A121A] via-[#5F1824] to-[#4A121A] p-6 sm:p-8 text-white shadow-xl border border-[#6B1F2D] print:border-none print:shadow-none print:p-4 print:text-black print:bg-none">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

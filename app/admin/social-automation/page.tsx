@@ -710,9 +710,11 @@ export default function SocialAutomationPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full ${
-                            log.slot === "MORNING"
+                            log.slot === "MORNING" || log.slot === "KUNDLI_MILAN"
                               ? "bg-amber-100 text-amber-800"
-                              : log.slot === "AFTERNOON"
+                              : log.slot === "AFTERNOON" ||
+                                log.slot === "SPOTLIGHT" ||
+                                log.slot === "PROFILE_SPOTLIGHT"
                               ? "bg-blue-100 text-blue-800"
                               : "bg-purple-100 text-purple-800"
                           }`}
@@ -721,7 +723,11 @@ export default function SocialAutomationPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-700">
-                        {log.triggeredBy === "CRON" ? "⏰ Vercel Cron" : "👤 Admin Test"}
+                        {log.triggeredBy === "CRON"
+                          ? "⏰ Vercel Cron"
+                          : log.triggeredBy === "ADMIN_FORCE"
+                          ? "⚡ Force Trigger"
+                          : "👤 Admin Test"}
                       </td>
                       <td className="px-4 py-3">
                         <span

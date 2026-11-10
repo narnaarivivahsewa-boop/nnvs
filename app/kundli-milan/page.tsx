@@ -24,7 +24,14 @@ import {
 } from "lucide-react";
 import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 import CityCombobox from "@/components/ui/CityCombobox";
+import ErrorToast from "@/components/ui/ErrorToast";
 import { saveRegistrationVerification } from "@/lib/auth/registration-storage";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 const HOURS_LIST = [
   "01", "02", "03", "04", "05", "06",
@@ -72,8 +79,13 @@ export default function KundliMilanPage() {
 
   // Results & Lead State
   const [formError, setFormError] = useState("");
+  const [toastError, setToastError] = useState<string | null>(null);
   const [verifiedPhone, setVerifiedPhone] = useState("");
   const [milanResult, setMilanResult] = useState<KundliMilanResult | null>(null);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // Delayed Pricing Popup State (3-4 seconds delay)
   const [showPricingPopup, setShowPricingPopup] = useState(false);
@@ -193,24 +205,38 @@ export default function KundliMilanPage() {
 
     setSendingOtp(true);
     setOtpError("");
+    setToastError(null);
 
     try {
-      const res = await fetch("/api/kundli/send-otp", {
+      const res = await fetchWithTimeout("/api/kundli/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: cleanPhone }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<{
+        success?: boolean;
+        error?: string;
+        message?: string;
+      }>(res);
       if (!res.ok || !data.success) {
-        setOtpError(data.error || data.message || "Failed to send OTP. Please try again.");
+        const msg =
+          data.error || data.message || "Failed to send OTP. Please try again.";
+        setOtpError(msg);
+        setToastError(msg);
         return;
       }
 
       setOtpSent(true);
       setResendCooldown(60);
-    } catch {
-      setOtpError("Network error while connecting to SMS gateway. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error while connecting to SMS gateway. Please try again."
+      );
+      setOtpError(msg);
+      setToastError(msg);
     } finally {
       setSendingOtp(false);
     }
@@ -228,6 +254,7 @@ export default function KundliMilanPage() {
 
     setVerifyingOtp(true);
     setOtpError("");
+    setToastError(null);
 
     const boyTime24 = convertTo24Hour(boyHour, boyMinute, boyAmPm);
     const girlTime24 = convertTo24Hour(girlHour, girlMinute, girlAmPm);
@@ -246,15 +273,27 @@ export default function KundliMilanPage() {
         girlPlace: girlPlace.trim(),
       };
 
-      const res = await fetch("/api/kundli/verify-otp", {
+      const res = await fetchWithTimeout("/api/kundli/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setOtpError(data.error || data.message || "Invalid OTP. Please verify and retry.");
+      const data = await safeParseJson<{
+        success?: boolean;
+        error?: string;
+        message?: string;
+        isRegistered?: boolean;
+        registrationToken?: string;
+        verifiedPhone?: string;
+        result?: KundliMilanResult;
+      }>(res);
+      if (!res.ok || !data.success || !data.result || !data.verifiedPhone) {
+        const msg =
+          data.error || data.message || "Invalid OTP. Please verify and retry.";
+        setOtpError(msg);
+        setToastError(msg);
         return;
       }
 
@@ -266,8 +305,13 @@ export default function KundliMilanPage() {
       setVerifiedPhone(data.verifiedPhone);
       setMilanResult(data.result);
       setIsOtpModalOpen(false);
-    } catch {
-      setOtpError("Network error during verification. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error during verification. Please try again."
+      );
+      setOtpError(msg);
+      setToastError(msg);
     } finally {
       setVerifyingOtp(false);
     }
@@ -275,6 +319,11 @@ export default function KundliMilanPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2A1A1F]">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Kundli Verification Error"
+      />
       {/* Print Stylesheet for Authentic Vedic Kundali Milan Certificate */}
       <style
         dangerouslySetInnerHTML={{

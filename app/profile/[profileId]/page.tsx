@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -28,7 +28,14 @@ import {
   Edit3,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import ErrorToast from "@/components/ui/ErrorToast";
 import { formatBirthTime, formatDOB } from "@/lib/utils";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 type Profile = {
   id: string;
@@ -154,14 +161,20 @@ export default function ProfileDetailsPage() {
   const [astroQuestion, setAstroQuestion] = useState("");
   const [astroAnswer, setAstroAnswer] = useState<string | null>(null);
   const [askingAstro, setAskingAstro] = useState(false);
+  const [toastError, setToastError] = useState<string | null>(null);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   const handleAskAstro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!astroQuestion.trim() || !profile) return;
 
     setAskingAstro(true);
+    setToastError(null);
     try {
-      const res = await fetch("/api/ai/astrology", {
+      const res = await fetchWithTimeout("/api/ai/astrology", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,15 +182,28 @@ export default function ProfileDetailsPage() {
           candidateProfileId: profile.id,
           question: astroQuestion.trim(),
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson<{
+        success?: boolean;
+        answer?: string;
+        message?: string;
+      }>(res);
+      if (res.ok && data.success && data.answer) {
         setAstroAnswer(data.answer);
       } else {
-        setAstroAnswer(data.message || "Failed to analyze astrological compatibility.");
+        const msg =
+          data.message || "Failed to analyze astrological compatibility.";
+        setAstroAnswer(msg);
+        setToastError(msg);
       }
-    } catch {
-      setAstroAnswer("Unable to reach AI Astrologer. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Unable to reach AI Astrologer. Please try again."
+      );
+      setAstroAnswer(msg);
+      setToastError(msg);
     } finally {
       setAskingAstro(false);
     }
@@ -186,10 +212,14 @@ export default function ProfileDetailsPage() {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const res = await fetch(`/api/profile/${profileId}`);
-        const data = await res.json();
+        const res = await fetchWithTimeout(`/api/profile/${profileId}`, {
+          timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        });
+        const data = await safeParseJson<{ success?: boolean; profile?: Profile }>(
+          res
+        );
 
-        if (!res.ok || !data.success) {
+        if (!res.ok || !data.success || !data.profile) {
           setProfile(null);
           return;
         }
@@ -201,10 +231,15 @@ export default function ProfileDetailsPage() {
           "";
         setActivePhoto(primary);
 
-        const shortlistRes = await fetch(`/api/shortlist?shortlistedProfileId=${data.profile.id}`);
+        const shortlistRes = await fetchWithTimeout(
+          `/api/shortlist?shortlistedProfileId=${data.profile.id}`,
+          { timeoutMs: DEFAULT_API_TIMEOUT_MS }
+        );
         if (shortlistRes.ok) {
-          const shortlistData = await shortlistRes.json();
-          setIsShortlisted(shortlistData.shortlisted);
+          const shortlistData = await safeParseJson<{ shortlisted?: boolean }>(
+            shortlistRes
+          );
+          setIsShortlisted(Boolean(shortlistData.shortlisted));
         }
       } catch (error) {
         console.error("Failed to load profile details:", error);
@@ -326,6 +361,11 @@ export default function ProfileDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/70 py-10">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Astrology Request Error"
+      />
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         {/* Navigation & Share / Download Row */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">

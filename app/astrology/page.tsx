@@ -34,6 +34,13 @@ import Footer from "@/components/Footer";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 import CityCombobox from "@/components/ui/CityCombobox";
+import ErrorToast from "@/components/ui/ErrorToast";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 // Helper to convert diverse birth time formats to standard 24-hr HH:mm for <input type="time" />
 function to24HourTime(val?: string | null): string {
@@ -184,6 +191,11 @@ export default function AstrologyPage() {
   const [isUpayeUnlocked, setIsUpayeUnlocked] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState(false);
+  const [toastError, setToastError] = useState<string | null>(null);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // Close payment modal on Escape key press
   useEffect(() => {
@@ -210,7 +222,7 @@ export default function AstrologyPage() {
     async (activeUserGender: string, excludeProfileId?: string, excludeUserId?: string) => {
       setLoadingCandidates(true);
       try {
-        const res = await fetch("/api/ai/astrology", {
+        const res = await fetchWithTimeout("/api/ai/astrology", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -218,9 +230,25 @@ export default function AstrologyPage() {
             type: "profiles-list",
             userGender: activeUserGender,
           }),
+          timeoutMs: DEFAULT_API_TIMEOUT_MS,
         });
-        const data = await res.json();
-        if (data.success && Array.isArray(data.candidates)) {
+        const data = await safeParseJson<{
+          success?: boolean;
+          candidates?: any[];
+          message?: string;
+          error?: string;
+        }>(res);
+
+        if (!res.ok || !data.success) {
+          setToastError(
+            data.message ||
+              data.error ||
+              "Unable to load compatible candidate profiles right now."
+          );
+          return;
+        }
+
+        if (Array.isArray(data.candidates)) {
           // Strict opposite gender enforcement:
           // Male user -> Female candidate profiles only
           // Female user -> Male candidate profiles only
@@ -246,6 +274,12 @@ export default function AstrologyPage() {
         }
       } catch (err) {
         console.error("Failed to load candidates for astrology:", err);
+        setToastError(
+          getFriendlyFetchErrorMessage(
+            err,
+            "Unable to load compatible candidate profiles. Please try again."
+          )
+        );
       } finally {
         setLoadingCandidates(false);
       }
@@ -258,12 +292,13 @@ export default function AstrologyPage() {
     async function init() {
       setAuthLoading(true);
       try {
-        const authRes = await fetch("/api/auth/me", {
+        const authRes = await fetchWithTimeout("/api/auth/me", {
           method: "GET",
           credentials: "include",
           cache: "no-store",
+          timeoutMs: DEFAULT_API_TIMEOUT_MS,
         });
-        const authData = await authRes.json();
+        const authData = await safeParseJson<{ success?: boolean; user?: any }>(authRes);
 
         if (authRes.ok && authData.success && authData.user) {
           setIsAuthenticated(true);
@@ -317,12 +352,22 @@ export default function AstrologyPage() {
   const handleSwitchAstrologyProfile = async (targetProfileId: string) => {
     try {
       setSwitchingProfile(true);
-      const res = await fetch("/api/auth/select-profile", {
+      setToastError(null);
+      const res = await fetchWithTimeout("/api/auth/select-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ profileId: targetProfileId }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
+
+      if (!res.ok) {
+        const errData = await safeParseJson<{ message?: string; error?: string }>(res);
+        setToastError(
+          errData.message || errData.error || "Failed to switch active profile."
+        );
+        return;
+      }
 
       if (res.ok) {
         const found = accountProfiles.find(
@@ -369,6 +414,12 @@ export default function AstrologyPage() {
       }
     } catch (err) {
       console.error("Failed to switch astrology profile:", err);
+      setToastError(
+        getFriendlyFetchErrorMessage(
+          err,
+          "Failed to switch active profile. Please try again."
+        )
+      );
     } finally {
       setSwitchingProfile(false);
     }
@@ -401,8 +452,9 @@ export default function AstrologyPage() {
     if (!targetId) return;
 
     setCalculating(true);
+    setToastError(null);
     try {
-      const res = await fetch("/api/ai/astrology", {
+      const res = await fetchWithTimeout("/api/ai/astrology", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -415,13 +467,26 @@ export default function AstrologyPage() {
           userGender,
           candidateProfileId: targetId,
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
-      const data = await res.json();
-      if (data.success) {
-        setMatchResult(data);
+      const data = await safeParseJson<any>(res);
+      if (!res.ok || !data.success) {
+        setToastError(
+          data.message ||
+            data.error ||
+            "Failed to compute Kundli match. Please try again."
+        );
+        return;
       }
+      setMatchResult(data);
     } catch (err) {
       console.error("Failed to compute kundli match:", err);
+      setToastError(
+        getFriendlyFetchErrorMessage(
+          err,
+          "Network error while calculating Kundli match. Please try again."
+        )
+      );
     } finally {
       setCalculating(false);
     }
@@ -448,10 +513,10 @@ export default function AstrologyPage() {
     const q = questionText.trim();
     setQuestionText("");
     setAnswering(true);
-    setFreeQuestionsCount((prev) => prev + 1);
+    setToastError(null);
 
     try {
-      const res = await fetch("/api/ai/astrology", {
+      const res = await fetchWithTimeout("/api/ai/astrology", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -465,20 +530,42 @@ export default function AstrologyPage() {
           candidateProfileId: selectedCandidateId,
           question: q,
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
-      const data = await res.json();
-      if (data.success) {
-        setQaHistory((prev) => [
-          {
-            q,
-            a: data.answer,
-            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-          ...prev,
-        ]);
+      const data = await safeParseJson<{
+        success?: boolean;
+        answer?: string;
+        message?: string;
+        error?: string;
+      }>(res);
+      if (!res.ok || !data.success || !data.answer) {
+        setQuestionText((prev) => prev || q);
+        setToastError(
+          data.message ||
+            data.error ||
+            "Failed to analyze your astrology question. Please try again."
+        );
+        return;
       }
+
+      setFreeQuestionsCount((prev) => prev + 1);
+      setQaHistory((prev) => [
+        {
+          q,
+          a: data.answer!,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+        ...prev,
+      ]);
     } catch (err) {
       console.error("Failed to ask astrology question:", err);
+      setQuestionText((prev) => prev || q);
+      setToastError(
+        getFriendlyFetchErrorMessage(
+          err,
+          "Unable to reach AI Astrologer. Please try again."
+        )
+      );
     } finally {
       setAnswering(false);
     }
@@ -488,6 +575,11 @@ export default function AstrologyPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF6EF] flex flex-col font-sans">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Astrology Service Notice"
+      />
       {/* Hero Banner */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#4A121A] via-[#380D13] to-[#25050A] text-white py-14 sm:py-18 border-b border-[#C5A059]/40">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#DFBA73_1px,transparent_1px)] [background-size:16px_16px]" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,7 +15,14 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
+import ErrorToast from "@/components/ui/ErrorToast";
 import { saveAuthSession, syncSessionToCookies } from "@/lib/auth/session-storage";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 function LoginContent() {
   const router = useRouter();
@@ -39,7 +46,12 @@ function LoginContent() {
   // General State
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [toastError, setToastError] = useState<string | null>(null);
   const [isNotRegistered, setIsNotRegistered] = useState(false);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // Countdown timer for Resend OTP
   useEffect(() => {
@@ -77,6 +89,7 @@ function LoginContent() {
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
+    setToastError(null);
     setIsNotRegistered(false);
 
     if (!username.trim()) {
@@ -92,19 +105,23 @@ function LoginContent() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/auth/login-password", {
+      const res = await fetchWithTimeout("/api/auth/login-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username,
           password,
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
-        setMessage(data.message || "Invalid credentials. Please check your mobile/password.");
+        const msg =
+          data.message || "Invalid credentials. Please check your mobile/password.";
+        setMessage(msg);
+        setToastError(msg);
         return;
       }
 
@@ -126,8 +143,13 @@ function LoginContent() {
           : (redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard"));
         window.location.href = dest;
       }, 300);
-    } catch {
-      setMessage("An unexpected error occurred. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "An unexpected error occurred. Please try again."
+      );
+      setMessage(msg);
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -138,6 +160,7 @@ function LoginContent() {
   // ==========================================
   const handleSendOTP = async () => {
     setMessage("");
+    setToastError(null);
     setIsNotRegistered(false);
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
@@ -148,30 +171,38 @@ function LoginContent() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/auth/send-otp", {
+      const res = await fetchWithTimeout("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile,
           type: "LOGIN",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
         if (data.notRegistered || res.status === 404) {
           setIsNotRegistered(true);
         }
-        setMessage(data.message || "Failed to send OTP.");
+        const msg = data.message || "Failed to send OTP.";
+        setMessage(msg);
+        setToastError(msg);
         return;
       }
 
       setOtpSent(true);
       setResendTimer(60);
       setMessage(data.message || "OTP sent successfully to your mobile number via SMS.");
-    } catch {
-      setMessage("Something went wrong while sending OTP. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Something went wrong while sending OTP. Please try again."
+      );
+      setMessage(msg);
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -179,6 +210,7 @@ function LoginContent() {
 
   const handleResendOTP = async () => {
     setMessage("");
+    setToastError(null);
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setMessage("Please enter a valid 10 digit Indian mobile number.");
       return;
@@ -186,29 +218,37 @@ function LoginContent() {
 
     try {
       setLoading(true);
-      const res = await fetch("/api/auth/resend-otp", {
+      const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile,
           type: "LOGIN",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
-        setMessage(data.message || "Failed to resend OTP.");
+        const msg = data.message || "Failed to resend OTP.";
+        setMessage(msg);
+        setToastError(msg);
         return;
       }
 
       setResendTimer(60);
       setMessage(data.message || "OTP resent successfully via Fast2SMS SMS.");
-    } catch {
-      setMessage("Something went wrong while resending OTP. Please try again.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Something went wrong while resending OTP. Please try again."
+      );
+      setMessage(msg);
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -216,6 +256,7 @@ function LoginContent() {
 
   const handleVerifyOTP = async () => {
     setMessage("");
+    setToastError(null);
 
     if (!/^\d{6}$/.test(otp)) {
       setMessage("Please enter a valid 6 digit OTP.");
@@ -225,7 +266,7 @@ function LoginContent() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/auth/verify-otp", {
+      const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -233,12 +274,15 @@ function LoginContent() {
           otp,
           type: "LOGIN",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson<any>(res);
 
       if (!res.ok) {
-        setMessage(data.message || "OTP verification failed.");
+        const msg = data.message || "OTP verification failed.";
+        setMessage(msg);
+        setToastError(msg);
         return;
       }
 
@@ -259,8 +303,13 @@ function LoginContent() {
           : (redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard"));
         window.location.href = dest;
       }, 300);
-    } catch {
-      setMessage("Something went wrong while verifying OTP.");
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Something went wrong while verifying OTP."
+      );
+      setMessage(msg);
+      setToastError(msg);
     } finally {
       setLoading(false);
     }
@@ -268,6 +317,11 @@ function LoginContent() {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] flex items-center justify-center px-4 py-12">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Sign In Notice"
+      />
       <div className="w-full max-w-md rounded-3xl bg-[#FAF5EB] p-6 sm:p-10 shadow-xl border border-[#DACBB4]">
         {/* Header */}
         <div className="text-center">

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   getMetaConfig,
+  getIstHour,
+  getIstDateString,
+  resolveSocialSlotFromTime,
   generateSocialCaption,
   postToInstagramBusiness,
   publishToFacebookPage,
@@ -12,49 +15,65 @@ import {
 } from "@/lib/social-poster";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-function getIstHour(): number {
-  const now = new Date();
-  const utcHours = now.getUTCHours();
-  const utcMinutes = now.getUTCMinutes();
-  const istTotalMinutes = (utcHours * 60 + utcMinutes + 330) % 1440;
-  return istTotalMinutes / 60;
-}
-
-function resolveSlotFromTime(specifiedSlot?: string | null): SocialSlot {
-  if (specifiedSlot) {
-    const s = specifiedSlot.toUpperCase();
-    if (
-      s === "MORNING" ||
-      s === "AFTERNOON" ||
-      s === "EVENING" ||
-      s === "MANUAL" ||
-      s === "KUNDLI_MILAN" ||
-      s === "PROFILE_SPOTLIGHT" ||
-      s === "PROMOTION" ||
-      s === "REGISTRATION" ||
-      s === "MATCHMAKING_TIPS"
-    ) {
-      return s as SocialSlot;
-    }
-  }
-
-  const istHour = getIstHour();
-  if (istHour >= 4 && istHour < 12) {
-    return "MORNING"; // 09:00 AM IST Window: Free Kundali Milan Promotion & Astrology Tips
-  } else if (istHour >= 12 && istHour < 17) {
-    return "AFTERNOON"; // 02:00 PM IST Window: Live Verified Profile Spotlight
-  } else {
-    return "EVENING"; // 07:00 PM IST Window: Platform Promotion & Registration Awareness
-  }
+function isSpotlightSlot(slot: SocialSlot): boolean {
+  return (
+    slot === "SPOTLIGHT" ||
+    slot === "AFTERNOON" ||
+    slot === "PROFILE_SPOTLIGHT"
+  );
 }
 
 function resolveTopicFromSlot(
   slot: SocialSlot
 ): "KUNDLI_MILAN" | "PROFILE_SPOTLIGHT" | "PROMOTION" {
   if (slot === "MORNING" || slot === "KUNDLI_MILAN") return "KUNDLI_MILAN";
-  if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") return "PROFILE_SPOTLIGHT";
+  if (isSpotlightSlot(slot)) {
+    return "PROFILE_SPOTLIGHT";
+  }
   return "PROMOTION";
+}
+
+function buildOgImageUrl(
+  appUrl: string,
+  slot: SocialSlot,
+  istDate: string,
+  candidateData?: SocialPostParams["candidateData"],
+  cacheBuster?: number
+): string {
+  if (isSpotlightSlot(slot) && candidateData) {
+    const ogParams = new URLSearchParams({
+      slot: "PROFILE_SPOTLIGHT",
+      id: candidateData.id || "",
+      name: candidateData.displayName || "",
+      gender: candidateData.gender || "FEMALE",
+      age: String(candidateData.age || "26"),
+      height: candidateData.height || "",
+      profession: candidateData.profession || "",
+      city: candidateData.city || "",
+      caste: candidateData.caste || "",
+      education: candidateData.education || "",
+      photo: candidateData.photoUrl || "",
+      d: istDate,
+    });
+    if (cacheBuster) {
+      ogParams.set("nonce", String(cacheBuster));
+    }
+    return `${appUrl}/api/og/social-post?${ogParams.toString()}`;
+  }
+
+  const resolvedOgSlot =
+    slot === "MORNING" || slot === "KUNDLI_MILAN" ? "KUNDLI_MILAN" : "PROMOTION";
+  const ogParams = new URLSearchParams({
+    slot: resolvedOgSlot,
+    d: istDate,
+  });
+  if (cacheBuster) {
+    ogParams.set("nonce", String(cacheBuster));
+  }
+  return `${appUrl}/api/og/social-post?${ogParams.toString()}`;
 }
 
 /**
@@ -65,73 +84,143 @@ async function handlePublish(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const config = getMetaConfig();
 
-    // 1. Authorization Check: Bearer CRON_SECRET, Query Secret, or Admin Session
-    const authHeader = req.headers.get("authorization") || "";
-    const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const querySecret = (searchParams.get("secret") || searchParams.get("key") || "").trim();
-
-    let isAuthorized = false;
-    let triggeredBy: "CRON" | "ADMIN_TEST" = "CRON";
-
-    if (
-      config.cronSecret &&
-      (bearerToken === config.cronSecret || querySecret === config.cronSecret)
-    ) {
-      isAuthorized = true;
-      triggeredBy = "CRON";
-    } else {
-      // Check Admin Session
-      const adminAuth = await requireAdmin(req);
-      if (adminAuth.authorized) {
-        isAuthorized = true;
-        triggeredBy = "ADMIN_TEST";
-      }
-    }
-
-    if (!isAuthorized) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized: Valid CRON_SECRET header (Bearer <token>) or Admin session required",
-        },
-        { status: 401 }
-      );
-    }
-
-    // 2. Parse Body / Query parameters
-    let bodyData: any = {};
+    // Parse optional JSON body for POST triggers before inspecting auth/options
+    let bodyData: Record<string, any> = {};
     if (req.method === "POST") {
       try {
         const contentType = req.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
-          bodyData = await req.json();
+          const parsed = await req.json();
+          if (parsed && typeof parsed === "object") {
+            bodyData = parsed;
+          }
         }
       } catch {
         bodyData = {};
       }
     }
 
+    const forceParam = (searchParams.get("force") || "").toLowerCase();
+    const force =
+      bodyData.force === true || forceParam === "true" || forceParam === "1";
+
+    // 1. Authorization Check: CRON_SECRET, ADMIN_SECRET (required for force=true), or Admin Session
+    const authHeader = req.headers.get("authorization") || "";
+    const bearerToken = /^Bearer\s+/i.test(authHeader)
+      ? authHeader.replace(/^Bearer\s+/i, "").trim()
+      : "";
+    const headerCronSecret = (req.headers.get("x-cron-secret") || "").trim();
+    const headerAdminSecret = (req.headers.get("x-admin-secret") || "").trim();
+    const querySecret = (
+      searchParams.get("secret") ||
+      searchParams.get("key") ||
+      ""
+    ).trim();
+    const queryAdminSecret = (
+      searchParams.get("adminSecret") ||
+      searchParams.get("admin_secret") ||
+      ""
+    ).trim();
+    const bodySecret =
+      typeof bodyData.secret === "string" ? bodyData.secret.trim() : "";
+    const bodyAdminSecret =
+      typeof bodyData.adminSecret === "string" ? bodyData.adminSecret.trim() : "";
+
+    const suppliedCronTokens = [
+      bearerToken,
+      headerCronSecret,
+      querySecret,
+      bodySecret,
+    ].filter(Boolean);
+    const suppliedAdminTokens = [
+      headerAdminSecret,
+      queryAdminSecret,
+      bodyAdminSecret,
+      bearerToken,
+      querySecret,
+      bodySecret,
+    ].filter(Boolean);
+
+    const matchesCronSecret =
+      Boolean(config.cronSecret) &&
+      suppliedCronTokens.includes(config.cronSecret);
+    const matchesAdminSecret =
+      Boolean(config.adminSecret) &&
+      suppliedAdminTokens.includes(config.adminSecret);
+
+    const adminAuth = await requireAdmin(req);
+
+    let isAuthorized = false;
+    let triggeredBy: "CRON" | "ADMIN_TEST" | "ADMIN_FORCE" = "CRON";
+
+    if (force) {
+      // Manual fallback trigger (?force=true) strictly protected by Admin Secret or Admin Session
+      // (Falls back to CRON_SECRET only when a separate ADMIN_SECRET is not configured in env)
+      if (
+        matchesAdminSecret ||
+        adminAuth.authorized ||
+        (!config.adminSecret && matchesCronSecret)
+      ) {
+        isAuthorized = true;
+        triggeredBy = adminAuth.authorized ? "ADMIN_TEST" : "ADMIN_FORCE";
+      } else if (config.adminSecret && matchesCronSecret) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Forbidden: force=true manual trigger requires a valid ADMIN_SECRET or authenticated Admin session",
+          },
+          { status: 403 }
+        );
+      }
+    } else if (matchesCronSecret || matchesAdminSecret || adminAuth.authorized) {
+      isAuthorized = true;
+      triggeredBy =
+        matchesAdminSecret || adminAuth.authorized ? "ADMIN_TEST" : "CRON";
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: force
+            ? "Unauthorized: Valid ADMIN_SECRET header/query (x-admin-secret / Bearer) or Admin session required for force=true"
+            : "Unauthorized: Valid CRON_SECRET header (Bearer <token> / x-cron-secret) or Admin session required",
+        },
+        { status: 401 }
+      );
+    }
+
+    // 2. Determine Slot (IST Time Auto-Detection when slot is omitted)
+    const now = new Date();
+    const istHour = getIstHour(now);
+    const istDate = getIstDateString(now);
+
     const slotParam = bodyData.slot || searchParams.get("slot");
-    let slot = resolveSlotFromTime(slotParam);
-    const dryRun = bodyData.dryRun === true || searchParams.get("dryRun") === "true";
+    const detectedSlot = resolveSocialSlotFromTime(slotParam, now);
+    let slot: SocialSlot = detectedSlot;
+    const dryRun =
+      bodyData.dryRun === true || searchParams.get("dryRun") === "true";
 
     let candidateId: string | undefined = undefined;
     let candidateData: SocialPostParams["candidateData"] = undefined;
 
-    // Slot 2: Afternoon Slot -> LIVE VERIFIED PROFILE SPOTLIGHT
-    if (slot === "AFTERNOON" || slot === "PROFILE_SPOTLIGHT") {
+    // Spotlight Slot (14:00 IST / SPOTLIGHT / AFTERNOON / PROFILE_SPOTLIGHT)
+    if (isSpotlightSlot(slot)) {
       if (bodyData.candidateData) {
         candidateData = bodyData.candidateData;
         candidateId = bodyData.candidateId || candidateData?.id;
-        slot = "PROFILE_SPOTLIGHT";
+        slot = detectedSlot === "SPOTLIGHT" ? "SPOTLIGHT" : "PROFILE_SPOTLIGHT";
       } else {
         const spotlight = await fetchSpotlightProfile();
         if (spotlight && spotlight.candidateData) {
           candidateId = spotlight.candidateId;
           candidateData = spotlight.candidateData;
-          slot = "PROFILE_SPOTLIGHT";
+          slot = detectedSlot === "SPOTLIGHT" ? "SPOTLIGHT" : "PROFILE_SPOTLIGHT";
         } else {
-          console.warn("[Social Publish] No spotlight profile with photo available. Falling back to PROMOTION.");
+          console.warn(
+            "[Social Publish] No spotlight profile with photo available. Falling back to PROMOTION."
+          );
           slot = "PROMOTION";
         }
       }
@@ -139,29 +228,34 @@ async function handlePublish(req: NextRequest) {
 
     const topic = resolveTopicFromSlot(slot);
 
-    // 3. Check Admin Setting Toggle
-    try {
-      const setting = await prisma.adminSetting.findFirst();
-      if (setting && !setting.socialAutoPostingEnabled && triggeredBy === "CRON") {
-        await prisma.socialPostLog.create({
-          data: {
-            slot,
-            platform: "META_ALL",
-            status: "SKIPPED",
-            candidateId: candidateId || null,
-            error: "Social auto-posting disabled in admin settings (socialAutoPostingEnabled: false)",
-            triggeredBy: "CRON",
-          },
-        });
+    // 3. Check Admin Setting Toggle (Bypassed explicitly when force=true)
+    if (!force) {
+      try {
+        const setting = await prisma.adminSetting.findFirst();
+        if (setting && !setting.socialAutoPostingEnabled && triggeredBy === "CRON") {
+          await prisma.socialPostLog.create({
+            data: {
+              slot,
+              platform: "META_ALL",
+              status: "SKIPPED",
+              candidateId: candidateId || null,
+              error:
+                "Social auto-posting disabled in admin settings (socialAutoPostingEnabled: false)",
+              triggeredBy: "CRON",
+            },
+          });
 
-        return NextResponse.json({
-          success: true,
-          skipped: true,
-          message: "Social auto-posting is currently toggled OFF in Admin Settings",
-        });
+          return NextResponse.json({
+            success: true,
+            skipped: true,
+            slot,
+            detectedSlot,
+            message: "Social auto-posting is currently toggled OFF in Admin Settings",
+          });
+        }
+      } catch (dbErr) {
+        console.warn("[Social Publish] AdminSetting check warning:", dbErr);
       }
-    } catch (dbErr) {
-      console.warn("[Social Publish] AdminSetting check warning:", dbErr);
     }
 
     // 4. Resolve Image URL & Caption
@@ -185,33 +279,13 @@ async function handlePublish(req: NextRequest) {
       imageUrl = null;
     }
 
+    const forceNonce = force ? Date.now() : undefined;
     if (!imageUrl) {
-      if (slot === "PROFILE_SPOTLIGHT" && candidateData) {
-        const ogParams = new URLSearchParams({
-          slot: "PROFILE_SPOTLIGHT",
-          id: candidateData.id || "",
-          name: candidateData.displayName || "",
-          gender: candidateData.gender || "FEMALE",
-          age: String(candidateData.age || "26"),
-          height: candidateData.height || "",
-          profession: candidateData.profession || "",
-          city: candidateData.city || "",
-          caste: candidateData.caste || "",
-          education: candidateData.education || "",
-          photo: candidateData.photoUrl || "",
-          t: String(Date.now()),
-        });
-        imageUrl = `${appUrl}/api/og/social-post?${ogParams.toString()}`;
-      } else if (slot === "MORNING" || slot === "KUNDLI_MILAN") {
-        imageUrl = `${appUrl}/api/og/social-post?slot=KUNDLI_MILAN&t=${Date.now()}`;
-      } else {
-        // EVENING / PROMOTION / REGISTRATION
-        imageUrl = `${appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
-      }
+      imageUrl = buildOgImageUrl(appUrl, slot, istDate, candidateData, forceNonce);
     }
 
-    // 4b. Strict 7-Day Deduplication & Cooldown Guard
-    if (!dryRun) {
+    // 4b. Strict 7-Day Deduplication & Cooldown Guard (Bypassed when force=true or dryRun=true)
+    if (!dryRun && !force) {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       try {
         const recentDuplicate = await prisma.socialPostLog.findFirst({
@@ -230,29 +304,27 @@ async function handlePublish(req: NextRequest) {
           console.warn(
             `[Social Publish] 7-day cooldown triggered (recent post ID: ${recentDuplicate.id}). Applying rotation & cache-buster.`
           );
-          if (slot === "PROFILE_SPOTLIGHT") {
+          if (isSpotlightSlot(slot)) {
             const freshSpotlight = await fetchSpotlightProfile();
             if (freshSpotlight && freshSpotlight.candidateId !== candidateId) {
               candidateId = freshSpotlight.candidateId;
               candidateData = freshSpotlight.candidateData;
-              const freshParams = new URLSearchParams({
-                slot: "PROFILE_SPOTLIGHT",
-                id: candidateData.id || "",
-                name: candidateData.displayName || "",
-                gender: candidateData.gender || "FEMALE",
-                age: String(candidateData.age || "26"),
-                height: candidateData.height || "",
-                profession: candidateData.profession || "",
-                city: candidateData.city || "",
-                caste: candidateData.caste || "",
-                education: candidateData.education || "",
-                photo: candidateData.photoUrl || "",
-                t: String(Date.now()),
-              });
-              imageUrl = `${appUrl}/api/og/social-post?${freshParams.toString()}`;
+              imageUrl = buildOgImageUrl(
+                appUrl,
+                slot,
+                istDate,
+                candidateData,
+                Date.now()
+              );
             } else {
               slot = "PROMOTION";
-              imageUrl = `${appUrl}/api/og/social-post?slot=PROMOTION&t=${Date.now()}`;
+              imageUrl = buildOgImageUrl(
+                appUrl,
+                slot,
+                istDate,
+                undefined,
+                Date.now()
+              );
             }
           } else {
             const sep = imageUrl.includes("?") ? "&" : "?";
@@ -269,37 +341,7 @@ async function handlePublish(req: NextRequest) {
       caption = generateSocialCaption(slot, { candidateData });
     }
 
-    // 5. Verify Meta Instagram Credentials
-    const igAccountId = config.instagramAccountId;
-    const accessToken = config.pageAccessToken;
-
-    if (!igAccountId || !accessToken) {
-      const errMsg = "Missing Meta Instagram credentials (META_IG_ACCOUNT_ID or META_IG_ACCESS_TOKEN not configured in environment)";
-      console.error("[Social Publish Error]:", errMsg);
-
-      try {
-        await prisma.socialPostLog.create({
-          data: {
-            slot,
-            platform: "INSTAGRAM",
-            imageUrl,
-            caption,
-            status: "FAILED",
-            error: errMsg,
-            triggeredBy,
-          },
-        });
-      } catch (logErr) {
-        console.error("[Social Post Log Error]:", logErr);
-      }
-
-      return NextResponse.json(
-        { success: false, error: errMsg },
-        { status: 500 }
-      );
-    }
-
-    // 6. Handle Dry Run Simulation
+    // 5. Handle Dry Run Simulation (Before live Meta credential check so test fires always simulate cleanly)
     if (dryRun) {
       const simulatedIgId = `SIM_IG_${Date.now()}`;
       const simulatedFbId = `SIM_FB_${Date.now()}`;
@@ -326,9 +368,13 @@ async function handlePublish(req: NextRequest) {
       return NextResponse.json({
         success: true,
         dryRun: true,
+        forced: force,
+        triggeredBy,
         message: "Dry run successful (simulated without publishing to live social channels)",
         slot,
+        detectedSlot,
         topic,
+        istHour: Number(istHour.toFixed(2)),
         candidateId: candidateId || null,
         candidateData: candidateData
           ? {
@@ -349,8 +395,41 @@ async function handlePublish(req: NextRequest) {
       });
     }
 
+    // 6. Verify Meta Credentials for Live Publish
+    const igAccountId = config.instagramAccountId;
+    const accessToken = config.pageAccessToken;
+
+    if (!accessToken || (!igAccountId && !config.facebookPageId)) {
+      const errMsg =
+        "Missing Meta API credentials (META_PAGE_ACCESS_TOKEN or page/account IDs not configured in environment)";
+      console.error("[Social Publish Error]:", errMsg);
+
+      try {
+        await prisma.socialPostLog.create({
+          data: {
+            slot,
+            platform: "NONE",
+            imageUrl,
+            caption,
+            status: "FAILED",
+            error: errMsg,
+            triggeredBy,
+          },
+        });
+      } catch (logErr) {
+        console.error("[Social Post Log Error]:", logErr);
+      }
+
+      return NextResponse.json(
+        { success: false, error: errMsg },
+        { status: 500 }
+      );
+    }
+
     // 7. Parallel Execution: Instagram & Facebook Page Publishing
-    console.log(`[Social Publish] Starting parallel publish for slot: ${slot} (${topic})...`);
+    console.log(
+      `[Social Publish] Starting parallel publish for slot: ${slot} (${topic}, forced=${force}, triggeredBy=${triggeredBy})...`
+    );
     console.log(`[Social Publish] Image URL: ${imageUrl}`);
 
     const igToken = process.env.META_IG_ACCESS_TOKEN || accessToken;
@@ -420,7 +499,11 @@ async function handlePublish(req: NextRequest) {
           ? `Post published successfully to ${platform}`
           : "Failed to publish post to social channels",
         slot,
+        detectedSlot,
         topic,
+        forced: force,
+        triggeredBy,
+        istHour: Number(istHour.toFixed(2)),
         platform,
         candidateId: candidateId || null,
         candidateData: candidateData

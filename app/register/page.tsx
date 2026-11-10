@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +8,7 @@ import { X, AlertCircle } from "lucide-react";
 
 import ProgressBar from "./components/ProgressBar";
 import NavigationButtons from "./components/NavigationButtons";
+import ErrorToast from "@/components/ui/ErrorToast";
 
 import Step1Account from "./components/steps/Step1Account";
 import Step2Personal from "./components/steps/Step2Personal";
@@ -22,6 +23,12 @@ import {
   getRegistrationVerification,
   clearRegistrationVerification,
 } from "@/lib/auth/registration-storage";
+import {
+  DEFAULT_API_TIMEOUT_MS,
+  fetchWithTimeout,
+  getFriendlyFetchErrorMessage,
+  safeParseJson,
+} from "@/lib/fetch-with-timeout";
 
 const STEP_FIELD_MAP: Record<number, (keyof RegisterFormData)[]> = {
   1: ["fullName", "mobile", "email", "profileType", "password", "confirmPassword"],
@@ -49,6 +56,11 @@ function RegisterContent() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [toastError, setToastError] = useState<string | null>(null);
+
+  const dismissToastError = useCallback(() => {
+    setToastError(null);
+  }, []);
 
   // OTP
   const [otpSent, setOtpSent] = useState(false);
@@ -184,19 +196,27 @@ function RegisterContent() {
     setValue("mobile", targetMobile, { shouldValidate: true });
 
     let cancelled = false;
+    const unmountController = new AbortController();
     async function confirmServerVerification() {
       try {
-        const res = await fetch(
+        const res = await fetchWithTimeout(
           `/api/auth/verify-otp?mobile=${encodeURIComponent(targetMobile)}`,
           {
             method: "GET",
             headers: stored?.token ? { "x-reg-token": stored.token } : undefined,
             cache: "no-store",
             credentials: "include",
+            signal: unmountController.signal,
+            timeoutMs: DEFAULT_API_TIMEOUT_MS,
           }
         );
 
-        const data = await res.json();
+        const data = await safeParseJson<{
+          alreadyRegistered?: boolean;
+          message?: string;
+          verified?: boolean;
+          registrationToken?: string;
+        }>(res);
         if (cancelled) return;
 
         if (data.alreadyRegistered) {
@@ -229,6 +249,7 @@ function RegisterContent() {
 
     return () => {
       cancelled = true;
+      unmountController.abort();
     };
   }, [searchParams, setValue]);
 
@@ -238,6 +259,7 @@ function RegisterContent() {
     setOtpVerified(false);
     setRegistrationToken("");
     setResendTimer(0);
+    setToastError(null);
     setOtpStatus({ type: null, message: "" });
     clearRegistrationVerification();
   };
@@ -246,25 +268,38 @@ function RegisterContent() {
     const trimmedEmail = email.trim();
     if (!trimmedEmail) return true;
 
-    const emailRes = await fetch("/api/auth/check-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: trimmedEmail }),
-    });
-    const emailResult = await emailRes.json();
+    try {
+      const emailRes = await fetchWithTimeout("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+      });
+      const emailResult = await safeParseJson<{ message?: string }>(emailRes);
 
-    if (!emailRes.ok) {
-      const msg = emailResult.message || "Email is already registered.";
-      setError("email", { type: "manual", message: msg });
+      if (!emailRes.ok) {
+        const msg = emailResult.message || "Email is already registered.";
+        setError("email", { type: "manual", message: msg });
+        setOtpStatus({ type: "error", message: msg });
+        setToastError(msg);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Unable to verify email availability right now. Please try again."
+      );
       setOtpStatus({ type: "error", message: msg });
+      setToastError(msg);
       return false;
     }
-
-    return true;
   };
 
   const sendOTP = async () => {
     setFormError("");
+    setToastError(null);
     const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
     const email = getValues("email")?.trim() || "";
 
@@ -289,7 +324,7 @@ function RegisterContent() {
       }
 
       // Send OTP via Fast2SMS backend
-      const res = await fetch("/api/auth/send-otp", {
+      const res = await fetchWithTimeout("/api/auth/send-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -298,18 +333,26 @@ function RegisterContent() {
           mobile,
           type: "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const result = await res.json();
+      const result = await safeParseJson<{
+        success?: boolean;
+        cooldownRemaining?: number;
+        message?: string;
+        maskedMobile?: string;
+      }>(res);
 
       if (!res.ok || result.success === false) {
         if (result.cooldownRemaining) {
           setResendTimer(result.cooldownRemaining);
         }
+        const msg = result.message || "Failed to send SMS OTP.";
         setOtpStatus({
           type: "error",
-          message: result.message || "Failed to send SMS OTP.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -323,10 +366,15 @@ function RegisterContent() {
       });
     } catch (err) {
       console.error(err);
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error. Unable to reach SMS gateway."
+      );
       setOtpStatus({
         type: "error",
-        message: "Network error. Unable to reach SMS gateway.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setOtpLoading(false);
     }
@@ -334,6 +382,7 @@ function RegisterContent() {
 
   const resendOTP = async () => {
     setFormError("");
+    setToastError(null);
     const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
@@ -347,25 +396,32 @@ function RegisterContent() {
       setOtpLoading(true);
       setOtpStatus({ type: "info", message: "Resending SMS OTP..." });
 
-      const res = await fetch("/api/auth/resend-otp", {
+      const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile,
           type: "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const result = await res.json();
+      const result = await safeParseJson<{
+        success?: boolean;
+        cooldownRemaining?: number;
+        message?: string;
+      }>(res);
 
       if (!res.ok || result.success === false) {
         if (result.cooldownRemaining) {
           setResendTimer(result.cooldownRemaining);
         }
+        const msg = result.message || "Failed to resend SMS OTP.";
         setOtpStatus({
           type: "error",
-          message: result.message || "Failed to resend SMS OTP.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -377,10 +433,15 @@ function RegisterContent() {
       });
     } catch (err) {
       console.error(err);
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "Network error. Unable to reach SMS gateway."
+      );
       setOtpStatus({
         type: "error",
-        message: "Network error. Unable to reach SMS gateway.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setOtpLoading(false);
     }
@@ -388,6 +449,7 @@ function RegisterContent() {
 
   const verifyOTP = async () => {
     setFormError("");
+    setToastError(null);
     const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
     const cleanOtp = otp.trim();
 
@@ -411,7 +473,7 @@ function RegisterContent() {
       setOtpLoading(true);
       setOtpStatus({ type: "info", message: "Verifying OTP..." });
 
-      const res = await fetch("/api/auth/verify-otp", {
+      const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -421,15 +483,22 @@ function RegisterContent() {
           otp: cleanOtp,
           type: "REGISTRATION",
         }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const result = await res.json();
+      const result = await safeParseJson<{
+        success?: boolean;
+        message?: string;
+        registrationToken?: string;
+      }>(res);
 
       if (!res.ok || result.success === false) {
+        const msg = result.message || "OTP verification failed.";
         setOtpStatus({
           type: "error",
-          message: result.message || "OTP verification failed.",
+          message: msg,
         });
+        setToastError(msg);
         return;
       }
 
@@ -481,10 +550,15 @@ function RegisterContent() {
       });
     } catch (err) {
       console.error(err);
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "OTP verification failed due to network error."
+      );
       setOtpStatus({
         type: "error",
-        message: "OTP verification failed due to network error.",
+        message: msg,
       });
+      setToastError(msg);
     } finally {
       setOtpLoading(false);
     }
@@ -625,6 +699,7 @@ function RegisterContent() {
 
     try {
       setIsSubmitting(true);
+      setToastError(null);
       const stored = getRegistrationVerification(data.mobile);
       const payload = {
         ...data,
@@ -632,16 +707,23 @@ function RegisterContent() {
         registrationToken: registrationToken || stored?.token || undefined,
       };
 
-      const res = await fetch("/api/register", {
+      const res = await fetchWithTimeout("/api/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
         body: JSON.stringify(payload),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
-      const result = await res.json();
+      const result = await safeParseJson<{
+        success?: boolean;
+        isDuplicate?: boolean;
+        maskedMobile?: string;
+        message?: string;
+        profileId?: string;
+      }>(res);
 
       if (!res.ok || result.success === false) {
         if (result.isDuplicate) {
@@ -655,7 +737,9 @@ function RegisterContent() {
           return;
         }
 
-        setFormError(result.message || "Registration could not be completed.");
+        const msg = result.message || "Registration could not be completed.";
+        setFormError(msg);
+        setToastError(msg);
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
@@ -664,14 +748,19 @@ function RegisterContent() {
 
       router.push(
         `/payment?profileId=${encodeURIComponent(
-          result.profileId
+          result.profileId || ""
         )}&name=${encodeURIComponent(data.fullName)}&gender=${encodeURIComponent(
           data.gender
         )}&mobile=${encodeURIComponent(data.mobile)}`
       );
     } catch (error) {
       console.error(error);
-      setFormError("Something went wrong while submitting registration. Please try again.");
+      const msg = getFriendlyFetchErrorMessage(
+        error,
+        "Something went wrong while submitting registration. Please try again."
+      );
+      setFormError(msg);
+      setToastError(msg);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setIsSubmitting(false);
@@ -680,6 +769,11 @@ function RegisterContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
+      <ErrorToast
+        message={toastError}
+        onDismiss={dismissToastError}
+        title="Registration Notice"
+      />
       <div className="w-full max-w-4xl rounded-3xl bg-white p-8 shadow-xl md:p-10">
         <h1 className="text-center text-4xl font-bold text-red-800">
           Complete Your Biodata
