@@ -5,7 +5,13 @@ import {
   getMetaConfig,
   publishToSocialChannels,
   generateSocialCaption,
-  SocialSlot,
+  fetchSpotlightProfile,
+  normalizeSpotlightPhotoUrl,
+  normalizeSlotToCategory,
+  buildSpotlightCandidateData,
+  getIstDateString,
+  SocialCategory,
+  SocialPostParams,
 } from "@/lib/social-poster";
 
 export async function GET(req: NextRequest) {
@@ -33,47 +39,69 @@ export async function GET(req: NextRequest) {
 
     const activeCandidates = await prisma.profile.findMany({
       where: {
-        approvalStatus: { in: ["APPROVED", "PENDING_APPROVAL", "UNDER_REVIEW"] },
+        approvalStatus: "APPROVED",
+        isVisible: true,
+        consentSocialMedia: true,
+        user: {
+          gender: "FEMALE",
+          status: "ACTIVE",
+        },
+        OR: [
+          { legacyProfileId: null },
+          { NOT: { legacyProfileId: { startsWith: "NNVS-B" } } },
+        ],
+        photos: {
+          some: {
+            status: "APPROVED",
+            OR: [
+              { imageUrl: { startsWith: "https://" } },
+              { imageUrl: { startsWith: "http://" } },
+            ],
+          },
+        },
       },
-      take: 15,
+      take: 30,
       orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        profileId: true,
-        legacyProfileId: true,
-        firstName: true,
-        lastName: true,
-        caste: true,
-        birthPlace: true,
-        height: true,
-        dateOfBirth: true,
+      include: {
         user: { select: { gender: true, fullName: true } },
+        photos: {
+          where: {
+            status: "APPROVED",
+            OR: [
+              { imageUrl: { startsWith: "https://" } },
+              { imageUrl: { startsWith: "http://" } },
+            ],
+          },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+          take: 1,
+        },
         occupation: { select: { profession: true } },
         education: { select: { highestQualification: true } },
       },
     });
 
-    const formattedCandidates = activeCandidates.map((p) => {
-      let age = "26";
-      if (p.dateOfBirth) {
-        const diff = Date.now() - new Date(p.dateOfBirth).getTime();
-        age = String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
-      }
-      const isFemale = p.user?.gender === "FEMALE";
-      return {
-        id: p.id,
-        displayId: p.legacyProfileId || p.profileId,
-        fullName: [p.firstName, p.lastName].filter(Boolean).join(" ") || p.user?.fullName || p.profileId,
-        gender: p.user?.gender || (isFemale ? "FEMALE" : "MALE"),
-        age,
-        height: p.height || (isFemale ? "5'4\"" : "5'10\""),
-        caste: p.caste || "Agarwal",
-        gotra: "Garg Gotra",
-        profession: p.occupation?.profession || "Working Professional",
-        city: p.birthPlace || "Delhi NCR",
-        education: p.education?.highestQualification || "Graduate",
-      };
-    });
+    const formattedCandidates = activeCandidates
+      .map((p) => {
+        const photoUrl = normalizeSpotlightPhotoUrl(p.photos[0]?.imageUrl, config.appUrl);
+        if (!photoUrl) return null;
+        const data = buildSpotlightCandidateData(p, photoUrl);
+        return {
+          id: p.id,
+          displayId: data.id,
+          displayName: data.displayName || "Verified Bride",
+          fullName: [p.firstName, p.lastName].filter(Boolean).join(" ") || p.user?.fullName || p.profileId,
+          gender: "FEMALE" as const,
+          age: data.age,
+          height: data.height,
+          caste: data.caste,
+          gotra: data.gotra,
+          profession: data.profession,
+          city: data.city,
+          education: data.education || "Graduate",
+          photoUrl,
+        };
+      })
+      .filter(Boolean);
 
     return NextResponse.json({
       success: true,
@@ -92,6 +120,11 @@ export async function GET(req: NextRequest) {
       },
       logs,
       candidates: formattedCandidates,
+      defaultCaptions: {
+        OFFER_99: generateSocialCaption("OFFER_99"),
+        KUNDLI_MILAN: generateSocialCaption("KUNDLI_MILAN"),
+        TRUST_VERIFIED: generateSocialCaption("TRUST_VERIFIED"),
+      },
     });
   } catch (error: any) {
     console.error("[Admin Social Automation GET Error]:", error);
@@ -143,80 +176,58 @@ export async function POST(req: NextRequest) {
 
     // Action 2: Test Post Now (with Live or Dry Run)
     if (action === "test_post") {
-      const slot: SocialSlot = (body.slot || "MORNING").toUpperCase() as SocialSlot;
+      const category: SocialCategory = normalizeSlotToCategory(body.slot || "PROFILE_SPOTLIGHT");
       const dryRun = Boolean(body.dryRun ?? false);
       const config = getMetaConfig();
+      const istDate = getIstDateString();
 
-      let candidateData: any = undefined;
-      let candidateId = body.candidateId;
+      let candidateData: SocialPostParams["candidateData"] = undefined;
+      let candidateId: string | undefined = body.candidateId || undefined;
 
       const ogParams = new URLSearchParams();
-      ogParams.set("slot", slot);
+      ogParams.set("d", istDate);
 
-      if (slot === "AFTERNOON") {
-        let profile = null;
-        if (candidateId) {
-          profile = await prisma.profile.findFirst({
-            where: {
-              OR: [{ id: candidateId }, { profileId: candidateId }, { legacyProfileId: candidateId }],
-            },
-            include: {
-              user: { select: { gender: true, fullName: true } },
-              education: { select: { highestQualification: true } },
-              occupation: { select: { profession: true } },
-            },
-          });
-        }
+      if (category === "PROFILE_SPOTLIGHT") {
+        const spotlight = await fetchSpotlightProfile(
+          candidateId ? { preferredCandidateId: String(candidateId) } : undefined
+        );
 
-        if (!profile) {
-          profile = await prisma.profile.findFirst({
-            where: { approvalStatus: { in: ["APPROVED", "PENDING_APPROVAL"] } },
-            include: {
-              user: { select: { gender: true, fullName: true } },
-              education: { select: { highestQualification: true } },
-              occupation: { select: { profession: true } },
-            },
-          });
-        }
+        if (spotlight && spotlight.candidateData && spotlight.candidateData.photoUrl) {
+          const verifiedPhotoUrl = spotlight.candidateData.photoUrl;
+          candidateId = spotlight.candidateId;
+          candidateData = spotlight.candidateData;
 
-        if (profile) {
-          candidateId = profile.id;
-          let age = "26";
-          if (profile.dateOfBirth) {
-            const diff = Date.now() - new Date(profile.dateOfBirth).getTime();
-            age = String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
-          }
-
-          const isFemale = profile.user?.gender === "FEMALE";
-          candidateData = {
-            id: profile.legacyProfileId || profile.profileId,
-            gender: (profile.user?.gender || (isFemale ? "FEMALE" : "MALE")) as "MALE" | "FEMALE",
-            age,
-            height: profile.height || (isFemale ? "5'4\"" : "5'10\""),
-            caste: profile.caste || "Agarwal",
-            gotra: "Garg Gotra",
-            profession: profile.occupation?.profession || "Working Professional",
-            city: profile.birthPlace || "Delhi NCR",
-            education: profile.education?.highestQualification || "Graduate",
-          };
-
+          ogParams.set("slot", "PROFILE_SPOTLIGHT");
           ogParams.set("id", candidateData.id);
-          ogParams.set("gender", candidateData.gender);
-          ogParams.set("age", candidateData.age);
+          ogParams.set("name", candidateData.displayName || "Verified Bride");
+          ogParams.set("gender", "FEMALE");
+          ogParams.set("age", String(candidateData.age));
           ogParams.set("height", candidateData.height);
           ogParams.set("profession", candidateData.profession);
-          ogParams.set("education", candidateData.education);
+          ogParams.set("education", candidateData.education || "Graduate");
           ogParams.set("city", candidateData.city);
           ogParams.set("caste", candidateData.caste);
           ogParams.set("gotra", candidateData.gotra);
+          ogParams.set("photo", verifiedPhotoUrl);
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "No eligible FEMALE profile found with social consent and a verified downloadable photo.",
+            },
+            { status: 422 }
+          );
         }
+      } else {
+        ogParams.set("slot", category);
       }
 
       const imageUrl = `${config.appUrl}/api/og/social-post?${ogParams.toString()}`;
-      const caption = body.customCaption || generateSocialCaption(slot, { candidateData });
+      const caption = body.customCaption || generateSocialCaption(category, { candidateData });
 
       const result = await publishToSocialChannels({
-        slot,
+        slot: category,
         imageUrl,
         caption,
         candidateId,
@@ -227,8 +238,23 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: result.success,
-        slot,
+        slot: category,
+        category,
         status: result.status,
+        candidateId: candidateId || null,
+        candidateData: candidateData
+          ? {
+              id: candidateData.id,
+              displayName: candidateData.displayName,
+              gender: candidateData.gender,
+              age: candidateData.age,
+              height: candidateData.height,
+              education: candidateData.education,
+              profession: candidateData.profession,
+              city: candidateData.city,
+              photoUrl: candidateData.photoUrl,
+            }
+          : undefined,
         imageUrl,
         caption,
         dryRun: result.dryRun,

@@ -28,6 +28,7 @@ import {
 interface CandidateOption {
   id: string;
   displayId: string;
+  displayName?: string;
   fullName: string;
   gender: "MALE" | "FEMALE";
   age: string;
@@ -35,6 +36,8 @@ interface CandidateOption {
   caste: string;
   profession: string;
   city: string;
+  education?: string;
+  photoUrl?: string;
 }
 
 interface SocialLog {
@@ -63,6 +66,8 @@ interface MetaConfigState {
   appUrl: string;
 }
 
+type SocialCategoryType = "PROFILE_SPOTLIGHT" | "OFFER_99" | "KUNDLI_MILAN" | "TRUST_VERIFIED";
+
 export default function SocialAutomationPage() {
   const [loading, setLoading] = useState(true);
   const [autoPostingEnabled, setAutoPostingEnabled] = useState(true);
@@ -70,9 +75,10 @@ export default function SocialAutomationPage() {
   const [metaConfig, setMetaConfig] = useState<MetaConfigState | null>(null);
   const [logs, setLogs] = useState<SocialLog[]>([]);
   const [candidates, setCandidates] = useState<CandidateOption[]>([]);
+  const [defaultCaptions, setDefaultCaptions] = useState<Record<string, string>>({});
 
   // Studio Test State
-  const [selectedSlot, setSelectedSlot] = useState<"MORNING" | "AFTERNOON" | "EVENING">("MORNING");
+  const [selectedSlot, setSelectedSlot] = useState<SocialCategoryType>("PROFILE_SPOTLIGHT");
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>("");
   const [dryRun, setDryRun] = useState(true);
   const [publishing, setPublishing] = useState(false);
@@ -81,26 +87,33 @@ export default function SocialAutomationPage() {
   const [showConfigGuide, setShowConfigGuide] = useState(false);
 
   // Compute live OG Image Preview URL
+  const previewCandidate =
+    selectedSlot === "PROFILE_SPOTLIGHT"
+      ? candidates.find((c) => c.id === selectedCandidateId) || candidates[0]
+      : undefined;
+
   const computePreviewImageUrl = () => {
     const params = new URLSearchParams();
-    params.set("slot", selectedSlot);
 
-    if (selectedSlot === "AFTERNOON" && selectedCandidateId) {
-      const cand = candidates.find((c) => c.id === selectedCandidateId);
-      if (cand) {
-        params.set("id", cand.displayId);
-        params.set("gender", cand.gender);
-        params.set("age", cand.age);
-        params.set("height", cand.height);
-        params.set("profession", cand.profession);
-        params.set("city", cand.city);
-        params.set("caste", cand.caste);
-      }
+    if (selectedSlot === "PROFILE_SPOTLIGHT" && previewCandidate && previewCandidate.photoUrl) {
+      params.set("slot", "PROFILE_SPOTLIGHT");
+      params.set("id", previewCandidate.displayId);
+      params.set("name", previewCandidate.displayName || previewCandidate.fullName);
+      params.set("gender", previewCandidate.gender);
+      params.set("age", previewCandidate.age);
+      params.set("height", previewCandidate.height);
+      params.set("profession", previewCandidate.profession);
+      params.set("education", previewCandidate.education || "Graduate");
+      params.set("city", previewCandidate.city);
+      params.set("caste", previewCandidate.caste);
+      params.set("photo", previewCandidate.photoUrl);
+    } else {
+      params.set("slot", selectedSlot);
     }
     return `/api/og/social-post?${params.toString()}`;
   };
 
-  const [previewUrl, setPreviewUrl] = useState("/api/og/social-post?slot=MORNING");
+  const [previewUrl, setPreviewUrl] = useState("/api/og/social-post?slot=OFFER_99");
 
   useEffect(() => {
     setPreviewUrl(computePreviewImageUrl());
@@ -119,6 +132,9 @@ export default function SocialAutomationPage() {
         setMetaConfig(data.metaConfig);
         setLogs(data.logs || []);
         setCandidates(data.candidates || []);
+        if (data.defaultCaptions) {
+          setDefaultCaptions(data.defaultCaptions);
+        }
       }
     } catch (err) {
       console.error("Failed to load social automation state:", err);
@@ -164,7 +180,7 @@ export default function SocialAutomationPage() {
         body: JSON.stringify({
           action: "test_post",
           slot: selectedSlot,
-          candidateId: selectedSlot === "AFTERNOON" ? selectedCandidateId || undefined : undefined,
+          candidateId: selectedSlot === "PROFILE_SPOTLIGHT" ? selectedCandidateId || undefined : undefined,
           dryRun: isDryRun,
         }),
       });
@@ -212,7 +228,7 @@ export default function SocialAutomationPage() {
               Meta Auto-Poster &amp; Dynamic Image Studio
             </h1>
             <p className="text-xs sm:text-sm text-[#E8D8C0] max-w-2xl leading-relaxed">
-              Automatically renders dynamic 1080x1080 graphics in royal maroon with gold accents and publishes daily updates to Instagram Business and Facebook Page at 09:30 AM, 02:00 PM, and 07:30 PM IST.
+              Automatically renders scroll-stopping 1080x1080 graphics in Royal Navy, Deep Maroon, and Gold accents and rotates across 4 high-converting categories every 2 hours on Instagram Business and Facebook Page.
             </p>
           </div>
 
@@ -220,10 +236,10 @@ export default function SocialAutomationPage() {
           <div className="flex items-center gap-4 bg-black/30 p-4 rounded-2xl border border-white/10 shrink-0">
             <div>
               <p className="text-xs font-bold text-white uppercase tracking-wider">
-                Daily Cron Auto-Posting
+                Automated 2-Hour Rotation
               </p>
               <p className="text-[11px] text-[#DFBA73]">
-                {autoPostingEnabled ? "Active (3x Daily IST)" : "Paused by Administrator"}
+                {autoPostingEnabled ? "Active (4-Way Rotation Engine)" : "Paused by Administrator"}
               </p>
             </div>
 
@@ -245,95 +261,126 @@ export default function SocialAutomationPage() {
         </div>
       </div>
 
-      {/* 3 Daily Schedules Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Slot 1: Morning */}
+      {/* 4 Content Category Engine Cards (Rotate Every 2 Hours) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Category A: Female Bride Spotlight */}
+        <div className="rounded-2xl bg-white border border-[#E8DCC8] p-5 shadow-sm space-y-3 relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>Category A</span>
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              2-Hr Cycle
+            </span>
+          </div>
+          <div>
+            <h3 className="font-serif-luxury text-base font-bold text-[#4A121A] flex items-center gap-1.5">
+              <span>👰 Female Bride Spotlight</span>
+            </h3>
+            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+              Verified &amp; consented bride postcard with high-res framed photo, bio &amp; helpline.
+            </p>
+          </div>
+          <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+            <span>CTA: /register</span>
+            <button
+              type="button"
+              onClick={() => setSelectedSlot("PROFILE_SPOTLIGHT")}
+              className="text-[#4A121A] font-bold hover:underline cursor-pointer"
+            >
+              Preview →
+            </button>
+          </div>
+        </div>
+
+        {/* Category B: ₹99 Launch Offer */}
         <div className="rounded-2xl bg-white border border-[#E8DCC8] p-5 shadow-sm space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>09:30 AM IST</span>
+              <Flame className="h-3 w-3" />
+              <span>Category B</span>
             </span>
             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Slot 1
+              2-Hr Cycle
             </span>
           </div>
           <div>
             <h3 className="font-serif-luxury text-base font-bold text-[#4A121A] flex items-center gap-1.5">
-              <span>🌅 Matrimonial Wisdom</span>
+              <span>🎉 ₹99 Launch Offer</span>
             </h3>
             <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-              Inspirational daily Suvichar on mutual respect, family values, and sacred companionship.
+              &ldquo;Get Direct Verified Match Contacts at just ₹99&rdquo; festive pricing showcase.
             </p>
           </div>
           <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Theme: Royal Maroon &amp; Gold</span>
+            <span>CTA: rishteclub.com</span>
             <button
               type="button"
-              onClick={() => setSelectedSlot("MORNING")}
-              className="text-[#4A121A] font-bold hover:underline"
+              onClick={() => setSelectedSlot("OFFER_99")}
+              className="text-[#4A121A] font-bold hover:underline cursor-pointer"
             >
               Preview →
             </button>
           </div>
         </div>
 
-        {/* Slot 2: Afternoon */}
+        {/* Category C: Free Kundali Milan */}
         <div className="rounded-2xl bg-white border border-[#E8DCC8] p-5 shadow-sm space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>02:00 PM IST</span>
+            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              <span>Category C</span>
             </span>
             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Slot 2
+              2-Hr Cycle
             </span>
           </div>
           <div>
             <h3 className="font-serif-luxury text-base font-bold text-[#4A121A] flex items-center gap-1.5">
-              <span>☀️ Candidate Profile Card</span>
+              <span>🔮 Free Kundali Milan</span>
             </h3>
             <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-              Anonymous verified candidate card featuring Age, Height, Gotra, Profession, and City.
+              &ldquo;100% Free &amp; Accurate 36 Guna Ashtakoot Matching&rdquo; celestial Navy &amp; Gold card.
             </p>
           </div>
           <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Database Candidate Rotation</span>
+            <span>CTA: /kundali</span>
             <button
               type="button"
-              onClick={() => setSelectedSlot("AFTERNOON")}
-              className="text-[#4A121A] font-bold hover:underline"
+              onClick={() => setSelectedSlot("KUNDLI_MILAN")}
+              className="text-[#4A121A] font-bold hover:underline cursor-pointer"
             >
               Preview →
             </button>
           </div>
         </div>
 
-        {/* Slot 3: Evening */}
+        {/* Category D: Verified Profiles & Trust */}
         <div className="rounded-2xl bg-white border border-[#E8DCC8] p-5 shadow-sm space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>07:30 PM IST</span>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              <span>Category D</span>
             </span>
             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Slot 3
+              2-Hr Cycle
             </span>
           </div>
           <div>
             <h3 className="font-serif-luxury text-base font-bold text-[#4A121A] flex items-center gap-1.5">
-              <span>🌙 36 Guna Milan &amp; Astrology</span>
+              <span>🛡️ Verified Profiles &amp; Trust</span>
             </h3>
             <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-              Vedic Ashtakoota compatibility facts, Manglik insights, and Lal Kitab remedies.
+              &ldquo;100% Manually Verified Matches | Direct Family Connect&rdquo; trust shield card.
             </p>
           </div>
           <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Directs to /astrology</span>
+            <span>CTA: /register &amp; /kundali</span>
             <button
               type="button"
-              onClick={() => setSelectedSlot("EVENING")}
-              className="text-[#4A121A] font-bold hover:underline"
+              onClick={() => setSelectedSlot("TRUST_VERIFIED")}
+              className="text-[#4A121A] font-bold hover:underline cursor-pointer"
             >
               Preview →
             </button>
@@ -414,13 +461,14 @@ export default function SocialAutomationPage() {
             </p>
           </div>
 
-          {/* Slot Tabs */}
-          <div className="flex items-center gap-1 bg-[#FAF6EF] p-1.5 rounded-2xl border border-[#DACBB4]">
+          {/* Category Tabs */}
+          <div className="flex flex-wrap items-center gap-1 bg-[#FAF6EF] p-1.5 rounded-2xl border border-[#DACBB4]">
             {(
               [
-                { id: "MORNING", label: "🌅 Morning Suvichar" },
-                { id: "AFTERNOON", label: "☀️ Afternoon Profile" },
-                { id: "EVENING", label: "🌙 Evening Astrology" },
+                { id: "PROFILE_SPOTLIGHT", label: "👰 Bride Spotlight" },
+                { id: "OFFER_99", label: "🎉 ₹99 Launch Offer" },
+                { id: "KUNDLI_MILAN", label: "🔮 Free Kundali" },
+                { id: "TRUST_VERIFIED", label: "🛡️ Trust & Verified" },
               ] as const
             ).map((tab) => (
               <button
@@ -439,28 +487,28 @@ export default function SocialAutomationPage() {
           </div>
         </div>
 
-        {/* Afternoon Candidate Selector Option */}
-        {selectedSlot === "AFTERNOON" && (
+        {/* Female Bride Selector Option */}
+        {selectedSlot === "PROFILE_SPOTLIGHT" && (
           <div className="p-4 rounded-2xl bg-[#FAF6EF] border border-[#DACBB4] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <label className="block text-xs font-bold text-[#7A5835] uppercase tracking-wider mb-1">
-                Select Candidate from Database
+                Select Verified Consented Bride from Database
               </label>
               <select
                 value={selectedCandidateId}
                 onChange={(e) => setSelectedCandidateId(e.target.value)}
                 className="w-full sm:w-96 rounded-xl border border-[#DACBB4] bg-white px-3 py-2 text-xs font-bold text-[#2D221E] focus:outline-none"
               >
-                <option value="">Auto-Select Latest Verified Candidate</option>
+                <option value="">Auto-Select Verified Bride (With Approved Photo)</option>
                 {candidates.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.fullName} ({c.displayId}) • {c.gender} • {c.caste} • {c.city}
+                    {c.displayName || c.fullName} ({c.displayId}) • {c.age} Yrs • {c.city}
                   </option>
                 ))}
               </select>
             </div>
             <span className="text-[11px] text-gray-500 italic">
-              Data is automatically anonymized on the 1080x1080 card for privacy
+              Strict privacy consent enforced • Personal phone numbers remain hidden
             </span>
           </div>
         )}
@@ -530,48 +578,43 @@ export default function SocialAutomationPage() {
                 id="caption-preview-box"
                 className="rounded-2xl bg-[#FAF6EF] border border-[#DACBB4] p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto"
               >
-                {selectedSlot === "MORNING" && (
+                {selectedSlot === "PROFILE_SPOTLIGHT" && (
                   <>
-                    🙏 सुप्रभात • आज का पावन विचार • RishteClub Matrimony 🙏{"\n\n"}
-                    &ldquo;विवाह केवल दो व्यक्तियों का नहीं, बल्कि दो परिवारों और दो आत्माओं का पवित्र संगम है। जहाँ सम्मान और विश्वास हो, वही रिश्ता स्वर्ग बनता है।&rdquo;{"\n\n"}
-                    ✨ अपनों के लिए सही रिश्ता — सरलता, गरिमा और विश्वास के साथ।{"\n\n"}
-                    📞 WhatsApp / Call Helpline:{"\n"}
-                    • +91 9871592002{"\n"}
-                    • +91 7015812359{"\n\n"}
-                    🌐 100% Verified Profiles: https://www.rishteclub.com{"\n\n"}
-                    #RishteClub #Suvichar #Matrimony #Shaadi #VivahSewa #GoodMorning #IndianWedding #HinduMatrimony #Rishtey
+                    ✨ वधू प्रोफाइल (Verified Bride Spotlight) — RishteClub Matrimony ✨{"\n"}
+                    पारिवारिक मूल्यों और विश्वास पर आधारित 100% सत्यापित रिश्ता 💍{"\n\n"}
+                    🆔 Profile ID: {previewCandidate?.displayId || "NNVS-G-XXXX"}{"\n"}
+                    👰 Candidate: {previewCandidate?.displayName || "Verified Bride"} (Verified Bride){"\n"}
+                    • 🎂 Age &amp; Height: {previewCandidate?.age || "26"} Yrs • {previewCandidate?.height || "5'4\""}{"\n"}
+                    • 🎓 Education: {previewCandidate?.education || "Post Graduate"}{"\n"}
+                    • 💼 Profession: {previewCandidate?.profession || "Working Professional"}{"\n"}
+                    • 🏛️ Community: {previewCandidate?.caste || "Hindu"}{"\n"}
+                    • 📍 Location: {previewCandidate?.city || "Delhi NCR"}{"\n\n"}
+                    🔒 Privacy Guarantee: परिवार के फ़ोन नंबर केवल सत्यापित और रजिस्टर्ड परिवारों को ही उपलब्ध कराए जाते हैं — कोई दलाल या कमीशन नहीं!{"\n\n"}
+                    👉 पूरी प्रोफाइल देखने और संपर्क करने के लिए विजिट करें: https://www.rishteclub.com/register{"\n\n"}
+                    📞 WhatsApp &amp; Matchmaking Helpline:{"\n"}
+                    • WhatsApp / Call: +91 9871592002 | +91 7015812359{"\n\n"}
+                    #RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #BrideSpotlight #VerifiedBride #Vivah #HinduMatrimony #IndianWedding
                   </>
                 )}
 
-                {selectedSlot === "AFTERNOON" && (
+                {selectedSlot === "OFFER_99" && (
                   <>
-                    ✨ 100% VERIFIED CANDIDATE PROFILE HIGHLIGHT ✨{"\n"}
-                    Platform: RishteClub Matrimony (Managed by NNVS Matrimony){"\n\n"}
-                    👤 Candidate: Verified Match Candidate{"\n"}
-                    🎂 Age &amp; Height: 26 Yrs • 5&apos;5&quot;{"\n"}
-                    🏛️ Community: Agarwal / Baniya (Garg Gotra){"\n"}
-                    💼 Profession: Working Professional / MNC{"\n"}
-                    📍 City / Location: Delhi NCR / Haryana{"\n\n"}
-                    🔒 Privacy Note: Candidate profile is anonymized for privacy. Complete biodata with family background is available to verified members on RishteClub.{"\n\n"}
-                    📞 Contact Our Matchmaker Helpline:{"\n"}
-                    • WhatsApp: +91 9871592002{"\n"}
-                    • Calling: +91 7015812359{"\n\n"}
-                    🌐 View Profiles &amp; Register: https://www.rishteclub.com/profiles{"\n\n"}
-                    #RishteClub #MatrimonialProfile #GroomBiodata #BrideBiodata #HinduMatrimony #DelhiNCRMatrimony #Shaadi #Rishtey
+                    {defaultCaptions.OFFER_99 ||
+                      `🎉 धमाकेदार लॉन्च ऑफर! Get Direct Verified Match Contacts at just ₹99! 🎉\n\n👉 ऑफर का लाभ उठाने के लिए अभी रजिस्टर करें: https://www.rishteclub.com\n\n📞 WhatsApp Registration Support:\n• WhatsApp / Call: +91 9871592002 | +91 7015812359\n\n#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches`}
                   </>
                 )}
 
-                {selectedSlot === "EVENING" && (
+                {selectedSlot === "KUNDLI_MILAN" && (
                   <>
-                    ✨ वैदिक ज्योतिष एवं कुंडली मिलान अंतर्दृष्टि ✨{"\n"}
-                    RishteClub AI Kundli Milan &amp; Vedic Insights{"\n\n"}
-                    ⭐ 36 Guna Ashtakoota Milan: विवाह से पूर्व दोनों कुंडलियों का अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) मानसिक, शारीरिक और पारिवारिक सामंजस्य का दर्पण है।{"\n\n"}
-                    🌿 लाल किताब सरल समाधान: यदि नाड़ी या भकूट में मतभेद हो, तो भयभीत होने के बजाय शास्त्रीय नियमों और सरल लाल किताब उपायों से समाधान संभव है।{"\n\n"}
-                    🔮 Free AI Kundli Milan: अपनी व अपने जीवनसाथी की जन्म तिथि डालकर तुरंत 36 गुण व मांगलिक विश्लेषण प्राप्त करें।{"\n\n"}
-                    📞 Astrological Query Helpline:{"\n"}
-                    • +91 9871592002 | +91 7015812359{"\n\n"}
-                    🌐 AI Kundli Milan Calculator: https://www.rishteclub.com/astrology{"\n\n"}
-                    #RishteClub #KundaliMilan #36Guna #VedicAstrology #ManglikDosha #HoroscopeMatching #LalKitab #IndianWedding #Shaadi
+                    {defaultCaptions.KUNDLI_MILAN ||
+                      `🔮 RishteClub पर पाएं 100% Free & Accurate Kundali Matching! ✨\n\n👉 फ्री कुंडली मिलान के लिए क्लिक करें: https://www.rishteclub.com/kundali\n\n📞 WhatsApp & Astrology Helpline:\n• WhatsApp / Call: +91 9871592002 | +91 7015812359\n\n#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches`}
+                  </>
+                )}
+
+                {selectedSlot === "TRUST_VERIFIED" && (
+                  <>
+                    {defaultCaptions.TRUST_VERIFIED ||
+                      `🛡️ 100% Manually Verified Matches | Direct Family Connect — RishteClub Matrimony 💍\n\n👉 पूरी प्रोफाइल देखने और संपर्क करने के लिए विजिट करें: https://www.rishteclub.com/register\n👉 फ्री कुंडली मिलान के लिए क्लिक करें: https://www.rishteclub.com/kundali\n\n📞 WhatsApp & Matchmaker Support:\n• WhatsApp / Call: +91 9871592002 | +91 7015812359\n\n#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches`}
                   </>
                 )}
               </div>
@@ -710,13 +753,17 @@ export default function SocialAutomationPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full ${
-                            log.slot === "MORNING" || log.slot === "KUNDLI_MILAN"
+                            log.slot === "AFTERNOON" ||
+                            log.slot === "SPOTLIGHT" ||
+                            log.slot === "PROFILE_SPOTLIGHT"
+                              ? "bg-rose-100 text-rose-800"
+                              : log.slot === "OFFER_99" ||
+                                log.slot === "PROMOTION" ||
+                                log.slot === "EVENING"
                               ? "bg-amber-100 text-amber-800"
-                              : log.slot === "AFTERNOON" ||
-                                log.slot === "SPOTLIGHT" ||
-                                log.slot === "PROFILE_SPOTLIGHT"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-purple-100 text-purple-800"
+                              : log.slot === "MORNING" || log.slot === "KUNDLI_MILAN"
+                              ? "bg-indigo-100 text-indigo-800"
+                              : "bg-emerald-100 text-emerald-800"
                           }`}
                         >
                           {log.slot}

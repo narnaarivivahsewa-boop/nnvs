@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/kundali",
+        destination: "/kundli-milan",
+        permanent: true,
+      },
+      {
         // Redirect naked domain to www canonical domain (excluding backend integrations if requested)
         source: "/:path((?!api/integrations/).*)",
         has: [

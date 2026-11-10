@@ -2,17 +2,36 @@ import { prisma } from "@/lib/prisma";
 import { BUSINESS_INFO } from "@/lib/gst";
 import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 
+export type SocialCategory =
+  | "PROFILE_SPOTLIGHT" // Category A: Female Bride Spotlight
+  | "OFFER_99"          // Category B: ₹99 Launch Offer
+  | "KUNDLI_MILAN"      // Category C: Free Kundali Milan
+  | "TRUST_VERIFIED";   // Category D: Verified Profiles & Trust
+
+export const ROTATION_SEQUENCE: readonly SocialCategory[] = [
+  "PROFILE_SPOTLIGHT",
+  "OFFER_99",
+  "KUNDLI_MILAN",
+  "TRUST_VERIFIED",
+] as const;
+
 export type SocialSlot =
+  | SocialCategory
   | "MORNING"
   | "AFTERNOON"
   | "SPOTLIGHT"
   | "EVENING"
   | "MANUAL"
-  | "KUNDLI_MILAN"
-  | "PROFILE_SPOTLIGHT"
   | "PROMOTION"
   | "REGISTRATION"
-  | "MATCHMAKING_TIPS";
+  | "MATCHMAKING_TIPS"
+  | "LAUNCH_OFFER"
+  | "VERIFIED_TRUST"
+  | "BRIDE_SPOTLIGHT"
+  | "CATEGORY_A"
+  | "CATEGORY_B"
+  | "CATEGORY_C"
+  | "CATEGORY_D";
 
 export interface SocialPostParams {
   slot: SocialSlot;
@@ -131,6 +150,49 @@ export function getIstDateString(date: Date = new Date()): string {
   }).format(date);
 }
 
+export function normalizeSlotToCategory(slot?: string | null): SocialCategory {
+  const s = (slot || "").trim().toUpperCase();
+  if (
+    s === "PROFILE_SPOTLIGHT" ||
+    s === "AFTERNOON" ||
+    s === "SPOTLIGHT" ||
+    s === "BRIDE_SPOTLIGHT" ||
+    s === "CANDIDATE" ||
+    s === "CATEGORY_A"
+  ) {
+    return "PROFILE_SPOTLIGHT";
+  }
+  if (
+    s === "OFFER_99" ||
+    s === "LAUNCH_OFFER" ||
+    s === "PROMOTION" ||
+    s === "REGISTRATION" ||
+    s === "EVENING" ||
+    s === "CATEGORY_B"
+  ) {
+    return "OFFER_99";
+  }
+  if (
+    s === "KUNDLI_MILAN" ||
+    s === "MORNING" ||
+    s === "FREE_KUNDALI" ||
+    s === "MATCHMAKING_TIPS" ||
+    s === "CATEGORY_C"
+  ) {
+    return "KUNDLI_MILAN";
+  }
+  if (
+    s === "TRUST_VERIFIED" ||
+    s === "VERIFIED_TRUST" ||
+    s === "TRUST" ||
+    s === "MANUAL" ||
+    s === "CATEGORY_D"
+  ) {
+    return "TRUST_VERIFIED";
+  }
+  return "OFFER_99";
+}
+
 export function resolveSocialSlotFromTime(
   specifiedSlot?: string | null,
   date: Date = new Date()
@@ -140,6 +202,7 @@ export function resolveSocialSlotFromTime(
     if (
       s &&
       s !== "AUTO" &&
+      s !== "ROTATE" &&
       (s === "MORNING" ||
         s === "AFTERNOON" ||
         s === "SPOTLIGHT" ||
@@ -149,24 +212,69 @@ export function resolveSocialSlotFromTime(
         s === "PROFILE_SPOTLIGHT" ||
         s === "PROMOTION" ||
         s === "REGISTRATION" ||
-        s === "MATCHMAKING_TIPS")
+        s === "MATCHMAKING_TIPS" ||
+        s === "OFFER_99" ||
+        s === "LAUNCH_OFFER" ||
+        s === "TRUST_VERIFIED" ||
+        s === "VERIFIED_TRUST" ||
+        s === "BRIDE_SPOTLIGHT" ||
+        s === "CATEGORY_A" ||
+        s === "CATEGORY_B" ||
+        s === "CATEGORY_C" ||
+        s === "CATEGORY_D")
     ) {
       return s as SocialSlot;
     }
   }
 
+  // Dynamic 2-hour 4-way IST rotation across Category A -> B -> C -> D
   const istHour = getIstHour(date);
-  if (istHour >= 4 && istHour < 12) {
-    return "MORNING"; // 09:00 AM IST Window: Free Kundali Milan Promotion & Astrology Tips
-  }
-  if (istHour >= 12 && istHour < 17) {
-    return "SPOTLIGHT"; // 02:00 PM (14:00) IST Window: Live Verified Profile Spotlight
-  }
-  return "EVENING"; // 07:00 PM (19:00) IST Window: Platform Promotion & Registration Awareness
+  const block2Hr = Math.floor(istHour / 2); // 0..11 across 24h IST
+  return ROTATION_SEQUENCE[block2Hr % ROTATION_SEQUENCE.length];
 }
 
 /**
- * Auto-generate engaging captions with contact numbers, official website, and hashtags
+ * DB-aware 4-way rotation engine for 2-hour automated runs.
+ * Rotates A (Female Bride Spotlight) -> B (₹99 Offer) -> C (Free Kundali Milan) -> D (Verified Trust)
+ * and prevents repeating the most recently published category consecutively.
+ */
+export async function resolveNextRotatedCategory(
+  date: Date = new Date()
+): Promise<SocialCategory> {
+  const istHour = getIstHour(date);
+  const block2Hr = Math.floor(istHour / 2);
+  let candidate = ROTATION_SEQUENCE[block2Hr % ROTATION_SEQUENCE.length];
+
+  try {
+    const lastSuccess = await prisma.socialPostLog.findFirst({
+      where: {
+        status: "SUCCESS",
+        NOT: [
+          { facebookPostId: { startsWith: "SIM_FB_" } },
+          { instagramMediaId: { startsWith: "SIM_IG_" } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { slot: true, createdAt: true },
+    });
+
+    if (lastSuccess) {
+      const lastCategory = normalizeSlotToCategory(lastSuccess.slot);
+      const lastIndex = ROTATION_SEQUENCE.indexOf(lastCategory);
+      if (lastCategory === candidate && lastIndex >= 0) {
+        candidate = ROTATION_SEQUENCE[(lastIndex + 1) % ROTATION_SEQUENCE.length];
+      }
+    }
+  } catch (err) {
+    console.warn("[Social Rotation Warning]: Failed to check last post log, using time bucket:", err);
+  }
+
+  return candidate;
+}
+
+/**
+ * Auto-generate scroll-stopping Hindi/Hinglish social captions with direct clickable CTAs,
+ * WhatsApp helplines, bulleted highlights, and high-reach Indian wedding hashtags.
  */
 export function generateSocialCaption(
   slot: SocialSlot,
@@ -180,147 +288,560 @@ export function generateSocialCaption(
   const helpline1 = "+91 9871592002";
   const helpline2 = "+91 7015812359";
   const website = "https://www.rishteclub.com";
+  const category = normalizeSlotToCategory(slot);
   const femalePricing = getRegistrationPricingDetails("FEMALE", now);
   const malePricing = getRegistrationPricingDetails("MALE", now);
   const isOfferActive = femalePricing.isOfferActive;
 
-  // Post 1: Free Kundali Milan Promotion & Astrology Tips (Morning Slot - 09:00 AM IST)
-  if (slot === "MORNING" || slot === "KUNDLI_MILAN" || slot === "MATCHMAKING_TIPS") {
+  // =========================================================================
+  // CATEGORY A: FEMALE BRIDE SPOTLIGHT (Consented, Verified, With Real Photo)
+  // =========================================================================
+  if (category === "PROFILE_SPOTLIGHT" && data?.candidateData) {
+    const c = data.candidateData;
+    const id = c.id || "RC-Featured";
+    const displayName = c.displayName || "Verified Bride";
+    const age = c.age ? `${c.age} Yrs` : "26 Yrs";
+    const height = c.height || "5'4\"";
+    const education = c.education || "Graduate";
+    const profession = c.profession || "Working Professional";
+    const community = c.caste || "Hindu";
+    const city = c.city || "Delhi NCR";
+
     return (
-      `✨ Free AI Kundali Milan & Vedic Astrology Insights ✨\n` +
-      `Platform: RishteClub Matrimony (Powered by NNVS)\n\n` +
-      `विवाह से पहले वर-वधू की कुंडली का सटीक अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब बिल्कुल निःशुल्क।\n\n` +
-      `⭐ Key Astrological Insights:\n` +
-      `• 36 Guna Ashtakoot Score & Deep Hindi Interpretation\n` +
-      `• Manglik Dosha Verification & Classical Vedic Remedies\n` +
-      `• Nakshatra Compatibility & Harmony Guidelines\n` +
-      `• Free Downloadable Vedic Horoscope Compatibility Certificate (PDF)\n\n` +
-      `👉 Check Free Kundali Milan on RishteClub:\n` +
-      `🌐 ${website}/kundli-milan\n\n` +
-      `📞 Matchmaking & Astrological Helpline:\n` +
-      `• WhatsApp / Call: ${helpline1}\n` +
-      `• Support: ${helpline2}\n\n` +
-      `#KundaliMilan #FreeKundali #GunMilan #VedicAstrology #ManglikDosha #RishteClub #HoroscopeMatching #HinduMatrimony #Shaadi #IndianWedding`
+      `✨ वधू प्रोफाइल (Verified Bride Spotlight) — RishteClub Matrimony ✨\n` +
+      `पारिवारिक मूल्यों और विश्वास पर आधारित 100% सत्यापित रिश्ता 💍\n\n` +
+      `🆔 Profile ID: ${id}\n` +
+      `👰 Candidate: ${displayName} (Verified Bride)\n` +
+      `• 🎂 Age & Height: ${age} • ${height}\n` +
+      `• 🎓 Education: ${education}\n` +
+      `• 💼 Profession: ${profession}\n` +
+      `• 🏛️ Community: ${community}\n` +
+      `• 📍 Location: ${city}\n\n` +
+      `🔒 Privacy Guarantee: परिवार के फ़ोन नंबर केवल सत्यापित और रजिस्टर्ड परिवारों को ही उपलब्ध कराए जाते हैं — कोई दलाल या कमीशन नहीं!\n\n` +
+      `👉 पूरी प्रोफाइल देखने और संपर्क करने के लिए विजिट करें: ${website}/register\n\n` +
+      `📞 WhatsApp & Matchmaking Helpline:\n` +
+      `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
+      `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #BrideSpotlight #VerifiedBride #Vivah #HinduMatrimony #IndianWedding`
     );
   }
 
-  // Post 2: Live Verified Profile Spotlight (Afternoon Slot - 02:00 PM IST)
-  if (slot === "AFTERNOON" || slot === "SPOTLIGHT" || slot === "PROFILE_SPOTLIGHT") {
-    const c = data?.candidateData;
-    if (c) {
-      const id = c.id || "RC-Featured";
-      const age = c.age ? `${c.age} Yrs` : "26 Yrs";
-      const profession = c.profession || "Working Professional";
-      const city = c.city || "Delhi NCR";
-
-      return (
-        `✨ New Verified Profile Spotlight on RishteClub Matrimony!\n` +
-        `🆔 Profile ID: ${id}\n` +
-        `🎂 Age: ${age}\n` +
-        `💼 Profession: ${profession}\n` +
-        `📍 Location: ${city}\n\n` +
-        `🔒 To view full verified details and express interest safely, search Profile ID '${id}' on ${website}\n\n` +
-        `#RishteClub #Matrimony #VerifiedProfiles #Matchmaking #Rishtey`
-      );
-    }
-
-    // Fallback if no candidate profile is passed
-    if (isOfferActive) {
-      return (
-        `🎉 Special Launch Offer — Only ₹${femalePricing.baseFee} + GST! 🎉\n` +
-        `Find Your Perfect Life Partner with 100% Verified Profiles & 36 Guna Kundali Milan\n` +
-        `🗓️ ${OFFER_VALIDITY_LABEL} | Both Brides & Grooms\n\n` +
-        `✨ Special One-Time Offer (Limited Period):\n` +
-        `👧 Brides (Kanya): ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)}) — Regular ₹${femalePricing.regularBaseFee} + GST\n` +
-        `👦 Grooms (Var): ₹${malePricing.baseFee} + GST (₹${malePricing.totalAmount.toFixed(2)}) — Regular ₹${malePricing.regularBaseFee} + GST\n` +
-        `🚫 Zero monthly subscriptions & zero middlemen brokerage.\n\n` +
-        `🔒 Why Families Choose RishteClub (NNVS Matrimony):\n` +
-        `• 100% Background & Mobile Verified Matrimonial Biodatas\n` +
-        `• Instant 36 Guna Ashtakoota Kundali Milan & Manglik Check\n` +
-        `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & All Communities\n\n` +
-        `👉 Register today on www.rishteclub.com:\n` +
-        `🌐 ${website}/register\n\n` +
-        `📞 Matchmaker Helpline:\n` +
-        `• WhatsApp / Support: ${helpline1} | ${helpline2}\n\n` +
-        `#RishteClub #MatrimonyOffer #Matrimony #Shaadi #Vivah #KundaliMilan #VerifiedProfiles #IndianMatrimony`
-      );
-    }
-
+  // =========================================================================
+  // CATEGORY C: FREE KUNDALI MILAN
+  // =========================================================================
+  if (category === "KUNDLI_MILAN") {
     return (
-      `💍 अपनों के लिए सही रिश्ता — RishteClub Matrimony 💍\n` +
-      `Managed by NNVS Matrimony (Registered Matrimonial Service)\n\n` +
-      `पारिवारिक प्रतिष्ठा, सुरक्षा और शुद्ध भारतीय संस्कारों के साथ अपने बच्चों के लिए योग्य जीवनसाथी खोजें।\n\n` +
-      `✨ Transparent Lifetime Membership:\n` +
-      `👧 Kanya (Bride) Lifetime Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
-      `👦 Var (Groom) Lifetime Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
-      `🚫 No monthly recurring fees. Direct family contact.\n\n` +
-      `🔒 100% Verified Profiles:\n` +
-      `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n` +
-      `• Direct Contact with Respected Families\n` +
-      `• Complete Privacy & Verified Backgrounds\n\n` +
-      `👉 Register Today:\n` +
-      `🌐 ${website}/register\n\n` +
-      `📞 Matchmaker Helpline:\n` +
-      `• WhatsApp / Calling: ${helpline1}\n` +
-      `• Support: ${helpline2}\n\n` +
-      `#RishteClub #Matrimony #Shaadi #Vivah #AgarwalMatrimony #BaniyaMatrimony #BrahminMatrimony #PunjabiMatrimony #DelhiNCRMatrimony #HaryanaVivah #IndianMatrimony`
+      `🔮 RishteClub पर पाएं 100% Free & Accurate Kundali Matching! ✨\n` +
+      `शादी का सही फ़ैसला लें वैदिक ज्योतिष और सटीक 36 गुण मिलान के साथ 🙏\n\n` +
+      `विवाह से पहले वर-वधू की कुंडली का सटीक अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब बिल्कुल मुफ़्त — कुछ ही सेकंड में!\n\n` +
+      `⭐ Free Kundali Milan Features:\n` +
+      `• ✅ 36 Guna Ashtakoot Score + सरल हिंदी व अंग्रेज़ी व्याख्या\n` +
+      `• ✅ सटीक मांगलिक दोष (Manglik Dosha) जांच व वैदिक समाधान\n` +
+      `• ✅ नाड़ी व भकूट दोष का शास्त्रीय विश्लेषण\n` +
+      `• ✅ परिवार के साथ शेयर करने योग्य Free Instant PDF Report\n\n` +
+      `👉 फ्री कुंडली मिलान के लिए क्लिक करें: ${website}/kundali\n\n` +
+      `📞 WhatsApp & Astrology Helpline:\n` +
+      `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
+      `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #FreeKundali #GunMilan #ManglikDosha #VedicAstrology #IndianWedding`
     );
   }
 
-  // Post 3: Platform Promotion & Registration CTA (Evening Slot - 07:00 PM IST)
+  // =========================================================================
+  // CATEGORY D: VERIFIED PROFILES & TRUST
+  // =========================================================================
+  if (category === "TRUST_VERIFIED") {
+    return (
+      `🛡️ 100% Manually Verified Matches | Direct Family Connect — RishteClub Matrimony 💍\n` +
+      `Managed by NNVS Matrimony — जहाँ हर रिश्ता विश्वास, सुरक्षा और सम्मान के साथ जुड़ता है 🙏\n\n` +
+      `अजनबी प्रोफाइल्स और फेक कॉल्स से परेशान हैं? RishteClub पर हम हर बायोडाटा को मैनुअली वेरिफाई करते हैं ताकि आपका परिवार सुरक्षित व सही जीवनसाथी चुन सके।\n\n` +
+      `⭐ क्यों चुनें RishteClub Matrimony?\n` +
+      `• ✅ 100% Manually Verified & Family-Screened Biodatas\n` +
+      `• ✅ Direct Family Contact — सीधे माता-पिता/परिवार से बात, Zero Brokerage\n` +
+      `• ✅ Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & All Communities\n` +
+      `• ✅ Strong Photo & Contact Privacy Safeguards\n\n` +
+      `👉 पूरी प्रोफाइल देखने और संपर्क करने के लिए विजिट करें: ${website}/register\n` +
+      `👉 फ्री कुंडली मिलान के लिए क्लिक करें: ${website}/kundali\n\n` +
+      `📞 WhatsApp & Matchmaker Support:\n` +
+      `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
+      `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #DirectFamilyConnect #TrustedMatrimony #Vivah #HinduMatrimony #Rishtey`
+    );
+  }
+
+  // =========================================================================
+  // CATEGORY B: ₹99 LAUNCH OFFER (Default / Promotion / Offer 99)
+  // =========================================================================
   if (isOfferActive) {
     return (
-      `🎉 Special Launch Offer — Only ₹${femalePricing.baseFee} + GST! 🎉\n` +
-      `Find Your Perfect Life Partner with 100% Verified Profiles & 36 Guna Kundali Milan\n` +
-      `🗓️ ${OFFER_VALIDITY_LABEL} | Both Brides & Grooms\n\n` +
-      `✨ Transparent Limited-Time Offer:\n` +
-      `👧 Brides (Kanya): ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)} incl. GST) — Regular ₹${femalePricing.regularBaseFee} + GST\n` +
-      `👦 Grooms (Var): ₹${malePricing.baseFee} + GST (₹${malePricing.totalAmount.toFixed(2)} incl. GST) — Regular ₹${malePricing.regularBaseFee} + GST\n` +
-      `🚫 No monthly recurring subscriptions. Zero middlemen brokerage.\n\n` +
-      `⭐ Verified Registration Benefits:\n` +
-      `• 100% Verified Biodatas with Mobile & Family Review\n` +
-      `• Direct Contact with Respected Families\n` +
-      `• Free 36 Guna Ashtakoota Kundali Milan & Horoscope Matching\n` +
-      `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n\n` +
-      `👉 Register today on www.rishteclub.com:\n` +
-      `🌐 ${website}/register\n\n` +
-      `📞 Matchmaker Helpline:\n` +
-      `• WhatsApp / Support: ${helpline1} | ${helpline2}\n\n` +
-      `#RishteClub #LaunchOffer #Matrimony #Shaadi #Vivah #KundaliMilan #Matchmaking #IndianWedding`
+      `🎉 धमाकेदार लॉन्च ऑफर! Get Direct Verified Match Contacts at just ₹${femalePricing.baseFee}! 🎉\n` +
+      `सीमित समय का विशेष अवसर (${OFFER_VALIDITY_LABEL}) — अब सिर्फ ₹${femalePricing.baseFee} + GST (कुल ₹${Math.round(femalePricing.totalAmount)}) में जुड़ें! 💍\n\n` +
+      `⭐ इस विशेष ₹${femalePricing.baseFee} ऑफर में क्या मिलेगा?\n` +
+      `• 👰 Brides (Kanya): मात्र ₹${femalePricing.baseFee} + GST (Regular ₹${femalePricing.regularBaseFee} + GST — 88% तक की बचत)\n` +
+      `• 🤵 Grooms (Var): मात्र ₹${malePricing.baseFee} + GST (Regular ₹${malePricing.regularBaseFee} + GST — 88% तक की बचत)\n` +
+      `• 📞 परिवारों के सीधे संपर्क नंबर (Zero Middlemen / Zero Monthly Fee)\n` +
+      `• 🔮 100% Verified Profiles + Free 36 Guna Kundali Milan\n\n` +
+      `👉 ऑफर का लाभ उठाने के लिए अभी रजिस्टर करें: ${website}\n\n` +
+      `📞 WhatsApp Registration Support:\n` +
+      `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
+      `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #LaunchOffer #Rishtey99 #IndianWedding #Vivah #Matchmaking`
     );
   }
 
   return (
-    `💍 Find Your Ideal Life Partner on RishteClub Matrimony 💍\n` +
-    `Trusted Community Matchmaking Managed by NNVS Matrimony\n\n` +
-    `पारिवारिक प्रतिष्ठा, सुरक्षा और शुद्ध भारतीय संस्कारों के साथ अपने परिवार के लिए योग्य जीवनसाथी खोजें।\n\n` +
-    `⭐ Verified Registration Benefits:\n` +
-    `• 100% Verified Biodatas with Mobile & Family Verification\n` +
-    `• Direct Contact with Respected Families — Zero Middlemen Commission\n` +
-    `• Complete Data Privacy & Safe Matchmaking Experience\n` +
-    `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n\n` +
-    `✨ Transparent Lifetime Membership:\n` +
-    `👧 Kanya (Bride) Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
-    `👦 Var (Groom) Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
-    `🚫 No monthly recurring subscriptions.\n\n` +
-    `👉 Register Free Today:\n` +
-    `🌐 ${website}/register\n\n` +
-    `📞 Matchmaker Helpline:\n` +
+    `💍 अपनों के लिए सही जीवनसाथी — RishteClub Matrimony 💍\n` +
+    `Managed by NNVS Matrimony — पारिवारिक प्रतिष्ठा और शुद्ध भारतीय संस्कारों का संगम 🙏\n\n` +
+    `⭐ Transparent Lifetime Membership:\n` +
+    `• 👰 Kanya (Bride) Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
+    `• 🤵 Var (Groom) Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
+    `• 📞 Direct Family Contact — कोई मासिक शुल्क या ब्रोकरेज नहीं\n` +
+    `• 🔮 100% Manually Verified Profiles & Free 36 Guna Kundali Milan\n\n` +
+    `👉 ऑफर का लाभ उठाने के लिए अभी रजिस्टर करें: ${website}\n\n` +
+    `📞 WhatsApp & Matchmaking Helpline:\n` +
     `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
-    `#RishteClub #Matrimony #Shaadi #Vivah #Matchmaking #CommunityMatrimony #IndianWedding #FamilyValues`
+    `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #Vivah #IndianMatrimony #HinduMatrimony #Rishtey`
   );
 }
 
+const REJECTED_PHOTO_PATTERNS = [
+  "placeholder",
+  "default-avatar",
+  "default_avatar",
+  "silhouette",
+  "no-photo",
+  "no_photo",
+  "blank",
+  "dsc00173",
+  "/images/wedding/",
+];
+
+function isPrivateOrLocalHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim();
+  if (
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return true;
+  }
+
+  // Block IPv4 loopback, link-local (169.254/16), and RFC1918 private ranges
+  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
- * Fetch an active, verified profile for the Live Profile Spotlight (Afternoon slot)
- * Applies strict Privacy Guard rules and deduplication
+ * Validate and normalize a candidate photo URL for public OG spotlight cards.
+ * Rejects base64 data URIs, SVGs, local/private hosts, and banner/silhouette placeholders.
  */
-export async function fetchSpotlightProfile(): Promise<{
+export function normalizeSpotlightPhotoUrl(
+  rawUrl?: string | null,
+  appUrl: string = "https://www.rishteclub.com"
+): string | null {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  let trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith("data:") ||
+    lower.startsWith("blob:") ||
+    lower.endsWith(".svg") ||
+    REJECTED_PHOTO_PATTERNS.some((pattern) => lower.includes(pattern))
+  ) {
+    return null;
+  }
+
+  if (trimmed.startsWith("/")) {
+    trimmed = `${appUrl.replace(/\/+$/, "")}${trimmed}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return null;
+    }
+    if (isPrivateOrLocalHostname(parsed.hostname)) {
+      return null;
+    }
+    // Always use HTTPS for CDN / Cloudinary / Google Drive URLs
+    if (parsed.protocol === "http:") {
+      parsed.protocol = "https:";
+    }
+
+    // Ensure Cloudinary delivery URLs serve Satori-compatible JPEG rather than WebP
+    if (
+      parsed.hostname.includes("res.cloudinary.com") &&
+      parsed.pathname.includes("/image/upload/")
+    ) {
+      if (parsed.pathname.toLowerCase().endsWith(".webp")) {
+        parsed.pathname = parsed.pathname.replace(/\.webp$/i, ".jpg");
+      } else if (!parsed.pathname.includes("/f_jpg") && !parsed.pathname.includes("/f_png")) {
+        parsed.pathname = parsed.pathname.replace("/image/upload/", "/image/upload/f_jpg/");
+      }
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function detectRasterMimeFromBytes(bytes: Uint8Array): "image/jpeg" | "image/png" | "image/gif" | null {
+  if (bytes.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  // GIF: GIF8
+  if (
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38
+  ) {
+    return "image/gif";
+  }
+  return null;
+}
+
+/**
+ * Fetch and verify that a remote spotlight photo resolves to a real, non-tiny raster image
+ * compatible with Satori (JPEG/PNG/GIF) and returns either a data URI or verification status.
+ */
+export async function fetchVerifiedRasterPhoto(
+  rawUrl?: string | null,
+  timeoutMs: number = 8000
+): Promise<{ valid: boolean; normalizedUrl?: string; dataUri?: string; bytes?: number; mime?: string; reason?: string }> {
+  const normalizedUrl = normalizeSpotlightPhotoUrl(rawUrl);
+  if (!normalizedUrl) {
+    return { valid: false, reason: "Invalid or disallowed spotlight photo URL" };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(normalizedUrl, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        Accept: "image/jpeg,image/png,image/gif;q=0.9,*/*;q=0.1",
+        "User-Agent": "Mozilla/5.0 (compatible; RishteClubPoster/1.0; +https://www.rishteclub.com)",
+      },
+    });
+
+    if (!res.ok) {
+      return { valid: false, normalizedUrl, reason: `HTTP ${res.status}` };
+    }
+
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (contentType && !contentType.startsWith("image/")) {
+      return { valid: false, normalizedUrl, reason: `Non-image content-type: ${contentType}` };
+    }
+    if (contentType.includes("svg")) {
+      return { valid: false, normalizedUrl, reason: "SVG photos are not allowed" };
+    }
+
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength < 2048 || buf.byteLength > 8 * 1024 * 1024) {
+      return {
+        valid: false,
+        normalizedUrl,
+        reason: `Photo byte size out of quality bounds (${buf.byteLength} bytes)`,
+      };
+    }
+
+    const bytes = new Uint8Array(buf);
+    const mime = detectRasterMimeFromBytes(bytes);
+    if (!mime) {
+      return {
+        valid: false,
+        normalizedUrl,
+        reason: "Unsupported or non-raster image format (requires JPEG, PNG, or GIF)",
+      };
+    }
+
+    const base64 = Buffer.from(bytes).toString("base64");
+    return {
+      valid: true,
+      normalizedUrl,
+      mime,
+      bytes: buf.byteLength,
+      dataUri: `data:${mime};base64,${base64}`,
+    };
+  } catch (err: any) {
+    return {
+      valid: false,
+      normalizedUrl,
+      reason: err?.message || "Failed to download photo",
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function verifySpotlightPhotoReachable(
+  rawUrl?: string | null,
+  timeoutMs: number = 6000
+): Promise<boolean> {
+  const check = await fetchVerifiedRasterPhoto(rawUrl, timeoutMs);
+  return check.valid;
+}
+
+function calculateExactAge(dob?: Date | string | null): string {
+  if (!dob) return "26";
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return "26";
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 18 && age <= 75 ? String(age) : "26";
+}
+
+function toTitleWord(word: string): string {
+  if (!word) return "";
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+export function formatSpotlightDisplayName(
+  firstName?: string | null,
+  lastName?: string | null,
+  fullName?: string | null
+): string {
+  const cleanFirstRaw = (firstName || fullName?.trim().split(/\s+/)[0] || "Verified")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-zA-Z\s.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstWord = cleanFirstRaw.split(/\s+/)[0] || "Verified";
+  const formattedFirst = toTitleWord(firstWord);
+
+  const cleanLastRaw = (lastName || fullName?.trim().split(/\s+/).slice(1).join(" ") || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-zA-Z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lastInitial = cleanLastRaw ? ` ${cleanLastRaw.charAt(0).toUpperCase()}.` : "";
+
+  return `${formattedFirst}${lastInitial}`;
+}
+
+export function formatSpotlightHeight(raw?: string | null, isFemale: boolean = true): string {
+  const fallback = isFemale ? "5'4\"" : "5'10\"";
+  if (!raw || typeof raw !== "string") return fallback;
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+
+  // Normalize formats like 5.4", 5.6, 5ft.2inch, 5' 4" -> 5'4"
+  const ftInchMatch = trimmed.match(/^(\d)\s*(?:ft\.?|'|feet)?\s*[.\s-]?\s*(\d{1,2})?\s*(?:inch(?:es)?|in|")?$/i);
+  if (ftInchMatch) {
+    const ft = ftInchMatch[1];
+    const inches = ftInchMatch[2] ?? "0";
+    return `${ft}'${inches}"`;
+  }
+  return trimmed.slice(0, 16);
+}
+
+export function formatSpotlightCity(raw?: string | null): string {
+  if (!raw || typeof raw !== "string") return "Delhi NCR";
+  let cleaned = raw
+    .replace(/\b\d{6}\b/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[,\s-]+|[,\s-]+$/g, "")
+    .trim();
+  if (!cleaned) return "Delhi NCR";
+
+  if (cleaned === cleaned.toUpperCase()) {
+    cleaned = cleaned
+      .split(/\s+/)
+      .map(toTitleWord)
+      .join(" ");
+  }
+  return cleaned.length > 42 ? `${cleaned.slice(0, 39).trim()}...` : cleaned;
+}
+
+export function formatSpotlightField(raw?: string | null, fallback: string = "Not Specified", maxLen: number = 48): string {
+  if (!raw || typeof raw !== "string") return fallback;
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  if (!cleaned) return fallback;
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen - 3).trim()}...` : cleaned;
+}
+
+export type SpotlightCandidateRecord = {
+  id: string;
+  profileId: string;
+  legacyProfileId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: Date | null;
+  height: string | null;
+  caste: string | null;
+  religion: string | null;
+  birthPlace: string | null;
+  user: { fullName: string | null; gender: "MALE" | "FEMALE" | null } | null;
+  education: { highestQualification: string | null } | null;
+  occupation: { profession: string | null } | null;
+};
+
+export function buildSpotlightCandidateData(
+  profile: SpotlightCandidateRecord,
+  verifiedPhotoUrl: string
+): NonNullable<SocialPostParams["candidateData"]> {
+  const isFemale = profile.user?.gender === "FEMALE";
+  const displayId = profile.legacyProfileId || profile.profileId;
+  const age = calculateExactAge(profile.dateOfBirth);
+  const displayName = formatSpotlightDisplayName(
+    profile.firstName,
+    profile.lastName,
+    profile.user?.fullName
+  );
+  const cleanCity = formatSpotlightCity(profile.birthPlace);
+  const cleanEducation = formatSpotlightField(profile.education?.highestQualification, "Graduate", 52);
+  const cleanProfession = formatSpotlightField(profile.occupation?.profession, "Working Professional", 48);
+  const cleanCaste = formatSpotlightField(profile.caste || profile.religion, "Hindu", 36);
+
+  return {
+    id: displayId,
+    gender: "FEMALE",
+    age,
+    height: formatSpotlightHeight(profile.height, isFemale),
+    caste: cleanCaste,
+    gotra: "Gotra Available",
+    profession: cleanProfession,
+    city: cleanCity,
+    education: cleanEducation,
+    photoUrl: verifiedPhotoUrl,
+    displayName,
+  };
+}
+
+/**
+ * Fetch an active, verified FEMALE profile with explicit privacy consent and an approved
+ * downloadable public photo for automated Bride Spotlight postcards.
+ * Never returns male profiles, non-consented profiles, or profiles without a verified photo.
+ */
+export async function fetchSpotlightProfile(
+  options?: string | { preferredCandidateId?: string; excludeCandidateIds?: string[] }
+): Promise<{
   candidateId: string;
   candidateData: NonNullable<SocialPostParams["candidateData"]>;
 } | null> {
   try {
-    // 1. Deduplication: Exclude profiles successfully posted in the last 60 days
+    const opts =
+      typeof options === "string"
+        ? { preferredCandidateId: options }
+        : options || {};
+    const config = getMetaConfig();
+    const extraExcluded = new Set((opts.excludeCandidateIds || []).filter(Boolean));
+
+    const strictFemaleWhere: any = {
+      approvalStatus: "APPROVED",
+      isVisible: true,
+      consentSocialMedia: true,
+      user: {
+        gender: "FEMALE",
+        status: "ACTIVE",
+      },
+      OR: [
+        { legacyProfileId: null },
+        { NOT: { legacyProfileId: { startsWith: "NNVS-B" } } },
+      ],
+      photos: {
+        some: {
+          status: "APPROVED",
+          OR: [
+            { imageUrl: { startsWith: "https://" } },
+            { imageUrl: { startsWith: "http://" } },
+          ],
+        },
+      },
+    };
+
+    const spotlightInclude = {
+      user: { select: { fullName: true, gender: true } },
+      photos: {
+        where: {
+          status: "APPROVED" as const,
+          OR: [
+            { imageUrl: { startsWith: "https://" } },
+            { imageUrl: { startsWith: "http://" } },
+          ],
+        },
+        orderBy: [{ isPrimary: "desc" as const }, { createdAt: "desc" as const }],
+      },
+      education: { select: { highestQualification: true } },
+      occupation: { select: { profession: true } },
+    };
+
+    // Optional explicit candidate selection (must still pass all strict female, consent & photo rules)
+    if (opts.preferredCandidateId) {
+      const explicitProfile = await prisma.profile.findFirst({
+        where: {
+          AND: [
+            strictFemaleWhere,
+            {
+              OR: [
+                { id: opts.preferredCandidateId },
+                { profileId: opts.preferredCandidateId },
+                { legacyProfileId: opts.preferredCandidateId },
+              ],
+            },
+          ],
+        },
+        include: spotlightInclude,
+      });
+
+      if (!explicitProfile) {
+        console.warn(
+          `[Spotlight Profile] Requested candidate '${opts.preferredCandidateId}' is not eligible (requires FEMALE, APPROVED, visible, consentSocialMedia=true, approved public photo).`
+        );
+        return null;
+      }
+
+      for (const ph of explicitProfile.photos) {
+        const normalized = normalizeSpotlightPhotoUrl(ph.imageUrl, config.appUrl);
+        if (normalized && (await verifySpotlightPhotoReachable(normalized))) {
+          return {
+            candidateId: explicitProfile.id,
+            candidateData: buildSpotlightCandidateData(explicitProfile, normalized),
+          };
+        }
+      }
+
+      console.warn(
+        `[Spotlight Profile] Requested candidate '${opts.preferredCandidateId}' has no reachable high-quality photo.`
+      );
+      return null;
+    }
+
+    // 1. Deduplication & fair rotation: inspect successful spotlight posts from last 60 days
     const recentLogs = await prisma.socialPostLog.findMany({
       where: {
         candidateId: { not: null },
@@ -329,134 +850,71 @@ export async function fetchSpotlightProfile(): Promise<{
           gte: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
         },
       },
-      select: { candidateId: true },
+      orderBy: { createdAt: "desc" },
+      select: { candidateId: true, createdAt: true },
     });
-    const excludedIds = Array.from(new Set(recentLogs.map((l) => l.candidateId).filter(Boolean))) as string[];
 
-    // 2. Fetch candidate with photo, prioritizing consentSocialMedia === true and approved status
-    let profile = await prisma.profile.findFirst({
-      where: {
-        id: { notIn: excludedIds },
-        approvalStatus: { in: ["APPROVED", "PENDING_APPROVAL", "UNDER_REVIEW"] },
-        photos: {
-          some: {
-            imageUrl: { startsWith: "http" },
-          },
-        },
-        consentSocialMedia: true,
-      },
-      include: {
-        user: { select: { fullName: true, gender: true } },
-        photos: {
-          where: { imageUrl: { startsWith: "http" } },
-          orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-          take: 1,
-        },
-        education: { select: { highestQualification: true } },
-        occupation: { select: { profession: true } },
-      },
+    const lastPostedAtByCandidate = new Map<string, number>();
+    for (const log of recentLogs) {
+      if (log.candidateId && !lastPostedAtByCandidate.has(log.candidateId)) {
+        lastPostedAtByCandidate.set(log.candidateId, log.createdAt.getTime());
+      }
+    }
+
+    // 2. Fetch all eligible verified FEMALE profiles with consent & approved public photos
+    const eligibleProfiles = await prisma.profile.findMany({
+      where: strictFemaleWhere,
+      include: spotlightInclude,
       orderBy: { updatedAt: "desc" },
+      take: 100,
     });
 
-    // 3. If no unposted profile with consentSocialMedia: true, check any profile with HTTP photo
-    if (!profile) {
-      profile = await prisma.profile.findFirst({
-        where: {
-          id: { notIn: excludedIds },
-          photos: {
-            some: {
-              imageUrl: { startsWith: "http" },
-            },
-          },
-        },
-        include: {
-          user: { select: { fullName: true, gender: true } },
-          photos: {
-            where: { imageUrl: { startsWith: "http" } },
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-            take: 1,
-          },
-          education: { select: { highestQualification: true } },
-          occupation: { select: { profession: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-    }
-
-    // 4. If all profiles with photos have been posted in the window, reset and take the oldest
-    if (!profile) {
-      profile = await prisma.profile.findFirst({
-        where: {
-          photos: {
-            some: {
-              imageUrl: { startsWith: "http" },
-            },
-          },
-        },
-        include: {
-          user: { select: { fullName: true, gender: true } },
-          photos: {
-            where: { imageUrl: { startsWith: "http" } },
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-            take: 1,
-          },
-          education: { select: { highestQualification: true } },
-          occupation: { select: { profession: true } },
-        },
-        orderBy: { updatedAt: "asc" },
-      });
-    }
-
-    if (!profile || !profile.photos?.[0]?.imageUrl) {
+    if (eligibleProfiles.length === 0) {
+      console.warn(
+        "[Spotlight Profile] No verified FEMALE profiles found with social consent and approved photos."
+      );
       return null;
     }
 
-    // Strict Privacy Guard: Never expose mobile, whatsapp, email, or exact address
-    let age = "26";
-    if (profile.dateOfBirth) {
-      const diff = Date.now() - new Date(profile.dateOfBirth).getTime();
-      age = String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
+    // Prioritize unposted profiles (not posted in 60-day window and not excluded),
+    // then cycle fairly through least-recently-posted eligible females.
+    const orderedCandidates = [...eligibleProfiles]
+      .filter((p) => !extraExcluded.has(p.id))
+      .sort((a, b) => {
+        const aTime = lastPostedAtByCandidate.get(a.id);
+        const bTime = lastPostedAtByCandidate.get(b.id);
+        if (aTime === undefined && bTime !== undefined) return -1;
+        if (aTime !== undefined && bTime === undefined) return 1;
+        if (aTime !== undefined && bTime !== undefined) return aTime - bTime;
+        return b.updatedAt.getTime() - a.updatedAt.getTime();
+      });
+
+    if (orderedCandidates.length === 0) {
+      console.warn(
+        "[Spotlight Profile] All eligible consented female candidates were excluded from selection."
+      );
+      return null;
     }
 
-    // Name Anonymization: First Name + Initial only (e.g., "Pooja S.")
-    const rawFirstName =
-      profile.firstName?.trim() ||
-      profile.user?.fullName?.trim()?.split(/\s+/)[0] ||
-      "Verified Member";
-    const rawLastName =
-      profile.lastName?.trim() ||
-      profile.user?.fullName?.trim()?.split(/\s+/).slice(1).join(" ") ||
-      "";
-    const initial = rawLastName ? ` ${rawLastName.charAt(0).toUpperCase()}.` : "";
-    const displayName = `${rawFirstName}${initial}`;
+    for (const profile of orderedCandidates) {
+      if (profile.user?.gender !== "FEMALE") continue;
+      for (const ph of profile.photos) {
+        const normalized = normalizeSpotlightPhotoUrl(ph.imageUrl, config.appUrl);
+        if (!normalized) continue;
+        const ok = await verifySpotlightPhotoReachable(normalized);
+        if (ok) {
+          return {
+            candidateId: profile.id,
+            candidateData: buildSpotlightCandidateData(profile, normalized),
+          };
+        }
+      }
+    }
 
-    // Location sanitization: Keep city and state only, strip pincodes/street details
-    let cleanCity = profile.birthPlace?.trim() || "Delhi NCR";
-    cleanCity = cleanCity.replace(/\b\d{6}\b/g, "").replace(/\s+/g, " ").trim();
-
-    // Profession sanitization
-    const cleanProfession =
-      profile.occupation?.profession?.trim() || "Working Professional";
-
-    const isFemale = profile.user?.gender === "FEMALE";
-    const displayId = profile.legacyProfileId || profile.profileId;
-
-    return {
-      candidateId: profile.id,
-      candidateData: {
-        id: displayId,
-        gender: (profile.user?.gender || (isFemale ? "FEMALE" : "MALE")) as "MALE" | "FEMALE",
-        age,
-        height: profile.height || (isFemale ? "5'4\"" : "5'10\""),
-        caste: profile.caste || "Hindu",
-        gotra: "Gotra Available",
-        profession: cleanProfession,
-        city: cleanCity,
-        education: profile.education?.highestQualification || "Graduate",
-        photoUrl: profile.photos[0].imageUrl,
-        displayName,
-      },
-    };
+    console.warn(
+      "[Spotlight Profile] Eligible consented female candidates had no downloadable raster photo."
+    );
+    return null;
   } catch (err) {
     console.error("[Spotlight Profile Error]:", err);
     return null;
@@ -564,9 +1022,9 @@ export interface FacebookPublishResult {
 /**
  * Publish photo post to Facebook Page via Meta Graph API v21.0
  * 2-Step Timeline Feed Story Flow (Meta New Pages Experience):
- * - Step A: POST /{page-id}/photos (url, published: false, temporary: false) -> Extracts photo_fbid
- * - Step B: POST /{page-id}/feed (message: caption, attached_media: [{ media_fbid }]) -> Broadcasts main public Timeline Feed Story
- * - Fallback: Direct /{page-id}/photos with published: true if feed endpoint fails
+ * - Step A: POST /{page-id}/photos (url, published: false, temporary: true) -> Extracts media_fbid
+ * - Step B: POST /{page-id}/feed (message: caption, attached_media: [{ media_fbid }], published: true) -> Broadcasts main public Timeline Feed Story
+ * - Fallback: Direct /{page-id}/photos with published: true and no_story: false if feed endpoint fails
  */
 export async function publishToFacebookPage({
   imageUrl,
@@ -615,14 +1073,14 @@ export async function publishToFacebookPage({
       await getFacebookPageAccessToken(rawToken, fbPageId);
     fbPageId = resolvedPageId;
 
-    // === STEP A: Upload Unlisted Photo Asset (published: false) ===
+    // === STEP A: Upload Unpublished Staging Photo Asset (published: false, temporary: true) ===
     let uploadRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         url: imageUrl,
         published: false,
-        temporary: false,
+        temporary: true,
         access_token: pageToken,
       }),
     });
@@ -655,7 +1113,7 @@ export async function publishToFacebookPage({
             body: JSON.stringify({
               url: imageUrl,
               published: false,
-              temporary: false,
+              temporary: true,
               access_token: pageToken,
             }),
           });
@@ -676,6 +1134,7 @@ export async function publishToFacebookPage({
         body: JSON.stringify({
           message: caption,
           attached_media: [{ media_fbid: photoFbid }],
+          published: true,
           access_token: pageToken,
         }),
       });
@@ -685,7 +1144,19 @@ export async function publishToFacebookPage({
       if (feedRes.ok && feedData?.id) {
         const feedPostId = feedData.id;
         const storyFbid = feedPostId.includes("_") ? feedPostId.split("_")[1] : feedPostId;
-        const permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
+        let permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
+
+        try {
+          const detailRes = await fetchMetaGraph(
+            `https://graph.facebook.com/v21.0/${feedPostId}?fields=permalink_url,is_published,is_hidden,timeline_visibility&access_token=${encodeURIComponent(pageToken)}`
+          );
+          const detailData = await detailRes.json();
+          if (detailData?.permalink_url) {
+            permalinkUrl = detailData.permalink_url;
+          }
+        } catch {
+          // Keep universal permalink.php URL fallback
+        }
 
         console.log(
           `[Meta API] Feed Timeline Story published successfully: ${feedPostId} (${permalinkUrl})`
@@ -704,7 +1175,7 @@ export async function publishToFacebookPage({
       );
     }
 
-    // === FALLBACK: Direct /{page-id}/photos with published: true ===
+    // === FALLBACK: Direct /{page-id}/photos with published: true and no_story: false ===
     const directRes = await fetchMetaGraph(`https://graph.facebook.com/v21.0/${fbPageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -730,7 +1201,19 @@ export async function publishToFacebookPage({
 
     const postId = directData.post_id || directData.id;
     const storyFbid = postId.includes("_") ? postId.split("_")[1] : postId;
-    const permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
+    let permalinkUrl = `https://www.facebook.com/permalink.php?story_fbid=${storyFbid}&id=${fbPageId}`;
+
+    try {
+      const detailRes = await fetchMetaGraph(
+        `https://graph.facebook.com/v21.0/${postId}?fields=permalink_url&access_token=${encodeURIComponent(pageToken)}`
+      );
+      const detailData = await detailRes.json();
+      if (detailData?.permalink_url) {
+        permalinkUrl = detailData.permalink_url;
+      }
+    } catch {
+      // Keep universal permalink.php URL fallback
+    }
 
     return {
       success: true,
@@ -749,12 +1232,12 @@ export async function publishToFacebookPage({
 /**
  * Backward compatible wrapper for postToFacebookPage
  */
-async function postToFacebookPage(
+export async function postToFacebookPage(
   imageUrl: string,
   caption: string,
   pageId: string,
   accessToken: string
-): Promise<{ success: boolean; postId?: string; error?: string }> {
+): Promise<FacebookPublishResult> {
   return publishToFacebookPage({ imageUrl, caption, pageId, accessToken });
 }
 

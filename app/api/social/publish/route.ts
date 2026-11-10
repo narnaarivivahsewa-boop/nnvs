@@ -5,11 +5,15 @@ import {
   getMetaConfig,
   getIstHour,
   getIstDateString,
+  normalizeSlotToCategory,
   resolveSocialSlotFromTime,
+  resolveNextRotatedCategory,
   generateSocialCaption,
   postToInstagramBusiness,
   publishToFacebookPage,
   fetchSpotlightProfile,
+  normalizeSpotlightPhotoUrl,
+  SocialCategory,
   SocialSlot,
   SocialPostParams,
 } from "@/lib/social-poster";
@@ -19,21 +23,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function isSpotlightSlot(slot: SocialSlot): boolean {
-  return (
-    slot === "SPOTLIGHT" ||
-    slot === "AFTERNOON" ||
-    slot === "PROFILE_SPOTLIGHT"
-  );
-}
-
-function resolveTopicFromSlot(
-  slot: SocialSlot
-): "KUNDLI_MILAN" | "PROFILE_SPOTLIGHT" | "PROMOTION" {
-  if (slot === "MORNING" || slot === "KUNDLI_MILAN") return "KUNDLI_MILAN";
-  if (isSpotlightSlot(slot)) {
-    return "PROFILE_SPOTLIGHT";
-  }
-  return "PROMOTION";
+  return normalizeSlotToCategory(slot) === "PROFILE_SPOTLIGHT";
 }
 
 function buildOgImageUrl(
@@ -43,12 +33,14 @@ function buildOgImageUrl(
   candidateData?: SocialPostParams["candidateData"],
   cacheBuster?: number
 ): string {
-  if (isSpotlightSlot(slot) && candidateData) {
+  const category = normalizeSlotToCategory(slot);
+
+  if (category === "PROFILE_SPOTLIGHT" && candidateData) {
     const ogParams = new URLSearchParams({
       slot: "PROFILE_SPOTLIGHT",
       id: candidateData.id || "",
       name: candidateData.displayName || "",
-      gender: candidateData.gender || "FEMALE",
+      gender: "FEMALE",
       age: String(candidateData.age || "26"),
       height: candidateData.height || "",
       profession: candidateData.profession || "",
@@ -64,10 +56,8 @@ function buildOgImageUrl(
     return `${appUrl}/api/og/social-post?${ogParams.toString()}`;
   }
 
-  const resolvedOgSlot =
-    slot === "MORNING" || slot === "KUNDLI_MILAN" ? "KUNDLI_MILAN" : "PROMOTION";
   const ogParams = new URLSearchParams({
-    slot: resolvedOgSlot,
+    slot: category,
     d: istDate,
   });
   if (cacheBuster) {
@@ -191,42 +181,74 @@ async function handlePublish(req: NextRequest) {
       );
     }
 
-    // 2. Determine Slot (IST Time Auto-Detection when slot is omitted)
+    // 2. Determine Content Category (2-Hour 4-Way Rotation Engine when slot omitted / AUTO / ROTATE)
     const now = new Date();
     const istHour = getIstHour(now);
     const istDate = getIstDateString(now);
 
-    const slotParam = bodyData.slot || searchParams.get("slot");
-    const detectedSlot = resolveSocialSlotFromTime(slotParam, now);
-    let slot: SocialSlot = detectedSlot;
+    const rawSlotParam = (bodyData.slot || searchParams.get("slot") || "").trim();
+    const rotateFlag =
+      bodyData.rotate === true ||
+      (searchParams.get("rotate") || "").toLowerCase() === "true";
+
+    const useAutoRotation =
+      rotateFlag ||
+      !rawSlotParam ||
+      rawSlotParam.toUpperCase() === "AUTO" ||
+      rawSlotParam.toUpperCase() === "ROTATE";
+
+    const detectedSlot: SocialSlot = useAutoRotation
+      ? await resolveNextRotatedCategory(now)
+      : resolveSocialSlotFromTime(rawSlotParam, now);
+
+    let category: SocialCategory = normalizeSlotToCategory(detectedSlot);
+    let slot: SocialSlot = category;
     const dryRun =
       bodyData.dryRun === true || searchParams.get("dryRun") === "true";
 
     let candidateId: string | undefined = undefined;
     let candidateData: SocialPostParams["candidateData"] = undefined;
 
-    // Spotlight Slot (14:00 IST / SPOTLIGHT / AFTERNOON / PROFILE_SPOTLIGHT)
-    if (isSpotlightSlot(slot)) {
-      if (bodyData.candidateData) {
-        candidateData = bodyData.candidateData;
-        candidateId = bodyData.candidateId || candidateData?.id;
-        slot = detectedSlot === "SPOTLIGHT" ? "SPOTLIGHT" : "PROFILE_SPOTLIGHT";
+    // Category A: Female Bride Spotlight (Strict FEMALE + consent + approved reachable photo)
+    if (category === "PROFILE_SPOTLIGHT") {
+      const requestedCandidateId =
+        (typeof bodyData.candidateId === "string" && bodyData.candidateId.trim()) ||
+        (searchParams.get("candidateId")?.trim() || undefined);
+
+      const passedCandidate = bodyData.candidateData;
+      const passedPhotoUrl = passedCandidate?.photoUrl
+        ? normalizeSpotlightPhotoUrl(passedCandidate.photoUrl, config.appUrl)
+        : null;
+
+      if (
+        passedCandidate &&
+        String(passedCandidate.gender || "").toUpperCase() === "FEMALE" &&
+        passedPhotoUrl
+      ) {
+        candidateData = {
+          ...passedCandidate,
+          gender: "FEMALE",
+          photoUrl: passedPhotoUrl,
+        };
+        candidateId = requestedCandidateId || candidateData?.id;
       } else {
-        const spotlight = await fetchSpotlightProfile();
+        const spotlight = await fetchSpotlightProfile(
+          requestedCandidateId ? { preferredCandidateId: requestedCandidateId } : undefined
+        );
         if (spotlight && spotlight.candidateData) {
           candidateId = spotlight.candidateId;
           candidateData = spotlight.candidateData;
-          slot = detectedSlot === "SPOTLIGHT" ? "SPOTLIGHT" : "PROFILE_SPOTLIGHT";
         } else {
           console.warn(
-            "[Social Publish] No spotlight profile with photo available. Falling back to PROMOTION."
+            "[Social Publish] No verified consented FEMALE spotlight profile with approved photo available. Rotating to OFFER_99."
           );
-          slot = "PROMOTION";
+          category = "OFFER_99";
+          slot = "OFFER_99";
         }
       }
     }
 
-    const topic = resolveTopicFromSlot(slot);
+    let topic: SocialCategory = category;
 
     // 3. Check Admin Setting Toggle (Bypassed explicitly when force=true)
     if (!force) {
@@ -249,6 +271,7 @@ async function handlePublish(req: NextRequest) {
             success: true,
             skipped: true,
             slot,
+            category,
             detectedSlot,
             message: "Social auto-posting is currently toggled OFF in Admin Settings",
           });
@@ -281,7 +304,7 @@ async function handlePublish(req: NextRequest) {
 
     const forceNonce = force ? Date.now() : undefined;
     if (!imageUrl) {
-      imageUrl = buildOgImageUrl(appUrl, slot, istDate, candidateData, forceNonce);
+      imageUrl = buildOgImageUrl(appUrl, category, istDate, candidateData, forceNonce);
     }
 
     // 4b. Strict 7-Day Deduplication & Cooldown Guard (Bypassed when force=true or dryRun=true)
@@ -292,6 +315,10 @@ async function handlePublish(req: NextRequest) {
           where: {
             status: "SUCCESS",
             createdAt: { gte: sevenDaysAgo },
+            NOT: [
+              { facebookPostId: { startsWith: "SIM_FB_" } },
+              { instagramMediaId: { startsWith: "SIM_IG_" } },
+            ],
             OR: [
               ...(candidateId ? [{ candidateId }] : []),
               { imageUrl },
@@ -304,23 +331,29 @@ async function handlePublish(req: NextRequest) {
           console.warn(
             `[Social Publish] 7-day cooldown triggered (recent post ID: ${recentDuplicate.id}). Applying rotation & cache-buster.`
           );
-          if (isSpotlightSlot(slot)) {
-            const freshSpotlight = await fetchSpotlightProfile();
+          if (isSpotlightSlot(category)) {
+            const freshSpotlight = await fetchSpotlightProfile({
+              excludeCandidateIds: candidateId ? [candidateId] : [],
+            });
             if (freshSpotlight && freshSpotlight.candidateId !== candidateId) {
               candidateId = freshSpotlight.candidateId;
               candidateData = freshSpotlight.candidateData;
               imageUrl = buildOgImageUrl(
                 appUrl,
-                slot,
+                category,
                 istDate,
                 candidateData,
                 Date.now()
               );
             } else {
-              slot = "PROMOTION";
+              candidateId = undefined;
+              candidateData = undefined;
+              category = "OFFER_99";
+              slot = "OFFER_99";
+              topic = "OFFER_99";
               imageUrl = buildOgImageUrl(
                 appUrl,
-                slot,
+                category,
                 istDate,
                 undefined,
                 Date.now()
@@ -338,7 +371,7 @@ async function handlePublish(req: NextRequest) {
 
     let caption = bodyData.caption || searchParams.get("caption");
     if (!caption) {
-      caption = generateSocialCaption(slot, { candidateData });
+      caption = generateSocialCaption(category, { candidateData }, now);
     }
 
     // 5. Handle Dry Run Simulation (Before live Meta credential check so test fires always simulate cleanly)
@@ -372,6 +405,7 @@ async function handlePublish(req: NextRequest) {
         triggeredBy,
         message: "Dry run successful (simulated without publishing to live social channels)",
         slot,
+        category,
         detectedSlot,
         topic,
         istHour: Number(istHour.toFixed(2)),
@@ -380,9 +414,14 @@ async function handlePublish(req: NextRequest) {
           ? {
               id: candidateData.id,
               displayName: candidateData.displayName,
+              gender: candidateData.gender,
               age: candidateData.age,
+              height: candidateData.height,
+              education: candidateData.education,
               profession: candidateData.profession,
               city: candidateData.city,
+              caste: candidateData.caste,
+              photoUrl: candidateData.photoUrl,
             }
           : undefined,
         imageUrl,
@@ -432,8 +471,8 @@ async function handlePublish(req: NextRequest) {
     );
     console.log(`[Social Publish] Image URL: ${imageUrl}`);
 
-    const igToken = process.env.META_IG_ACCESS_TOKEN || accessToken;
-    const fbToken = process.env.META_PAGE_ACCESS_TOKEN || accessToken;
+    const igToken = config.igAccessToken || accessToken;
+    const fbToken = config.pageAccessToken || accessToken;
 
     const [igSettled, fbSettled] = await Promise.allSettled([
       igAccountId && igToken
@@ -499,6 +538,7 @@ async function handlePublish(req: NextRequest) {
           ? `Post published successfully to ${platform}`
           : "Failed to publish post to social channels",
         slot,
+        category,
         detectedSlot,
         topic,
         forced: force,
@@ -510,9 +550,14 @@ async function handlePublish(req: NextRequest) {
           ? {
               id: candidateData.id,
               displayName: candidateData.displayName,
+              gender: candidateData.gender,
               age: candidateData.age,
+              height: candidateData.height,
+              education: candidateData.education,
               profession: candidateData.profession,
               city: candidateData.city,
+              caste: candidateData.caste,
+              photoUrl: candidateData.photoUrl,
             }
           : undefined,
         instagramPostId: igResult.mediaId || null,

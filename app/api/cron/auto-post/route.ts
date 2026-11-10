@@ -4,35 +4,16 @@ import {
   getMetaConfig,
   publishToSocialChannels,
   generateSocialCaption,
+  fetchSpotlightProfile,
+  normalizeSlotToCategory,
+  resolveSocialSlotFromTime,
+  resolveNextRotatedCategory,
+  getIstDateString,
+  SocialCategory,
   SocialSlot,
+  SocialPostParams,
 } from "@/lib/social-poster";
 import { requireAdmin } from "@/lib/admin-auth";
-
-function getIstHour(): number {
-  const now = new Date();
-  const utcHours = now.getUTCHours();
-  const utcMinutes = now.getUTCMinutes();
-  const istTotalMinutes = (utcHours * 60 + utcMinutes + 330) % 1440;
-  return istTotalMinutes / 60;
-}
-
-function resolveCurrentSlot(specifiedSlot?: string | null): SocialSlot {
-  if (specifiedSlot) {
-    const s = specifiedSlot.toUpperCase();
-    if (s === "MORNING" || s === "AFTERNOON" || s === "EVENING" || s === "MANUAL") {
-      return s as SocialSlot;
-    }
-  }
-
-  const istHour = getIstHour();
-  if (istHour >= 4 && istHour < 12) {
-    return "MORNING"; // 09:30 AM IST window
-  } else if (istHour >= 12 && istHour < 17) {
-    return "AFTERNOON"; // 02:00 PM IST window
-  } else {
-    return "EVENING"; // 07:30 PM IST window
-  }
-}
 
 export async function GET(req: NextRequest) {
   return handleAutoPost(req, "GET");
@@ -42,7 +23,7 @@ export async function POST(req: NextRequest) {
   return handleAutoPost(req, "POST");
 }
 
-async function handleAutoPost(req: NextRequest, method: "GET" | "POST") {
+async function handleAutoPost(req: NextRequest, _method: "GET" | "POST") {
   try {
     const { searchParams } = new URL(req.url);
     const config = getMetaConfig();
@@ -59,7 +40,6 @@ async function handleAutoPost(req: NextRequest, method: "GET" | "POST") {
       isAuthorized = true;
       triggeredBy = "CRON";
     } else {
-      // Check Admin Session
       const adminAuth = await requireAdmin(req);
       if (adminAuth.authorized) {
         isAuthorized = true;
@@ -74,13 +54,26 @@ async function handleAutoPost(req: NextRequest, method: "GET" | "POST") {
       );
     }
 
+    const now = new Date();
+    const istDate = getIstDateString(now);
+    const rawSlotParam = (searchParams.get("slot") || "").trim();
+    const useAutoRotation =
+      !rawSlotParam ||
+      rawSlotParam.toUpperCase() === "AUTO" ||
+      rawSlotParam.toUpperCase() === "ROTATE";
+
+    const detectedSlot: SocialSlot = useAutoRotation
+      ? await resolveNextRotatedCategory(now)
+      : resolveSocialSlotFromTime(rawSlotParam, now);
+
+    let category: SocialCategory = normalizeSlotToCategory(detectedSlot);
+
     // 2. Check AdminSetting toggle
-    let setting = await prisma.adminSetting.findFirst();
+    const setting = await prisma.adminSetting.findFirst();
     if (setting && !setting.socialAutoPostingEnabled && triggeredBy === "CRON") {
-      // Record SKIPPED log
       await prisma.socialPostLog.create({
         data: {
-          slot: resolveCurrentSlot(searchParams.get("slot")),
+          slot: category,
           platform: "META_ALL",
           status: "SKIPPED",
           error: "Auto-posting disabled in admin settings (socialAutoPostingEnabled: false)",
@@ -91,112 +84,60 @@ async function handleAutoPost(req: NextRequest, method: "GET" | "POST") {
       return NextResponse.json({
         success: true,
         skipped: true,
+        category,
         message: "Auto-posting is currently toggled OFF in Admin Settings",
       });
     }
 
-    // 3. Determine Slot
-    const slot = resolveCurrentSlot(searchParams.get("slot"));
     const isDryRun = searchParams.get("dryRun") === "true";
+    const ogParams = new URLSearchParams();
+    ogParams.set("d", istDate);
 
-    let ogParams = new URLSearchParams();
-    ogParams.set("slot", slot);
-
-    let candidateData: any = undefined;
+    let candidateData: SocialPostParams["candidateData"] = undefined;
     let candidateId: string | undefined = undefined;
 
-    // 4. Candidate selection for AFTERNOON slot
-    if (slot === "AFTERNOON") {
-      const explicitCandidateId = searchParams.get("candidateId");
-      let profile = null;
+    // 3. Strict FEMALE Bride Spotlight selection for Category A
+    if (category === "PROFILE_SPOTLIGHT") {
+      const explicitCandidateId = searchParams.get("candidateId")?.trim() || undefined;
+      const spotlight = await fetchSpotlightProfile(
+        explicitCandidateId ? { preferredCandidateId: explicitCandidateId } : undefined
+      );
 
-      if (explicitCandidateId) {
-        profile = await prisma.profile.findFirst({
-          where: {
-            OR: [
-              { id: explicitCandidateId },
-              { profileId: explicitCandidateId },
-              { legacyProfileId: explicitCandidateId },
-            ],
-          },
-          include: {
-            user: { select: { gender: true, fullName: true } },
-            education: { select: { highestQualification: true } },
-            occupation: { select: { profession: true } },
-          },
-        });
-      }
+      if (spotlight && spotlight.candidateData && spotlight.candidateData.photoUrl) {
+        const verifiedPhotoUrl = spotlight.candidateData.photoUrl;
+        candidateId = spotlight.candidateId;
+        candidateData = spotlight.candidateData;
 
-      if (!profile) {
-        // Pick a verified candidate
-        profile = await prisma.profile.findFirst({
-          where: {
-            isVisible: true,
-            approvalStatus: "APPROVED",
-            paymentCompleted: true,
-          },
-          orderBy: { updatedAt: "desc" },
-          include: {
-            user: { select: { gender: true, fullName: true } },
-            education: { select: { highestQualification: true } },
-            occupation: { select: { profession: true } },
-          },
-        });
-      }
-
-      // Fallback if no approved profiles found yet
-      if (!profile) {
-        profile = await prisma.profile.findFirst({
-          where: { approvalStatus: { in: ["APPROVED", "PENDING_APPROVAL", "UNDER_REVIEW"] } },
-          include: {
-            user: { select: { gender: true, fullName: true } },
-            education: { select: { highestQualification: true } },
-            occupation: { select: { profession: true } },
-          },
-        });
-      }
-
-      if (profile) {
-        candidateId = profile.id;
-        const dob = profile.dateOfBirth;
-        let age = "26";
-        if (dob) {
-          const diff = Date.now() - new Date(dob).getTime();
-          age = String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
-        }
-
-        const isFemale = profile.user?.gender === "FEMALE";
-        candidateData = {
-          id: profile.legacyProfileId || profile.profileId,
-          gender: (profile.user?.gender || (isFemale ? "FEMALE" : "MALE")) as "MALE" | "FEMALE",
-          age,
-          height: profile.height || (isFemale ? "5'4\"" : "5'10\""),
-          caste: profile.caste || "Hindu",
-          gotra: "Gotra Available",
-          profession: profile.occupation?.profession || "Working Professional",
-          city: profile.birthPlace || "Delhi NCR",
-          education: profile.education?.highestQualification || "Graduate",
-        };
-
+        ogParams.set("slot", "PROFILE_SPOTLIGHT");
         ogParams.set("id", candidateData.id);
-        ogParams.set("gender", candidateData.gender);
-        ogParams.set("age", candidateData.age);
+        ogParams.set("name", candidateData.displayName || "Verified Bride");
+        ogParams.set("gender", "FEMALE");
+        ogParams.set("age", String(candidateData.age));
         ogParams.set("height", candidateData.height);
         ogParams.set("profession", candidateData.profession);
-        ogParams.set("education", candidateData.education);
+        ogParams.set("education", candidateData.education || "Graduate");
         ogParams.set("city", candidateData.city);
         ogParams.set("caste", candidateData.caste);
         ogParams.set("gotra", candidateData.gotra);
+        ogParams.set("photo", verifiedPhotoUrl);
+      } else {
+        console.warn(
+          "[Cron Auto-Post] No verified consented FEMALE spotlight profile with approved photo available. Rotating to OFFER_99."
+        );
+        category = "OFFER_99";
+        ogParams.set("slot", "OFFER_99");
       }
+    } else {
+      ogParams.set("slot", category);
     }
 
-    // 5. Construct full public image URL
+    // 4. Construct full public image URL & category caption
     const imageUrl = `${config.appUrl}/api/og/social-post?${ogParams.toString()}`;
-    const caption = generateSocialCaption(slot, { candidateData });
+    const caption = generateSocialCaption(category, { candidateData }, now);
 
-    // 6. Publish via Meta Graph API (or Dry Run)
+    // 5. Publish via Meta Graph API (or Dry Run)
     const result = await publishToSocialChannels({
-      slot,
+      slot: category,
       imageUrl,
       caption,
       candidateId,
@@ -208,8 +149,23 @@ async function handleAutoPost(req: NextRequest, method: "GET" | "POST") {
     return NextResponse.json({
       success: result.success,
       slot: result.slot,
+      category,
       status: result.status,
       triggeredBy,
+      candidateId: candidateId || null,
+      candidateData: candidateData
+        ? {
+            id: candidateData.id,
+            displayName: candidateData.displayName,
+            gender: candidateData.gender,
+            age: candidateData.age,
+            height: candidateData.height,
+            education: candidateData.education,
+            profession: candidateData.profession,
+            city: candidateData.city,
+            photoUrl: candidateData.photoUrl,
+          }
+        : undefined,
       imageUrl: result.imageUrl,
       caption: result.caption,
       logId: result.logId,
