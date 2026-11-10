@@ -14,8 +14,10 @@ import {
   Lock,
 } from "lucide-react";
 import { LANDING_PAGES } from "@/lib/constants/landing-pages";
-import { BUSINESS_INFO } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 import Footer from "@/components/Footer";
+
+export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -113,6 +115,20 @@ export default async function MatrimonyLandingPage({ params }: Props) {
       },
     })),
   };
+
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+  const renderedKeyFeatures = pageData.keyFeatures.map((feat) => {
+    if (slug === "haryana" && feat.title === "Transparent & Affordable") {
+      return {
+        ...feat,
+        description: femalePricing.isOfferActive
+          ? `Special Launch Offer (${OFFER_VALIDITY_LABEL}): Transparent, one-time registration fee of just ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)} incl. GST) for both Brides & Grooms (regular ₹${femalePricing.regularBaseFee} / ₹${malePricing.regularBaseFee} + GST) with complete service dignity.`
+          : `Transparent, one-time registration fee (₹${femalePricing.baseFee} + GST for Female, ₹${malePricing.baseFee} + GST for Male) with complete service dignity.`,
+      };
+    }
+    return feat;
+  });
 
   const targetFilterUrl = pageData.targetQuery?.caste
     ? `/profiles?caste=${encodeURIComponent(pageData.targetQuery.caste)}`
@@ -239,7 +255,7 @@ export default async function MatrimonyLandingPage({ params }: Props) {
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
-            {pageData.keyFeatures.map((feat, idx) => (
+            {renderedKeyFeatures.map((feat, idx) => (
               <div
                 key={idx}
                 className="rounded-2xl bg-white p-6 border border-[#E8DCC8] shadow-xs flex flex-col justify-between"

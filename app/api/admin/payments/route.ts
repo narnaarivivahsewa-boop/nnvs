@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { BUSINESS_INFO, calculateGstFromGross } from "@/lib/gst";
+import { calculateGstFromGross } from "@/lib/gst";
+import { getRegistrationFee } from "@/lib/pricing";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
       })),
       pendingProfiles: pendingProfiles.map((p) => {
         const isFemale = p.user.gender === "FEMALE";
-        const expectedFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+        const expectedFee = getRegistrationFee(isFemale ? "FEMALE" : "MALE");
         return {
           ...p,
           expectedFee,

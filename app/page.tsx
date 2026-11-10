@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import HomeClient from "@/components/HomeClient";
+import { isLaunchOfferActive } from "@/lib/pricing";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "RishteClub – Matrimony & Marriage Bureau in Delhi NCR & Haryana",
@@ -20,5 +23,5 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <HomeClient />;
+  return <HomeClient offerActive={isLaunchOfferActive()} />;
 }

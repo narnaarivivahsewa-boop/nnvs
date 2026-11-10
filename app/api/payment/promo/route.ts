@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getRegistrationPricingDetails, isLaunchOfferActive } from "@/lib/pricing";
 
 const GST_RATE = 0.18;
 
@@ -190,6 +191,17 @@ export async function POST(req: NextRequest) {
     // ==========================================
 
     if (cleanCode === "SAMIKSHA251") {
+      if (isLaunchOfferActive()) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Special Launch Offer (₹99 + GST = ₹116.82) is already active and saves you more than 'SAMIKSHA251' (₹251)!",
+          },
+          { status: 400 }
+        );
+      }
+
       if (detectedGender && detectedGender !== "FEMALE") {
         return NextResponse.json(
           {
@@ -205,7 +217,7 @@ export async function POST(req: NextRequest) {
       const originalFemaleBase = 399.0;
       const originalFemaleTotal = 470.82;
       const totalAmount = 251.0;
-      const baseFee = 212.71;
+      const samikshaBaseFee = 212.71;
       const gstAmount = 38.29;
       const cgstAmount = 19.14;
       const sgstAmount = 19.15;
@@ -222,9 +234,9 @@ export async function POST(req: NextRequest) {
         calculation: {
           originalBaseFee: originalFemaleBase,
           originalTotalAmount: originalFemaleTotal,
-          baseFee,
+          baseFee: samikshaBaseFee,
           discountAmount,
-          discountedFee: baseFee,
+          discountedFee: samikshaBaseFee,
           gstRate: GST_RATE,
           cgstAmount,
           sgstAmount,
@@ -238,7 +250,8 @@ export async function POST(req: NextRequest) {
     // PERCENTAGE DISCOUNT CODES
     // ==========================
 
-    const numericBaseFee = Number(baseFee) || 399;
+    const pricing = getRegistrationPricingDetails(detectedGender || "MALE");
+    const numericBaseFee = pricing.baseFee;
 
     if (promoCode.discountType !== "PERCENTAGE") {
       return NextResponse.json(
@@ -259,16 +272,16 @@ export async function POST(req: NextRequest) {
       ).toFixed(2)
     );
 
-    const discountedFee = Number(
-      (
-        numericBaseFee -
-        discountAmount
-      ).toFixed(2)
+    const discountedFee = Math.max(
+      0,
+      Number((numericBaseFee - discountAmount).toFixed(2))
     );
 
     const gstAmount = Number(
       (discountedFee * GST_RATE).toFixed(2)
     );
+    const cgstAmount = Number((gstAmount / 2).toFixed(2));
+    const sgstAmount = Number((gstAmount - cgstAmount).toFixed(2));
 
     const totalAmount = Number(
       (discountedFee + gstAmount).toFixed(2)
@@ -282,13 +295,15 @@ export async function POST(req: NextRequest) {
         discountPercent,
       },
       calculation: {
+        originalBaseFee: pricing.regularBaseFee,
+        originalTotalAmount: pricing.regularTotalAmount,
         baseFee: numericBaseFee,
         discountPercent,
         discountAmount,
         discountedFee,
         gstRate: GST_RATE,
-        cgstAmount: Number((gstAmount / 2).toFixed(2)),
-        sgstAmount: Number((gstAmount / 2).toFixed(2)),
+        cgstAmount,
+        sgstAmount,
         gstAmount,
         totalAmount,
       },

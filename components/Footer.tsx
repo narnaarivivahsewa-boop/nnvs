@@ -70,6 +70,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/pricing" className="transition hover:text-[#DFBA73]">
+                  Pricing &amp; Launch Offer
+                </Link>
+              </li>
+              <li>
                 <Link href="/about" className="transition hover:text-[#DFBA73]">
                   About Us
                 </Link>

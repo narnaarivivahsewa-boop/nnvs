@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
+import { calculateGstFromGross } from "@/lib/gst";
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,6 +72,12 @@ export async function POST(req: NextRequest) {
         const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
         if (matchedProfile) {
+          const paidNow = new Date();
+          const gstBreakdown =
+            grossAmount > 0
+              ? calculateGstFromGross(grossAmount, 18, false)
+              : { taxableAmount: 0, gstRate: 18, totalTax: 0 };
+
           await prisma.$transaction(async (tx) => {
             const payment = await tx.payment.create({
               data: {
@@ -78,12 +85,16 @@ export async function POST(req: NextRequest) {
                 profileId: matchedProfile.id,
                 amount: grossAmount,
                 grossAmount: grossAmount,
+                taxableAmount: gstBreakdown.taxableAmount,
+                gstRate: 18,
+                gstAmount: gstBreakdown.totalTax,
                 invoiceNumber,
+                invoiceDate: paidNow,
                 status: "SUCCESS",
                 paymentGateway: "RAZORPAY",
                 transactionId: razorpayPaymentId,
                 adminNotes: `Webhook Auto-Capture (Order: ${razorpayOrderId}, Service: ${serviceType})`,
-                paymentDate: new Date(),
+                paymentDate: paidNow,
               },
             });
 

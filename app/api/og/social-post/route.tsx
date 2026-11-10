@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,10 @@ export async function GET(req: NextRequest) {
     const dayOfYear = Math.floor(
       (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
     );
+
+    const femalePricing = getRegistrationPricingDetails("FEMALE", now);
+    const malePricing = getRegistrationPricingDetails("MALE", now);
+    const isOfferActive = femalePricing.isOfferActive;
 
     // Common Contact Details
     const helpline1 = "+91-9871592002";
@@ -413,9 +418,10 @@ export async function GET(req: NextRequest) {
                   padding: "8px 20px",
                 }}
               >
-                <span style={{ color: "#10B981", fontSize: 16, fontWeight: 800, marginRight: 6 }}>
-                  ✓
-                </span>
+                <svg width="18" height="18" viewBox="0 0 24 24" style={{ marginRight: 8, flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="11" fill="#10B981" />
+                  <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 <span style={{ color: "#FFFFFF", fontSize: 16, fontWeight: 800 }}>
                   100% VERIFIED PROFILE
                 </span>
@@ -811,7 +817,7 @@ export async function GET(req: NextRequest) {
               backgroundColor: "#4A0E17",
               backgroundImage:
                 "radial-gradient(circle at 50% 25%, #63121F 0%, #4A0E17 65%, #250409 100%)",
-              padding: "54px",
+              padding: "50px",
               boxSizing: "border-box",
               fontFamily: "sans-serif",
               position: "relative",
@@ -826,7 +832,7 @@ export async function GET(req: NextRequest) {
                 left: "16px",
                 right: "16px",
                 bottom: "16px",
-                border: "2px solid rgba(223, 186, 115, 0.4)",
+                border: "2px solid rgba(223, 186, 115, 0.45)",
                 pointerEvents: "none",
               }}
             />
@@ -838,7 +844,7 @@ export async function GET(req: NextRequest) {
                 alignItems: "center",
                 justifyContent: "space-between",
                 borderBottom: "2px solid rgba(223, 186, 115, 0.4)",
-                paddingBottom: "20px",
+                paddingBottom: "18px",
               }}
             >
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -862,23 +868,41 @@ export async function GET(req: NextRequest) {
                 </span>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  backgroundColor: "rgba(16, 185, 129, 0.2)",
-                  border: "2px solid #10B981",
-                  borderRadius: "24px",
-                  padding: "8px 20px",
-                }}
-              >
-                <span style={{ color: "#10B981", fontSize: 16, fontWeight: 800, marginRight: 6 }}>
-                  ✓
-                </span>
-                <span style={{ color: "#FFFFFF", fontSize: 16, fontWeight: 800 }}>
-                  100% VERIFIED MATRIMONY
-                </span>
-              </div>
+              {isOfferActive ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "#DFBA73",
+                    border: "2px solid #FFF2D0",
+                    borderRadius: "24px",
+                    padding: "8px 20px",
+                  }}
+                >
+                  <span style={{ color: "#3A0C13", fontSize: 16, fontWeight: 900 }}>
+                    🎉 SPECIAL LAUNCH OFFER
+                  </span>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "rgba(16, 185, 129, 0.2)",
+                    border: "2px solid #10B981",
+                    borderRadius: "24px",
+                    padding: "8px 20px",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ marginRight: 8, flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="11" fill="#10B981" />
+                    <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ color: "#FFFFFF", fontSize: 16, fontWeight: 800 }}>
+                    100% VERIFIED MATRIMONY
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Middle Registration Box */}
@@ -887,28 +911,70 @@ export async function GET(req: NextRequest) {
                 display: "flex",
                 flexDirection: "column",
                 backgroundColor: "rgba(0, 0, 0, 0.45)",
-                border: "2px solid rgba(223, 186, 115, 0.5)",
+                border: "2px solid rgba(223, 186, 115, 0.55)",
                 borderRadius: "24px",
-                padding: "36px 40px",
+                padding: "30px 36px",
                 margin: "auto 0",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  textAlign: "center",
-                  alignItems: "center",
-                  marginBottom: "22px",
-                }}
-              >
-                <span style={{ color: "#FFFFFF", fontSize: 34, fontWeight: 900, lineHeight: 1.25 }}>
-                  Lifetime Matrimonial Registration
-                </span>
-                <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700, marginTop: "6px" }}>
-                  Agarwal • Baniya • Brahmin • Punjabi • Khatri • Jain Communities
-                </span>
-              </div>
+              {isOfferActive ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    textAlign: "center",
+                    alignItems: "center",
+                    marginBottom: "18px",
+                  }}
+                >
+                  <span style={{ color: "#DFBA73", fontSize: 34, fontWeight: 900, lineHeight: 1.2 }}>
+                    Special Launch Offer — Only ₹{femalePricing.baseFee} + GST
+                  </span>
+                  <span
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 19,
+                      fontWeight: 700,
+                      marginTop: "8px",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    Find Your Perfect Life Partner with 100% Verified Profiles &amp; 36 Guna Kundali Milan
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      backgroundColor: "rgba(223, 186, 115, 0.18)",
+                      border: "1.5px solid #DFBA73",
+                      borderRadius: "20px",
+                      padding: "6px 20px",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <span style={{ color: "#DFBA73", fontSize: 16, fontWeight: 800 }}>
+                      {OFFER_VALIDITY_LABEL} | Both Brides &amp; Grooms
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    textAlign: "center",
+                    alignItems: "center",
+                    marginBottom: "22px",
+                  }}
+                >
+                  <span style={{ color: "#FFFFFF", fontSize: 34, fontWeight: 900, lineHeight: 1.25 }}>
+                    Lifetime Matrimonial Registration
+                  </span>
+                  <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 700, marginTop: "6px" }}>
+                    Agarwal • Baniya • Brahmin • Punjabi • Khatri • Jain Communities
+                  </span>
+                </div>
+              )}
 
               {/* 2 Big Pricing Cards: Kanya vs Var */}
               <div
@@ -916,7 +982,7 @@ export async function GET(req: NextRequest) {
                   display: "flex",
                   justifyContent: "space-between",
                   gap: "20px",
-                  marginBottom: "24px",
+                  marginBottom: "20px",
                 }}
               >
                 {/* Kanya Card */}
@@ -926,10 +992,10 @@ export async function GET(req: NextRequest) {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    backgroundColor: "rgba(225, 29, 72, 0.2)",
+                    backgroundColor: "rgba(225, 29, 72, 0.22)",
                     border: "2px solid #E11D48",
                     borderRadius: "18px",
-                    padding: "20px",
+                    padding: "18px",
                     textAlign: "center",
                   }}
                 >
@@ -944,14 +1010,40 @@ export async function GET(req: NextRequest) {
                   >
                     👧 Kanya (Bride)
                   </span>
-                  <span
-                    style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}
-                  >
-                    ₹471
-                  </span>
-                  <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
-                    One-Time Lifetime Access
-                  </span>
+                  {isOfferActive ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span
+                        style={{
+                          color: "#FCA5A5",
+                          fontSize: 16,
+                          fontWeight: 700,
+                          textDecoration: "line-through",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Regular ₹{femalePricing.regularBaseFee} + GST
+                      </span>
+                      <span
+                        style={{ color: "#FFFFFF", fontSize: 38, fontWeight: 900, margin: "2px 0" }}
+                      >
+                        ₹{femalePricing.baseFee} + GST
+                      </span>
+                      <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                        ₹{femalePricing.totalAmount.toFixed(2)} incl. 18% GST
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span
+                        style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}
+                      >
+                        ₹{Math.round(femalePricing.totalAmount)}
+                      </span>
+                      <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                        ₹{femalePricing.baseFee} + GST • Lifetime Access
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Var Card */}
@@ -961,10 +1053,10 @@ export async function GET(req: NextRequest) {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    backgroundColor: "rgba(37, 99, 235, 0.2)",
+                    backgroundColor: "rgba(37, 99, 235, 0.22)",
                     border: "2px solid #3B82F6",
                     borderRadius: "18px",
-                    padding: "20px",
+                    padding: "18px",
                     textAlign: "center",
                   }}
                 >
@@ -979,14 +1071,40 @@ export async function GET(req: NextRequest) {
                   >
                     👦 Var (Groom)
                   </span>
-                  <span
-                    style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}
-                  >
-                    ₹943
-                  </span>
-                  <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
-                    One-Time Lifetime Access
-                  </span>
+                  {isOfferActive ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span
+                        style={{
+                          color: "#93C5FD",
+                          fontSize: 16,
+                          fontWeight: 700,
+                          textDecoration: "line-through",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Regular ₹{malePricing.regularBaseFee} + GST
+                      </span>
+                      <span
+                        style={{ color: "#FFFFFF", fontSize: 38, fontWeight: 900, margin: "2px 0" }}
+                      >
+                        ₹{malePricing.baseFee} + GST
+                      </span>
+                      <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                        ₹{malePricing.totalAmount.toFixed(2)} incl. 18% GST
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span
+                        style={{ color: "#FFFFFF", fontSize: 44, fontWeight: 900, margin: "6px 0" }}
+                      >
+                        ₹{Math.round(malePricing.totalAmount)}
+                      </span>
+                      <span style={{ color: "#DFBA73", fontSize: 14, fontWeight: 700 }}>
+                        ₹{malePricing.baseFee} + GST • Lifetime Access
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -995,31 +1113,34 @@ export async function GET(req: NextRequest) {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "10px",
-                  marginBottom: "18px",
+                  gap: "12px",
+                  marginBottom: "20px",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>
-                    ✓
-                  </span>
-                  <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" style={{ marginRight: 12, flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="11" fill="#10B981" />
+                    <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
                     Direct Contact with Respected Families — Zero Middlemen Commission
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>
-                    ✓
-                  </span>
-                  <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
-                    100% Background &amp; Mobile Verified Matrimonial Biodatas
+                  <svg width="22" height="22" viewBox="0 0 24 24" style={{ marginRight: 12, flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="11" fill="#10B981" />
+                    <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
+                    100% Background &amp; Mobile Verified Profiles • 36 Guna Kundali Milan
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  <span style={{ color: "#10B981", fontSize: 20, fontWeight: 900, marginRight: 10 }}>
-                    ✓
-                  </span>
-                  <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" style={{ marginRight: 12, flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="11" fill="#10B981" />
+                    <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 600 }}>
                     No Recurring Subscriptions — Complete Data Privacy Guaranteed
                   </span>
                 </div>
@@ -1030,18 +1151,15 @@ export async function GET(req: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  backgroundColor: "rgba(223, 186, 115, 0.16)",
-                  border: "1px solid #DFBA73",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(223, 186, 115, 0.22)",
+                  border: "2px solid #DFBA73",
                   borderRadius: "14px",
                   padding: "12px 20px",
                 }}
               >
-                <span style={{ color: "#FFFFFF", fontSize: 17, fontWeight: 700 }}>
-                  👉 Register Your Biodata Today:
-                </span>
-                <span style={{ color: "#DFBA73", fontSize: 18, fontWeight: 900 }}>
-                  rishteclub.com/register
+                <span style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 900 }}>
+                  👉 Register today on www.rishteclub.com
                 </span>
               </div>
             </div>

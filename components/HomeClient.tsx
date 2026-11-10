@@ -11,11 +11,11 @@ import WhyChoose from "@/components/WhyChoose";
 import HowItWorks from "@/components/HowItWorks";
 import Footer from "@/components/Footer";
 
-export default function HomeClient() {
+export default function HomeClient({ offerActive }: { offerActive?: boolean }) {
   return (
     <main className="min-h-screen bg-[#FAF6EF] relative">
       {/* 1. Hero Banner with User Wedding Image & Original Text/CTAs */}
-      <Hero />
+      <Hero offerActive={offerActive} />
 
       {/* 2. Search Box */}
       <SearchBox />

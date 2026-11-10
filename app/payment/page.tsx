@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 import {
   ShieldCheck,
@@ -23,8 +24,9 @@ function PaymentContent() {
   const genderParam = searchParams.get("gender")?.toUpperCase();
 
   const [gender, setGender] = useState<string>(genderParam || "MALE");
-  const isFemale = gender === "FEMALE";
-  const applicableFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+  const pricing = getRegistrationPricingDetails(gender);
+  const isFemale = pricing.gender === "FEMALE";
+  const applicableFee = pricing.baseFee;
 
   const initialCoupon = searchParams.get("coupon") || "";
   const [couponInput, setCouponInput] = useState(initialCoupon);
@@ -82,9 +84,9 @@ function PaymentContent() {
   useEffect(() => {
     setSettings((prev) => ({
       ...prev,
-      registrationFee: isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male,
+      registrationFee: pricing.baseFee,
     }));
-  }, [isFemale]);
+  }, [pricing.baseFee]);
 
   const handleApplyCoupon = async (codeToApply?: string) => {
     const rawCode = (codeToApply !== undefined ? codeToApply : couponInput).trim();
@@ -104,7 +106,7 @@ function PaymentContent() {
         body: JSON.stringify({
           code: rawCode,
           profileId,
-          baseFee: isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male,
+          baseFee: pricing.baseFee,
           gender,
         }),
       });
@@ -238,11 +240,25 @@ function PaymentContent() {
             </span>
           </div>
 
+          {pricing.isOfferActive && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-950">
+              <span className="font-bold">
+                🎉 Launch Offer ({isFemale ? "Bride" : "Groom"}): ₹{pricing.baseFee} + GST
+              </span>
+              <span className="font-semibold text-amber-800">{OFFER_VALIDITY_LABEL}</span>
+            </div>
+          )}
+
           <div className="space-y-2.5 pt-3 text-sm text-gray-700">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span>Registration Service Fee</span>
-              <span className="font-semibold text-gray-900">
-                ₹{displayBaseFee.toFixed(2)}
+              <span className="font-semibold text-gray-900 flex items-center gap-2">
+                {pricing.isOfferActive && (
+                  <span className="text-xs text-gray-400 line-through">
+                    ₹{pricing.regularBaseFee.toFixed(2)}
+                  </span>
+                )}
+                <span>₹{displayBaseFee.toFixed(2)}</span>
               </span>
             </div>
 
@@ -263,9 +279,16 @@ function PaymentContent() {
               <span>₹{displaySgst.toFixed(2)}</span>
             </div>
 
-            <div className="border-t border-[#E8DCC8] pt-2.5 flex justify-between text-lg font-black text-[#4A121A]">
+            <div className="border-t border-[#E8DCC8] pt-2.5 flex justify-between items-center text-lg font-black text-[#4A121A]">
               <span>Total Amount (incl. 18% GST)</span>
-              <span>₹{totalAmount.toFixed(2)}</span>
+              <span className="flex items-center gap-2">
+                {pricing.isOfferActive && !appliedCoupon && (
+                  <span className="text-xs sm:text-sm font-semibold text-gray-400 line-through">
+                    ₹{pricing.regularTotalAmount.toFixed(2)}
+                  </span>
+                )}
+                <span>₹{totalAmount.toFixed(2)}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -391,6 +414,7 @@ function PaymentContent() {
             <RazorpayCheckoutButton
               amountInRupees={totalAmount}
               profileId={profileId}
+              gender={gender}
               promoCode={appliedCoupon ? appliedCoupon.code : undefined}
               name={nameParam}
               description="RishteClub Matrimonial Membership Fee"

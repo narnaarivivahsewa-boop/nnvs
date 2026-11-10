@@ -1,7 +1,25 @@
 import Link from "next/link";
 import MandalaPattern from "./MandalaPattern";
+import {
+  getRegistrationPricingDetails,
+  OFFER_VALIDITY_LABEL,
+} from "@/lib/pricing";
 
-export default function Hero() {
+interface HeroProps {
+  offerActive?: boolean;
+}
+
+export default function Hero({ offerActive }: HeroProps) {
+  const refDate =
+    offerActive === false
+      ? new Date("2027-01-01T00:00:00.000+05:30")
+      : offerActive === true
+      ? new Date("2026-11-10T12:00:00.000+05:30")
+      : new Date();
+  const femalePricing = getRegistrationPricingDetails("FEMALE", refDate);
+  const malePricing = getRegistrationPricingDetails("MALE", refDate);
+  const isOffer = femalePricing.isOfferActive;
+
   return (
     <section className="relative w-full overflow-hidden bg-[#4A121A]">
       <div className="relative min-h-[520px] sm:min-h-[580px] md:min-h-[640px] w-full flex items-center">
@@ -79,20 +97,71 @@ export default function Hero() {
             </div>
 
             {/* Registration Fee Info Box */}
-            <div className="mt-6 sm:mt-8 w-full sm:w-auto inline-block rounded-2xl border border-white/20 bg-black/45 px-4 sm:px-5 py-3 sm:py-3.5 backdrop-blur-md">
-              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#DFBA73]">
-                Registration Fee
-              </p>
-              <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-x-6 gap-y-1 text-xs sm:text-sm text-gray-100">
-                <span>
-                  Female: <strong className="ml-1 text-[#DFBA73]">₹399 + GST</strong>
-                </span>
-                <span className="hidden sm:inline text-white/40">|</span>
-                <span>
-                  Male: <strong className="ml-1 text-[#DFBA73]">₹799 + GST</strong>
-                </span>
+            {isOffer ? (
+              <div className="mt-6 sm:mt-8 w-full sm:w-auto inline-block rounded-2xl border-2 border-[#DFBA73] bg-black/55 px-4 sm:px-6 py-3.5 sm:py-4 backdrop-blur-md shadow-xl">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <span className="rounded-full bg-[#DFBA73] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#3A0C13]">
+                    🎉 Special Launch Offer
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-[#FAF6EF]">
+                    {OFFER_VALIDITY_LABEL}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-x-5 gap-y-1.5 text-xs sm:text-sm text-gray-100">
+                  <span className="flex items-center gap-1.5">
+                    <span>Female (Bride):</span>
+                    <span className="line-through text-white/55 text-xs">
+                      ₹{femalePricing.regularBaseFee}
+                    </span>
+                    <strong className="text-[#DFBA73] text-sm sm:text-base">
+                      ₹{femalePricing.baseFee} + GST
+                    </strong>
+                    <span className="text-[11px] text-white/80">
+                      (₹{femalePricing.totalAmount.toFixed(2)})
+                    </span>
+                  </span>
+                  <span className="hidden sm:inline text-white/40">|</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>Male (Groom):</span>
+                    <span className="line-through text-white/55 text-xs">
+                      ₹{malePricing.regularBaseFee}
+                    </span>
+                    <strong className="text-[#DFBA73] text-sm sm:text-base">
+                      ₹{malePricing.baseFee} + GST
+                    </strong>
+                    <span className="text-[11px] text-white/80">
+                      (₹{malePricing.totalAmount.toFixed(2)})
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className="text-[#E2D2BC]">
+                    100% Verified Profiles &amp; 36 Guna Kundali Milan
+                  </span>
+                  <Link
+                    href="/pricing"
+                    className="font-bold text-[#DFBA73] hover:underline"
+                  >
+                    View Offer &amp; GST Details →
+                  </Link>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-6 sm:mt-8 w-full sm:w-auto inline-block rounded-2xl border border-white/20 bg-black/45 px-4 sm:px-5 py-3 sm:py-3.5 backdrop-blur-md">
+                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#DFBA73]">
+                  Registration Fee
+                </p>
+                <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-x-6 gap-y-1 text-xs sm:text-sm text-gray-100">
+                  <span>
+                    Female: <strong className="ml-1 text-[#DFBA73]">₹{femalePricing.baseFee} + GST</strong>
+                  </span>
+                  <span className="hidden sm:inline text-white/40">|</span>
+                  <span>
+                    Male: <strong className="ml-1 text-[#DFBA73]">₹{malePricing.baseFee} + GST</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

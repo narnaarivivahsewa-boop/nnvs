@@ -14,6 +14,7 @@ import {
   User,
   ArrowRight,
   Key,
+  Sparkles,
 } from "lucide-react";
 import {
   getAuthSession,
@@ -21,6 +22,7 @@ import {
   saveAuthSession,
 } from "@/lib/auth/session-storage";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { isLaunchOfferActive } from "@/lib/pricing";
 import { SocialIconsRow } from "@/components/SocialLinks";
 import AuthModal from "@/components/AuthModal";
 
@@ -58,8 +60,13 @@ export default function Navbar() {
   const [switchingProfile, setSwitchingProfile] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"LOGIN" | "REGISTER">("LOGIN");
+  const [offerActive, setOfferActive] = useState<boolean>(() => isLaunchOfferActive());
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setOfferActive(isLaunchOfferActive());
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -201,6 +208,7 @@ export default function Navbar() {
     { name: "Home", href: "/" },
     { name: "Profiles", href: "/profiles" },
     { name: "Free Kundali Milan", href: "/kundli-milan" },
+    { name: "Pricing", href: "/pricing" },
     { name: "Wedding Services", href: "/services" },
     { name: "About", href: "/about" },
     { name: "Contact", href: "/contact" },
@@ -235,6 +243,32 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Special Promotional Offer Banner (auto-hides after 31st Dec 2026 IST) */}
+      {offerActive && (
+        <Link
+          href="/pricing"
+          className="block w-full bg-gradient-to-r from-[#2D080E] via-[#5A1622] to-[#2D080E] border-b border-[#C5A059]/60 px-3 py-1.5 text-center text-[11px] sm:text-xs font-semibold text-[#FAF6EF] hover:text-[#DFBA73] transition"
+        >
+          <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#DFBA73] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#3A0C13]">
+              <Sparkles className="h-3 w-3" />
+              Launch Offer
+            </span>
+            <span>
+              <strong className="text-[#DFBA73]">Only ₹99 + GST</strong>{" "}
+              <span className="line-through text-white/60 text-[10px] sm:text-[11px]">
+                (₹399 / ₹799)
+              </span>{" "}
+              for Brides &amp; Grooms • Valid till{" "}
+              <strong className="text-[#DFBA73]">31st Dec 2026</strong>
+            </span>
+            <span className="underline font-bold text-[#DFBA73]">
+              View Offer →
+            </span>
+          </span>
+        </Link>
+      )}
+
       <header className="sticky top-0 z-50 w-full bg-[#FAF6EF]/95 backdrop-blur-md border-b border-[#E8DCC8] shadow-sm transition-all">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10">
           {/* Authentic Brand Logo */}
@@ -260,14 +294,14 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-6">
+          <nav className="hidden lg:flex items-center gap-4 xl:gap-6">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`text-[15px] font-medium transition-colors duration-200 relative py-1 ${
+                  className={`whitespace-nowrap text-[14px] xl:text-[15px] font-medium transition-colors duration-200 relative py-1 ${
                     isActive
                       ? "text-[#4A121A] font-bold"
                       : "text-[#4A3E39] hover:text-[#4A121A]"

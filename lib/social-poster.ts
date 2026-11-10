@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 
 export type SocialSlot =
   | "MORNING"
@@ -64,6 +65,10 @@ export function getMetaConfig() {
     process.env.FACEBOOK_PAGE_ACCESS_TOKEN ||
     "";
 
+  const igAccessToken =
+    process.env.META_IG_ACCESS_TOKEN ||
+    pageAccessToken;
+
   const facebookPageId =
     process.env.META_FB_PAGE_ID ||
     process.env.META_PAGE_ID ||
@@ -91,14 +96,15 @@ export function getMetaConfig() {
 
   return {
     pageAccessToken,
+    igAccessToken,
     facebookPageId,
     instagramAccountId,
     cronSecret,
     adminSecret,
     appUrl: appUrl.replace(/\/+$/, ""),
-    isConfigured: Boolean(pageAccessToken && (facebookPageId || instagramAccountId)),
+    isConfigured: Boolean((pageAccessToken || igAccessToken) && (facebookPageId || instagramAccountId)),
     hasFacebook: Boolean(pageAccessToken && facebookPageId),
-    hasInstagram: Boolean(pageAccessToken && instagramAccountId),
+    hasInstagram: Boolean(igAccessToken && instagramAccountId),
   };
 }
 
@@ -168,11 +174,15 @@ export function generateSocialCaption(
     quote?: string;
     candidateData?: SocialPostParams["candidateData"];
     title?: string;
-  }
+  },
+  now: Date = new Date()
 ): string {
   const helpline1 = "+91 9871592002";
   const helpline2 = "+91 7015812359";
   const website = "https://www.rishteclub.com";
+  const femalePricing = getRegistrationPricingDetails("FEMALE", now);
+  const malePricing = getRegistrationPricingDetails("MALE", now);
+  const isOfferActive = femalePricing.isOfferActive;
 
   // Post 1: Free Kundali Milan Promotion & Astrology Tips (Morning Slot - 09:00 AM IST)
   if (slot === "MORNING" || slot === "KUNDLI_MILAN" || slot === "MATCHMAKING_TIPS") {
@@ -215,13 +225,34 @@ export function generateSocialCaption(
     }
 
     // Fallback if no candidate profile is passed
+    if (isOfferActive) {
+      return (
+        `🎉 Special Launch Offer — Only ₹${femalePricing.baseFee} + GST! 🎉\n` +
+        `Find Your Perfect Life Partner with 100% Verified Profiles & 36 Guna Kundali Milan\n` +
+        `🗓️ ${OFFER_VALIDITY_LABEL} | Both Brides & Grooms\n\n` +
+        `✨ Special One-Time Offer (Limited Period):\n` +
+        `👧 Brides (Kanya): ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)}) — Regular ₹${femalePricing.regularBaseFee} + GST\n` +
+        `👦 Grooms (Var): ₹${malePricing.baseFee} + GST (₹${malePricing.totalAmount.toFixed(2)}) — Regular ₹${malePricing.regularBaseFee} + GST\n` +
+        `🚫 Zero monthly subscriptions & zero middlemen brokerage.\n\n` +
+        `🔒 Why Families Choose RishteClub (NNVS Matrimony):\n` +
+        `• 100% Background & Mobile Verified Matrimonial Biodatas\n` +
+        `• Instant 36 Guna Ashtakoota Kundali Milan & Manglik Check\n` +
+        `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & All Communities\n\n` +
+        `👉 Register today on www.rishteclub.com:\n` +
+        `🌐 ${website}/register\n\n` +
+        `📞 Matchmaker Helpline:\n` +
+        `• WhatsApp / Support: ${helpline1} | ${helpline2}\n\n` +
+        `#RishteClub #MatrimonyOffer #Matrimony #Shaadi #Vivah #KundaliMilan #VerifiedProfiles #IndianMatrimony`
+      );
+    }
+
     return (
       `💍 अपनों के लिए सही रिश्ता — RishteClub Matrimony 💍\n` +
       `Managed by NNVS Matrimony (Registered Matrimonial Service)\n\n` +
       `पारिवारिक प्रतिष्ठा, सुरक्षा और शुद्ध भारतीय संस्कारों के साथ अपने बच्चों के लिए योग्य जीवनसाथी खोजें।\n\n` +
       `✨ Transparent Lifetime Membership:\n` +
-      `👧 Kanya (Bride) Lifetime Registration: ₹471\n` +
-      `👦 Var (Groom) Lifetime Registration: ₹943\n` +
+      `👧 Kanya (Bride) Lifetime Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
+      `👦 Var (Groom) Lifetime Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
       `🚫 No monthly recurring fees. Direct family contact.\n\n` +
       `🔒 100% Verified Profiles:\n` +
       `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n` +
@@ -237,6 +268,28 @@ export function generateSocialCaption(
   }
 
   // Post 3: Platform Promotion & Registration CTA (Evening Slot - 07:00 PM IST)
+  if (isOfferActive) {
+    return (
+      `🎉 Special Launch Offer — Only ₹${femalePricing.baseFee} + GST! 🎉\n` +
+      `Find Your Perfect Life Partner with 100% Verified Profiles & 36 Guna Kundali Milan\n` +
+      `🗓️ ${OFFER_VALIDITY_LABEL} | Both Brides & Grooms\n\n` +
+      `✨ Transparent Limited-Time Offer:\n` +
+      `👧 Brides (Kanya): ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)} incl. GST) — Regular ₹${femalePricing.regularBaseFee} + GST\n` +
+      `👦 Grooms (Var): ₹${malePricing.baseFee} + GST (₹${malePricing.totalAmount.toFixed(2)} incl. GST) — Regular ₹${malePricing.regularBaseFee} + GST\n` +
+      `🚫 No monthly recurring subscriptions. Zero middlemen brokerage.\n\n` +
+      `⭐ Verified Registration Benefits:\n` +
+      `• 100% Verified Biodatas with Mobile & Family Review\n` +
+      `• Direct Contact with Respected Families\n` +
+      `• Free 36 Guna Ashtakoota Kundali Milan & Horoscope Matching\n` +
+      `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n\n` +
+      `👉 Register today on www.rishteclub.com:\n` +
+      `🌐 ${website}/register\n\n` +
+      `📞 Matchmaker Helpline:\n` +
+      `• WhatsApp / Support: ${helpline1} | ${helpline2}\n\n` +
+      `#RishteClub #LaunchOffer #Matrimony #Shaadi #Vivah #KundaliMilan #Matchmaking #IndianWedding`
+    );
+  }
+
   return (
     `💍 Find Your Ideal Life Partner on RishteClub Matrimony 💍\n` +
     `Trusted Community Matchmaking Managed by NNVS Matrimony\n\n` +
@@ -247,8 +300,8 @@ export function generateSocialCaption(
     `• Complete Data Privacy & Safe Matchmaking Experience\n` +
     `• Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & Maheshwari Communities\n\n` +
     `✨ Transparent Lifetime Membership:\n` +
-    `👧 Kanya (Bride) Registration: ₹471 Lifetime\n` +
-    `👦 Var (Groom) Registration: ₹943 Lifetime\n` +
+    `👧 Kanya (Bride) Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
+    `👦 Var (Groom) Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
     `🚫 No monthly recurring subscriptions.\n\n` +
     `👉 Register Free Today:\n` +
     `🌐 ${website}/register\n\n` +
@@ -887,7 +940,7 @@ export async function publishToSocialChannels(
   // Instagram Business
   if (config.hasInstagram) {
     tasks.push(
-      postToInstagramBusiness(imageUrl, caption, config.instagramAccountId, config.pageAccessToken)
+      postToInstagramBusiness(imageUrl, caption, config.instagramAccountId, config.igAccessToken)
         .then((res) => {
           results.instagram = res;
         })

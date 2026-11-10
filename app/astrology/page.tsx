@@ -1409,23 +1409,25 @@ export default function AstrologyPage() {
       {showPaymentModal && (
         <div
           onClick={() => setShowPaymentModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="astrology-payment-modal-title"
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-scaleUp"
+            className="relative w-full max-w-md rounded-3xl bg-white border border-[#E2D4BE] p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-scaleUp"
           >
-            <button
-              type="button"
-              aria-label="Close modal"
-              onClick={() => setShowPaymentModal(false)}
-              className="absolute top-4 right-4 z-20 rounded-full bg-white border border-[#DACBB4] p-2 text-[#4A121A] hover:bg-[#FAF0DC] transition cursor-pointer shadow-xs"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="sticky top-0 z-30 flex justify-end -mt-2 -mr-2 pointer-events-none">
+              <button
+                type="button"
+                aria-label="Close modal"
+                onClick={() => setShowPaymentModal(false)}
+                className="pointer-events-auto h-9 w-9 min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-full bg-white/95 border border-[#DACBB4] text-[#4A121A] hover:bg-[#FAF0DC] transition cursor-pointer shadow-sm"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
             {paymentSuccessMessage ? (
               <div className="py-8 text-center space-y-3">

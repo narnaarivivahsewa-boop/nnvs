@@ -45,9 +45,18 @@ export default function CityCombobox({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastPointerActionRef = useRef<number>(0);
 
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  const markPointerAction = () => {
+    lastPointerActionRef.current = Date.now();
+  };
+
+  const shouldIgnoreClickAfterPointer = () => {
+    return Date.now() - lastPointerActionRef.current < 400;
+  };
 
   const trimmedValue = (value || "").trim();
 
@@ -206,11 +215,18 @@ export default function CityCombobox({
               aria-label="Clear city or birthplace"
               onMouseDown={(e) => {
                 e.preventDefault();
+                markPointerAction();
                 onChange("");
                 setIsOpen(true);
                 inputRef.current?.focus();
               }}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+              onClick={() => {
+                if (shouldIgnoreClickAfterPointer()) return;
+                onChange("");
+                setIsOpen(true);
+                inputRef.current?.focus();
+              }}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -222,11 +238,17 @@ export default function CityCombobox({
             aria-label={isOpen ? "Close city suggestions" : "Open city suggestions"}
             onMouseDown={(e) => {
               e.preventDefault();
+              markPointerAction();
               if (disabled || readOnly) return;
               setIsOpen((prev) => !prev);
               if (!isOpen) inputRef.current?.focus();
             }}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-[#4A121A] hover:bg-amber-50/70 transition cursor-pointer disabled:opacity-50"
+            onClick={() => {
+              if (shouldIgnoreClickAfterPointer() || disabled || readOnly) return;
+              setIsOpen((prev) => !prev);
+              if (!isOpen) inputRef.current?.focus();
+            }}
+            className="p-2 rounded-lg text-gray-400 hover:text-[#4A121A] hover:bg-amber-50/70 transition cursor-pointer disabled:opacity-50"
           >
             <ChevronDown
               className={`h-4 w-4 transition-transform duration-150 ${
@@ -246,7 +268,7 @@ export default function CityCombobox({
         <div
           id={listboxId}
           role="listbox"
-          className="absolute left-0 right-0 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#DACBB4] bg-white shadow-xl z-50 py-1.5"
+          className="absolute left-0 right-0 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#DACBB4] bg-white shadow-xl z-[60] py-1.5"
         >
           {/* Matching Suggestions */}
           {filteredCities.map((city, idx) => {
@@ -261,10 +283,15 @@ export default function CityCombobox({
                 aria-selected={isSelected}
                 onMouseDown={(e) => {
                   e.preventDefault();
+                  markPointerAction();
+                  selectValue(city);
+                }}
+                onClick={() => {
+                  if (shouldIgnoreClickAfterPointer()) return;
                   selectValue(city);
                 }}
                 onMouseEnter={() => setHighlightedIndex(idx)}
-                className={`w-full flex items-center justify-between gap-2 px-3.5 py-2 text-left text-xs sm:text-sm transition cursor-pointer ${
+                className={`w-full min-h-[44px] flex items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs sm:text-sm transition cursor-pointer ${
                   isHighlighted
                     ? "bg-[#FAF0DC] text-[#4A121A]"
                     : isSelected
@@ -291,10 +318,15 @@ export default function CityCombobox({
               aria-selected={highlightedIndex === filteredCities.length}
               onMouseDown={(e) => {
                 e.preventDefault();
+                markPointerAction();
+                selectValue(trimmedValue);
+              }}
+              onClick={() => {
+                if (shouldIgnoreClickAfterPointer()) return;
                 selectValue(trimmedValue);
               }}
               onMouseEnter={() => setHighlightedIndex(filteredCities.length)}
-              className={`w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left border-t border-[#F0E6D6] transition cursor-pointer ${
+              className={`w-full min-h-[48px] flex items-start gap-2.5 px-3.5 py-2.5 text-left border-t border-[#F0E6D6] transition cursor-pointer ${
                 highlightedIndex === filteredCities.length
                   ? "bg-emerald-50 text-emerald-950"
                   : "bg-[#FAF8F5] text-[#4A121A] hover:bg-emerald-50/70"

@@ -11,9 +11,10 @@ declare global {
 }
 
 interface RazorpayCheckoutButtonProps {
-  amountInRupees: number; // e.g. 470.82 or 399
+  amountInRupees: number; // e.g. 116.82 (offer) or 470.82 / 942.82
   service?: string;
   profileId?: string;
+  gender?: string;
   name?: string;
   email?: string;
   mobile?: string;
@@ -29,6 +30,7 @@ export default function RazorpayCheckoutButton({
   amountInRupees,
   service,
   profileId,
+  gender,
   name = "",
   email = "",
   mobile = "",
@@ -86,6 +88,7 @@ export default function RazorpayCheckoutButton({
           currency: "INR",
           service: service || undefined,
           profileId: profileId || undefined,
+          gender: gender || undefined,
           promoCode: promoCode || undefined,
           receipt: `rcpt_${profileId || (service ? service.toLowerCase() : "nnvs")}_${Date.now()}`,
           notes: {

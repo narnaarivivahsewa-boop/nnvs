@@ -258,8 +258,9 @@ function LoginContent() {
     setMessage("");
     setToastError(null);
 
-    if (!/^\d{6}$/.test(otp)) {
-      setMessage("Please enter a valid 6 digit OTP.");
+    const cleanOtp = otp.trim();
+    if (!/^\d{4,6}$/.test(cleanOtp)) {
+      setMessage("Please enter the valid 4 to 6 digit OTP received via SMS.");
       return;
     }
 
@@ -271,7 +272,7 @@ function LoginContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile,
-          otp,
+          otp: cleanOtp,
           type: "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
@@ -559,7 +560,7 @@ function LoginContent() {
                       htmlFor="one-time-code"
                       className="mb-1.5 block text-xs font-bold text-[#2D221E]"
                     >
-                      Enter 6-Digit OTP
+                      Enter SMS OTP (4–6 Digits)
                     </label>
 
                     <div className="relative">

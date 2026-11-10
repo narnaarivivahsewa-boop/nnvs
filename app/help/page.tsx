@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 import { UserCheck, HelpCircle, ShieldCheck, Mail, Phone } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Help Center & Member Support | RishteClub",
@@ -21,6 +24,12 @@ export const metadata: Metadata = {
 };
 
 export default function HelpPage() {
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+  const feeText = femalePricing.isOfferActive
+    ? `Special Launch Offer (${OFFER_VALIDITY_LABEL}: Female ₹${femalePricing.baseFee} + GST [regular ₹${femalePricing.regularBaseFee} + GST], Male ₹${malePricing.baseFee} + GST [regular ₹${malePricing.regularBaseFee} + GST])`
+    : `Female: ₹${femalePricing.baseFee} + GST, Male: ₹${malePricing.baseFee} + GST`;
+
   return (
     <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
@@ -72,7 +81,7 @@ export default function HelpPage() {
                 </h2>
               </div>
               <p className="text-xs sm:text-sm leading-relaxed text-[#5A4E48]">
-                Registration fees (Female: ₹{BUSINESS_INFO.fees.female} + GST, Male: ₹{BUSINESS_INFO.fees.male} + GST) are handled under business entity {BUSINESS_INFO.tradeName} (GSTIN: {BUSINESS_INFO.gstin}).
+                Registration fees ({feeText}) are handled under business entity {BUSINESS_INFO.tradeName} (GSTIN: {BUSINESS_INFO.gstin}).
               </p>
             </div>
 

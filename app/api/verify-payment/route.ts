@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyRazorpaySignature } from "@/lib/razorpay";
 import { prisma } from "@/lib/prisma";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
+import { calculateGstFromGross } from "@/lib/gst";
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,7 +67,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const grossAmount = amount ? Number(amount) / 100 : 0;
+    const grossAmount = amount ? Math.round(Number(amount)) / 100 : 0;
+    const now = new Date();
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
     // Check if already captured by webhook
@@ -87,26 +89,35 @@ export async function POST(req: NextRequest) {
 
         if (profile) {
           if (!existingPayment) {
+            const paidGross = grossAmount > 0 ? grossAmount : 0;
+            const gstBreakdown =
+              paidGross > 0
+                ? calculateGstFromGross(paidGross, 18, false)
+                : { taxableAmount: 0, gstRate: 18, totalTax: 0 };
+
             const result = await prisma.$transaction(async (tx) => {
               const payment = await tx.payment.create({
                 data: {
                   userId: profile.userId,
                   profileId: profile.id,
-                  amount: grossAmount > 0 ? grossAmount : 0,
-                  grossAmount: grossAmount > 0 ? grossAmount : 0,
+                  amount: paidGross,
+                  grossAmount: paidGross,
+                  taxableAmount: gstBreakdown.taxableAmount,
+                  gstRate: 18,
+                  gstAmount: gstBreakdown.totalTax,
                   invoiceNumber,
+                  invoiceDate: now,
                   status: "SUCCESS",
                   paymentGateway: "RAZORPAY",
                   transactionId: razorpay_payment_id,
                   adminNotes: `Razorpay Order ID: ${razorpay_order_id}`,
-                  paymentDate: new Date(),
+                  paymentDate: now,
                 },
               });
 
               // Direct Live Activation Rule:
               // Profiles registering via website with OTP verification and completing payment
               // become directly LIVE and APPROVED. No admin approval required.
-              const now = new Date();
 
               // Rule 2: Official Profile ID is assigned only upon confirmed payment
               let officialProfileId = profile.profileId;
@@ -178,17 +189,23 @@ export async function POST(req: NextRequest) {
       try {
         if (!existingPayment) {
           const systemUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+          const astroGross = grossAmount > 0 ? grossAmount : 116.82;
+          const astroGst = calculateGstFromGross(astroGross, 18, false);
           const payment = await prisma.payment.create({
             data: {
               userId: systemUser?.id || "astrology-guest",
-              amount: grossAmount > 0 ? grossAmount : 116.82,
-              grossAmount: grossAmount > 0 ? grossAmount : 116.82,
+              amount: astroGross,
+              grossAmount: astroGross,
+              taxableAmount: astroGst.taxableAmount,
+              gstRate: 18,
+              gstAmount: astroGst.totalTax,
               invoiceNumber,
+              invoiceDate: now,
               status: "SUCCESS",
               paymentGateway: "RAZORPAY",
               transactionId: razorpay_payment_id,
               adminNotes: `Astrology Lal Kitab Remedies (Order: ${razorpay_order_id})`,
-              paymentDate: new Date(),
+              paymentDate: now,
             },
           });
           paymentRecordId = payment.id;

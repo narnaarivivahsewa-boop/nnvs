@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
 import { ShieldCheck, ArrowRight, Sparkles, Tag, CheckCircle2 } from "lucide-react";
 
 function ReviewContent() {
@@ -12,9 +13,10 @@ function ReviewContent() {
   const profileId = searchParams.get("profileId") || "";
   const genderParam = searchParams.get("gender")?.toUpperCase();
 
-  const isFemale = genderParam === "FEMALE";
+  const pricing = getRegistrationPricingDetails(genderParam || "MALE");
+  const isFemale = pricing.gender === "FEMALE";
   const registrationType = isFemale ? "Female" : "Male";
-  const baseFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+  const baseFee = pricing.baseFee;
 
   const initialCoupon = searchParams.get("coupon") || "";
   const [couponInput, setCouponInput] = useState(initialCoupon);
@@ -138,9 +140,23 @@ function ReviewContent() {
           <span className="font-bold text-gray-900">{registrationType} Registration</span>
         </div>
 
-        <div className="flex justify-between">
+        {pricing.isOfferActive && (
+          <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-900">
+            <span className="font-bold">🎉 Special Launch Offer Active</span>
+            <span className="font-semibold text-amber-800">{OFFER_VALIDITY_LABEL}</span>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center">
           <span>Registration Fee</span>
-          <span className="font-semibold text-gray-900">₹{displayBaseFee.toFixed(2)}</span>
+          <span className="font-semibold text-gray-900 flex items-center gap-2">
+            {pricing.isOfferActive && (
+              <span className="text-xs text-gray-400 line-through">
+                ₹{pricing.regularBaseFee.toFixed(2)}
+              </span>
+            )}
+            <span>₹{displayBaseFee.toFixed(2)}</span>
+          </span>
         </div>
 
         {appliedCoupon && appliedCoupon.calculation.discountAmount > 0 && (
@@ -160,9 +176,16 @@ function ReviewContent() {
           <span>₹{displaySgst.toFixed(2)}</span>
         </div>
 
-        <div className="border-t border-[#E8DCC8] pt-2.5 flex justify-between text-base sm:text-lg font-black text-[#4A121A]">
+        <div className="border-t border-[#E8DCC8] pt-2.5 flex justify-between items-center text-base sm:text-lg font-black text-[#4A121A]">
           <span>Total Payable (incl. 18% GST)</span>
-          <span>₹{totalAmount.toFixed(2)}</span>
+          <span className="flex items-center gap-2">
+            {pricing.isOfferActive && !appliedCoupon && (
+              <span className="text-xs sm:text-sm font-semibold text-gray-400 line-through">
+                ₹{pricing.regularTotalAmount.toFixed(2)}
+              </span>
+            )}
+            <span>₹{totalAmount.toFixed(2)}</span>
+          </span>
         </div>
       </div>
 

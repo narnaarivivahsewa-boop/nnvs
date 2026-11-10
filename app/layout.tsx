@@ -177,7 +177,7 @@ const jsonLd = {
       "name": "RishteClub - Nar Naari Vivah Sewa Matrimonial Bureau",
       "image": "https://www.rishteclub.com/nnvs-logo.png",
       "telephone": "+91-9871592002",
-      "priceRange": "₹399 - ₹799",
+      "priceRange": "₹99 - ₹799",
       "taxID": "06APYPD6931J1ZE",
       "address": {
         "@type": "PostalAddress",

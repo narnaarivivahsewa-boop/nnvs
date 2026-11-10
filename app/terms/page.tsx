@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Terms & Conditions | RishteClub Matrimony",
@@ -20,6 +23,12 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+  const termsFeeSummary = femalePricing.isOfferActive
+    ? `Special Launch Offer — ${OFFER_VALIDITY_LABEL}: ₹${femalePricing.baseFee} + GST for both Female and Male profiles (regular fee: Female ₹${femalePricing.regularBaseFee} + GST, Male ₹${malePricing.regularBaseFee} + GST)`
+    : `Female: ₹${femalePricing.baseFee} + GST, Male: ₹${malePricing.baseFee} + GST, or as updated from time to time`;
+
   return (
     <main className="bg-[#FAF6EF] min-h-screen py-12 sm:py-16">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
@@ -90,7 +99,7 @@ export default function TermsPage() {
                 4. Registration & Registration Fee
               </h2>
               <p className="mt-2">
-                Registration with RishteClub is a paid service subject to the completion of profile verification and payment of the applicable one-time non-refundable registration fee (Female: ₹{BUSINESS_INFO.fees.female} + GST, Male: ₹{BUSINESS_INFO.fees.male} + GST, or as updated from time to time).
+                Registration with RishteClub is a paid service subject to the completion of profile verification and payment of the applicable one-time non-refundable registration fee ({termsFeeSummary}).
               </p>
               <p className="mt-2">
                 Payment of registration fees covers profile listing, review, and platform access services. It does not constitute a guarantee of marriage or alliance fulfillment.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRazorpayClient, getRazorpayCredentials } from "@/lib/razorpay";
 import { prisma } from "@/lib/prisma";
+import { getRegistrationPricingDetails, isLaunchOfferActive } from "@/lib/pricing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,10 +28,6 @@ export async function POST(req: NextRequest) {
     // ==========================================
     // STRICT SERVER-SIDE PRICING CALCULATION
     // ==========================================
-    let baseAmountRupees = 799; // Default Male
-    let serviceName = "Matrimony Male Membership Registration";
-    let isFemaleRegistration = false;
-
     let profile = null;
     if (profileId) {
       // Lookup profile and user to determine true gender
@@ -48,14 +45,18 @@ export async function POST(req: NextRequest) {
       "MALE"
     ).toUpperCase();
 
-    if (detectedGender === "FEMALE") {
-      isFemaleRegistration = true;
-      baseAmountRupees = 399;
-      serviceName = "Matrimony Female Membership Registration";
-    } else {
-      baseAmountRupees = 799;
-      serviceName = "Matrimony Male Membership Registration";
-    }
+    const registrationPricing = getRegistrationPricingDetails(detectedGender);
+    const offerActive = registrationPricing.isOfferActive;
+    const isFemaleRegistration = registrationPricing.gender === "FEMALE";
+
+    let baseAmountRupees = registrationPricing.baseFee;
+    let serviceName = isFemaleRegistration
+      ? offerActive
+        ? "Matrimony Female Membership Registration (Launch Offer)"
+        : "Matrimony Female Membership Registration"
+      : offerActive
+      ? "Matrimony Male Membership Registration (Launch Offer)"
+      : "Matrimony Male Membership Registration";
 
     if (service === "ASTROLOGY" || notes?.service === "ASTROLOGY") {
       baseAmountRupees = 99;
@@ -126,6 +127,17 @@ export async function POST(req: NextRequest) {
 
       // Special rule: SAMIKSHA251 (Female Only, ₹251 total incl. GST)
       if (cleanCode === "SAMIKSHA251") {
+        if (isLaunchOfferActive()) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "Special Launch Offer (₹99 + GST = ₹116.82) is already active and saves you more than coupon 'Samiksha251' (₹251)!",
+            },
+            { status: 400 }
+          );
+        }
+
         if (!isFemaleRegistration) {
           return NextResponse.json(
             {

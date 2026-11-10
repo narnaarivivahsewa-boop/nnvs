@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { calculateGstFromGross } from "@/lib/gst";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
@@ -175,7 +176,7 @@ export async function POST(req: NextRequest) {
     const isFemale =
       profile.user?.gender === "FEMALE" ||
       String(profile.legacyProfileId || "").toUpperCase().includes("-G-");
-    const defaultGenderFee = isFemale ? 470.82 : 942.82;
+    const defaultGenderFee = getRegistrationPricingDetails(isFemale ? "FEMALE" : "MALE").totalAmount;
     const grossAmountNum = Number(grossAmount ?? defaultGenderFee);
 
     if (isNaN(grossAmountNum) || grossAmountNum <= 0) {

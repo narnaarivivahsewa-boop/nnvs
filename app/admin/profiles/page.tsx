@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 
 type Profile = {
   id: string;
@@ -202,7 +203,7 @@ function AdminProfilesContent() {
 
   const openPaymentModal = (profile: Profile) => {
     setSelectedProfile(profile);
-    const defaultFee = profile.user.gender === "FEMALE" ? "399" : "799";
+    const defaultFee = String(getRegistrationPricingDetails(profile.user.gender).totalAmount);
     setGrossAmount(defaultFee);
     setIsPaymentExempt(false);
     setExemptionReason("");
@@ -985,7 +986,9 @@ function AdminProfilesContent() {
                         setGrossAmount("0");
                         if (!transactionId) setTransactionId("EXEMPT");
                       } else {
-                        const defaultFee = selectedProfile.user.gender === "FEMALE" ? "399" : "799";
+                        const defaultFee = String(
+                          getRegistrationPricingDetails(selectedProfile.user.gender).totalAmount
+                        );
                         setGrossAmount(defaultFee);
                         if (transactionId === "EXEMPT") setTransactionId("");
                       }
@@ -1050,7 +1053,7 @@ function AdminProfilesContent() {
                     value={grossAmount}
                     onChange={(e) => setGrossAmount(e.target.value)}
                     className="w-full rounded-xl border border-gray-300 p-3 font-mono font-bold text-gray-900 outline-none focus:border-[#4A121A]"
-                    placeholder="e.g. 799.00"
+                    placeholder="e.g. 116.82"
                   />
                   <p className="mt-1 text-[11px] text-gray-500">
                     Taxable base value and 18% GST will be reverse calculated from this gross amount.

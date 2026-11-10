@@ -23,6 +23,8 @@ import {
   getRegistrationVerification,
   clearRegistrationVerification,
 } from "@/lib/auth/registration-storage";
+import { saveAuthSession } from "@/lib/auth/session-storage";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 import {
   DEFAULT_API_TIMEOUT_MS,
   fetchWithTimeout,
@@ -280,7 +282,10 @@ function RegisterContent() {
       if (!emailRes.ok) {
         const msg = emailResult.message || "Email is already registered.";
         setError("email", { type: "manual", message: msg });
-        setOtpStatus({ type: "error", message: msg });
+        setFormError(msg);
+        if (!otpVerified) {
+          setOtpStatus({ type: "error", message: msg });
+        }
         setToastError(msg);
         return false;
       }
@@ -291,7 +296,10 @@ function RegisterContent() {
         err,
         "Unable to verify email availability right now. Please try again."
       );
-      setOtpStatus({ type: "error", message: msg });
+      setFormError(msg);
+      if (!otpVerified) {
+        setOtpStatus({ type: "error", message: msg });
+      }
       setToastError(msg);
       return false;
     }
@@ -723,6 +731,9 @@ function RegisterContent() {
         maskedMobile?: string;
         message?: string;
         profileId?: string;
+        userId?: string;
+        activeProfileId?: string;
+        token?: string;
       }>(res);
 
       if (!res.ok || result.success === false) {
@@ -746,6 +757,14 @@ function RegisterContent() {
 
       clearRegistrationVerification();
 
+      if (result.token) {
+        await saveAuthSession(result.token, result.activeProfileId || null, {
+          userId: result.userId,
+          fullName: data.fullName,
+          role: "MEMBER",
+        });
+      }
+
       router.push(
         `/payment?profileId=${encodeURIComponent(
           result.profileId || ""
@@ -767,6 +786,9 @@ function RegisterContent() {
     }
   };
 
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
       <ErrorToast
@@ -779,9 +801,26 @@ function RegisterContent() {
           Complete Your Biodata
         </h1>
 
-        <p className="mb-8 mt-3 text-center text-gray-500 text-sm">
-          Fill your matrimonial biodata below. Registration Fee: Female ₹399 + GST | Male ₹799 + GST (payable after submission).
-        </p>
+        {femalePricing.isOfferActive ? (
+          <p className="mb-8 mt-3 text-center text-gray-600 text-sm">
+            Fill your matrimonial biodata below.{" "}
+            <span className="font-bold text-[#4A121A]">
+              Special Launch Offer: Only ₹{femalePricing.baseFee} + GST (₹
+              {femalePricing.totalAmount.toFixed(2)}) for Both Brides &amp; Grooms
+            </span>{" "}
+            <span className="line-through text-gray-400">
+              (Regular: Female ₹{femalePricing.regularBaseFee} | Male ₹
+              {malePricing.regularBaseFee} + GST)
+            </span>{" "}
+            • {femalePricing.validityLabel}.
+          </p>
+        ) : (
+          <p className="mb-8 mt-3 text-center text-gray-500 text-sm">
+            Fill your matrimonial biodata below. Registration Fee: Female ₹
+            {femalePricing.baseFee} + GST | Male ₹{malePricing.baseFee} + GST
+            (payable after submission).
+          </p>
+        )}
 
         <ProgressBar step={step} totalSteps={totalSteps} />
 
@@ -881,7 +920,7 @@ function RegisterContent() {
       {duplicateModal.open && (
         <div
           onClick={() => setDuplicateModal({ open: false, message: "" })}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
         >
           <div
             onClick={(e) => e.stopPropagation()}

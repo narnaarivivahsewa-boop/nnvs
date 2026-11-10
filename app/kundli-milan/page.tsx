@@ -26,6 +26,7 @@ import type { KundliMilanResult, AshtakootScore } from "@/lib/ashtakoot";
 import CityCombobox from "@/components/ui/CityCombobox";
 import ErrorToast from "@/components/ui/ErrorToast";
 import { saveRegistrationVerification } from "@/lib/auth/registration-storage";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 import {
   DEFAULT_API_TIMEOUT_MS,
   fetchWithTimeout,
@@ -97,6 +98,9 @@ export default function KundliMilanPage() {
     setShowPricingPopup(false);
     setPricingDismissed(true);
   }, []);
+
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
 
   // Expandable Ashtakoot Accordions State (default all 8 open for rich engagement)
   const [expandedKoots, setExpandedKoots] = useState<Record<string, boolean>>({
@@ -1264,7 +1268,7 @@ export default function KundliMilanPage() {
       {isOtpModalOpen && (
         <div
           onClick={() => setIsOtpModalOpen(false)}
-          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          className="no-print fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
         >
           <div
             role="dialog"
@@ -1440,7 +1444,7 @@ export default function KundliMilanPage() {
       {showPricingPopup && (
         <div
           onClick={closePricingPopup}
-          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          className="no-print fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
         >
           <div
             role="dialog"
@@ -1454,20 +1458,24 @@ export default function KundliMilanPage() {
               <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[#DFBA73]/20" />
             </div>
 
-            {/* High-Contrast Prominent Close Button */}
-            <button
-              type="button"
-              onClick={closePricingPopup}
-              className="sticky top-0 float-right -mt-2 -mr-2 z-30 h-9 w-9 inline-flex items-center justify-center rounded-full bg-white/95 border border-[#DACBB4] text-[#4A121A] shadow-sm hover:bg-[#FAF0DC] hover:text-black transition-colors cursor-pointer"
-              aria-label="Close registration prompt"
-              title="Close popup (Esc)"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Sticky Non-Clipping Close Button Header */}
+            <div className="sticky top-0 z-40 flex justify-end -mt-2 -mr-2 mb-1 pointer-events-none">
+              <button
+                type="button"
+                onClick={closePricingPopup}
+                className="pointer-events-auto h-10 w-10 min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-full bg-white/95 border border-[#DACBB4] text-[#4A121A] shadow-md hover:bg-[#FAF0DC] hover:text-black transition-colors cursor-pointer"
+                aria-label="Close registration prompt"
+                title="Close popup (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="relative z-10 text-center mb-6 pt-1">
               <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#4A121A] text-[#DFBA73] border border-[#C5A059] mb-2">
-                Exclusive RishteClub Membership
+                {femalePricing.isOfferActive
+                  ? `Special Launch Offer • ${femalePricing.validityLabel}`
+                  : "Exclusive RishteClub Membership"}
               </span>
               <h3 id="kundli-register-modal-title" className="text-2xl font-extrabold text-[#4A121A] font-serif">
                 Connect With 100% Verified Rishtey
@@ -1484,11 +1492,16 @@ export default function KundliMilanPage() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-pink-700 block mb-1">
                   Bride (Female)
                 </span>
+                {femalePricing.isOfferActive && (
+                  <div className="text-xs text-gray-400 line-through font-semibold">
+                    ₹{femalePricing.regularBaseFee} + GST (₹{femalePricing.regularTotalAmount.toFixed(2)})
+                  </div>
+                )}
                 <div className="text-2xl font-black text-[#4A121A]">
-                  ₹471
+                  ₹{femalePricing.totalAmount.toFixed(2)}
                 </div>
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  ₹399 + 18% GST (₹72)
+                  ₹{femalePricing.baseFee} + 18% GST (₹{femalePricing.gstAmount.toFixed(2)})
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-pink-100 text-[11px] text-[#4A3E39] space-y-1">
                   <div className="flex items-center gap-1 justify-center">
@@ -1505,11 +1518,16 @@ export default function KundliMilanPage() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 block mb-1">
                   Groom (Male)
                 </span>
+                {malePricing.isOfferActive && (
+                  <div className="text-xs text-gray-400 line-through font-semibold">
+                    ₹{malePricing.regularBaseFee} + GST (₹{malePricing.regularTotalAmount.toFixed(2)})
+                  </div>
+                )}
                 <div className="text-2xl font-black text-[#4A121A]">
-                  ₹943
+                  ₹{malePricing.totalAmount.toFixed(2)}
                 </div>
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  ₹799 + 18% GST (₹144)
+                  ₹{malePricing.baseFee} + 18% GST (₹{malePricing.gstAmount.toFixed(2)})
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-blue-100 text-[11px] text-[#4A3E39] space-y-1">
                   <div className="flex items-center gap-1 justify-center">
@@ -1525,7 +1543,9 @@ export default function KundliMilanPage() {
             {/* Membership Note in Modal */}
             <div className="relative z-10 mb-5 p-3 rounded-xl bg-[#FAF5EB] border border-[#DACBB4] text-center text-xs text-[#4A121A]">
               <span className="font-bold block text-[#7A5835] text-[11px] uppercase tracking-wider mb-0.5">
-                Official RishteClub Membership
+                {femalePricing.isOfferActive
+                  ? `Launch Offer • ${femalePricing.validityLabel}`
+                  : "Official RishteClub Membership"}
               </span>
               <p className="text-[11px] text-[#4A3E39]">
                 100% Verified Profiles across Agarwal, Baniya, Brahmin, Punjabi, and Khatri communities.
@@ -1536,7 +1556,7 @@ export default function KundliMilanPage() {
             <div className="relative z-10 space-y-3">
               <Link
                 href={`/register?phone=${encodeURIComponent(verifiedPhone)}&verified=true`}
-                onClick={() => setShowPricingPopup(false)}
+                onClick={closePricingPopup}
                 className="w-full h-12 min-h-[48px] rounded-xl font-bold text-sm bg-[#4A121A] text-white hover:bg-[#601722] active:scale-[0.99] transition-all shadow-lg flex items-center justify-center gap-2 border border-[#C5A059]"
               >
                 <Sparkles className="w-4 h-4 text-[#DFBA73]" />

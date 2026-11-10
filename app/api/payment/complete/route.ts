@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
+import { calculateGstBreakdown, calculateGstFromGross } from "@/lib/gst";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 
 export async function POST(req: NextRequest) {
@@ -30,8 +31,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isFemale = profile.user.gender === "FEMALE";
-    const baseFee = isFemale ? BUSINESS_INFO.fees.female : BUSINESS_INFO.fees.male;
+    const pricing = getRegistrationPricingDetails(profile.user.gender);
+    const isFemale = pricing.gender === "FEMALE";
+    const baseFee = pricing.baseFee;
 
     let discountPercent = 0;
     let promoRecord = null;
@@ -39,6 +41,17 @@ export async function POST(req: NextRequest) {
 
     if (promoCode) {
       const cleanCode = String(promoCode).trim().toUpperCase();
+      if (cleanCode === "SAMIKSHA251" && pricing.isOfferActive) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Special Launch Offer (₹99 + GST = ₹116.82) is already active and saves you more than 'SAMIKSHA251' (₹251)!",
+          },
+          { status: 400 }
+        );
+      }
+
       promoRecord = await prisma.promoCode.findUnique({
         where: { code: cleanCode },
       });
@@ -69,13 +82,27 @@ export async function POST(req: NextRequest) {
     }
 
     const txnId = transactionRef || `RC_TXN_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date();
+    const gstSummary =
+      finalTotalAmount > 0
+        ? calculateGstFromGross(finalTotalAmount, 18, false)
+        : { taxableAmount: 0, totalTax: 0 };
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create Payment record
       const payment = await tx.payment.create({
         data: {
           userId: profile.userId,
+          profileId: profile.id,
           amount: finalTotalAmount,
+          grossAmount: finalTotalAmount,
+          taxableAmount: gstSummary.taxableAmount,
+          gstRate: 18,
+          gstAmount: gstSummary.totalTax,
+          invoiceNumber,
+          invoiceDate: now,
+          paymentDate: now,
           status: "SUCCESS",
           paymentGateway: paymentMethod,
           transactionId: txnId,

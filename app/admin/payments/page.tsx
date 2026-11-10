@@ -17,6 +17,7 @@ import {
   Pencil,
   RotateCcw,
 } from "lucide-react";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<"PENDING" | "CONFIRMED">("PENDING");
@@ -95,23 +96,25 @@ export default function PaymentsPage() {
     };
   }, [search]);
 
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+  const femaleGrossStr = String(femalePricing.totalAmount);
+  const maleGrossStr = String(malePricing.totalAmount);
+
   const getProfileFeeInfo = (profile: any) => {
     const gender = String(profile?.user?.gender || profile?.gender || "").toUpperCase();
     const legacyId = String(profile?.legacyProfileId || "").toUpperCase();
     const isFemale = gender === "FEMALE" || legacyId.includes("-G-");
-
-    const baseFee = isFemale ? 399 : 799;
-    const gst = Math.round(baseFee * 0.18 * 100) / 100;
-    const gross = Math.round((baseFee + gst) * 100) / 100;
+    const pricing = isFemale ? femalePricing : malePricing;
 
     return {
       isFemale,
       genderLabel: isFemale ? "Female" : "Male",
-      baseFee,
-      gst,
-      gross,
-      displayBadge: isFemale ? "Female: ₹399 + 18% GST (₹470.82)" : "Male: ₹799 + 18% GST (₹942.82)",
-      grossStr: String(gross),
+      baseFee: pricing.baseFee,
+      gst: pricing.gstAmount,
+      gross: pricing.totalAmount,
+      displayBadge: `${isFemale ? "Female" : "Male"}: ₹${pricing.baseFee} + 18% GST (₹${pricing.totalAmount.toFixed(2)})${pricing.isOfferActive ? " • Launch Offer" : ""}`,
+      grossStr: String(pricing.totalAmount),
     };
   };
 
@@ -783,7 +786,7 @@ export default function PaymentsPage() {
                         Gross Amount Received (₹ incl. 18% GST) *
                       </label>
                       <span className="text-[11px] font-semibold text-gray-500">
-                        Female ₹399+GST | Male ₹799+GST
+                        Female ₹{femalePricing.baseFee}+GST | Male ₹{malePricing.baseFee}+GST
                       </span>
                     </div>
                     <div className="relative">
@@ -796,33 +799,33 @@ export default function PaymentsPage() {
                         value={grossAmount}
                         onChange={(e) => setGrossAmount(e.target.value)}
                         className="w-full pl-8 pr-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
-                        placeholder="e.g. 470.82 or 942.82"
+                        placeholder={`e.g. ${femaleGrossStr} or ${maleGrossStr}`}
                       />
                     </div>
 
                     {/* Quick Preset Buttons */}
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setGrossAmount("470.82")}
+                        onClick={() => setGrossAmount(femaleGrossStr)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
-                          grossAmount === "470.82"
+                          grossAmount === femaleGrossStr
                             ? "bg-purple-100 text-purple-900 border-purple-300"
                             : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
                         }`}
                       >
-                        Female: ₹470.82 (₹399+GST)
+                        Female: ₹{femaleGrossStr} (₹{femalePricing.baseFee}+GST)
                       </button>
                       <button
                         type="button"
-                        onClick={() => setGrossAmount("942.82")}
+                        onClick={() => setGrossAmount(maleGrossStr)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
-                          grossAmount === "942.82"
+                          grossAmount === maleGrossStr
                             ? "bg-blue-100 text-blue-900 border-blue-300"
                             : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
                         }`}
                       >
-                        Male: ₹942.82 (₹799+GST)
+                        Male: ₹{maleGrossStr} (₹{malePricing.baseFee}+GST)
                       </button>
                     </div>
                   </div>
@@ -1033,7 +1036,7 @@ export default function PaymentsPage() {
                       if (checked) {
                         setEditGrossAmount("0");
                       } else {
-                        setEditGrossAmount(String(selectedPaymentForEdit?.grossAmount || selectedPaymentForEdit?.amount || 799));
+                        setEditGrossAmount(String(selectedPaymentForEdit?.grossAmount || selectedPaymentForEdit?.amount || maleGrossStr));
                       }
                     }}
                     className="mt-0.5 rounded text-[#7A5835] focus:ring-[#7A5835] h-4 w-4"
@@ -1096,7 +1099,7 @@ export default function PaymentsPage() {
                         value={editGrossAmount}
                         onChange={(e) => setEditGrossAmount(e.target.value)}
                         className="w-full pl-8 pr-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
-                        placeholder="799"
+                        placeholder={maleGrossStr}
                       />
                     </div>
                   </div>
@@ -1158,7 +1161,7 @@ export default function PaymentsPage() {
                   required
                   value={editReason}
                   onChange={(e) => setEditReason(e.target.value)}
-                  placeholder={editIsPaymentExempt ? "e.g. Converted to legacy exemption - profile imported from old NNVS records" : "e.g. Corrected to Male member fee of ₹799 as per customer payment screenshot"}
+                  placeholder={editIsPaymentExempt ? "e.g. Converted to legacy exemption - profile imported from old NNVS records" : `e.g. Corrected to member fee of ₹${malePricing.totalAmount.toFixed(2)} as per customer payment screenshot`}
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
                 />
               </div>

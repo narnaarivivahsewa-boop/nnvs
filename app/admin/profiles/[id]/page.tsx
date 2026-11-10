@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import { formatBirthTime, formatDOB } from "@/lib/utils";
+import { getRegistrationPricingDetails } from "@/lib/pricing";
 import CandidateMatcher from "./components/CandidateMatcher";
 
 export default function AdminProfileViewPage({
@@ -211,9 +212,9 @@ export default function AdminProfileViewPage({
 
   const openPaymentModal = () => {
     if (!profile) return;
-    const defaultFee = profile.user?.gender === "FEMALE" ? "399" : "799";
+    const defaultFee = String(getRegistrationPricingDetails(profile.user?.gender).totalAmount);
     setGrossAmount(defaultFee);
-    setPaymentDate("2026-10-03");
+    setPaymentDate(new Date().toISOString().split("T")[0]);
     setTransactionId(`UPI_MANUAL_${profile.profileId || profile.id}`);
     setAdminNotes("");
     setIsInterstate(false);
@@ -924,7 +925,7 @@ export default function AdminProfileViewPage({
                     value={grossAmount}
                     onChange={(e) => setGrossAmount(e.target.value)}
                     className="w-full pl-8 pr-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#7A5835]"
-                    placeholder="1100"
+                    placeholder={String(getRegistrationPricingDetails(profile?.user?.gender).totalAmount)}
                   />
                 </div>
               </div>

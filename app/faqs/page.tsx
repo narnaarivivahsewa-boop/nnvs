@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions | RishteClub Matrimony",
@@ -19,45 +22,50 @@ export const metadata: Metadata = {
   },
 };
 
-const faqs = [
-  {
-    question: "What is RishteClub?",
-    answer:
-      "RishteClub is a matrimonial platform created to help families and individuals find suitable life partners. It is an initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa.",
-  },
-  {
-    question: "How can I register?",
-    answer:
-      "You can register easily through the 'Register Now' button on the website and complete your matrimonial biodata with educational, professional, and family details.",
-  },
-  {
-    question: "What is the registration fee?",
-    answer:
-      `Registration on RishteClub is a one-time fee of ₹${BUSINESS_INFO.fees.female} + GST for Female profiles and ₹${BUSINESS_INFO.fees.male} + GST for Male profiles. This covers profile review, listing, and direct matrimonial access.`,
-  },
-  {
-    question: "How are profiles verified?",
-    answer:
-      "Profiles are reviewed and verified by our team before being displayed on the platform to maintain a safe and respectful community.",
-  },
-  {
-    question: "Can I update my profile details?",
-    answer:
-      "Yes. Registered members can log in using their registered mobile number and update their photos and personal details anytime from their Dashboard.",
-  },
-  {
-    question: "How can I contact support?",
-    answer:
-      `You can contact our support team at ${BUSINESS_INFO.email} or message us on WhatsApp at +91 ${BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call).`,
-  },
-  {
-    question: "What happened to my existing NNVS Matrimony profile?",
-    answer:
-      "All existing NNVS Matrimony profiles, profile IDs, and member data remain fully active and safely preserved on RishteClub. You can continue logging in seamlessly with your registered mobile number.",
-  },
-];
-
 export default function FAQsPage() {
+  const femalePricing = getRegistrationPricingDetails("FEMALE");
+  const malePricing = getRegistrationPricingDetails("MALE");
+  const feeAnswer = femalePricing.isOfferActive
+    ? `Special Launch Offer (${OFFER_VALIDITY_LABEL}): Registration on RishteClub is a one-time fee of ₹${femalePricing.baseFee} + GST (₹${femalePricing.totalAmount.toFixed(2)} incl. GST) for both Female and Male profiles (Regular fees: ₹${femalePricing.regularBaseFee} + GST for Female, ₹${malePricing.regularBaseFee} + GST for Male). This covers profile review, listing, and direct matrimonial access.`
+    : `Registration on RishteClub is a one-time fee of ₹${femalePricing.baseFee} + GST for Female profiles and ₹${malePricing.baseFee} + GST for Male profiles. This covers profile review, listing, and direct matrimonial access.`;
+
+  const faqs = [
+    {
+      question: "What is RishteClub?",
+      answer:
+        "RishteClub is a matrimonial platform created to help families and individuals find suitable life partners. It is an initiative associated with NNVS Matrimony – Nar Naari Vivah Sewa.",
+    },
+    {
+      question: "How can I register?",
+      answer:
+        "You can register easily through the 'Register Now' button on the website and complete your matrimonial biodata with educational, professional, and family details.",
+    },
+    {
+      question: "What is the registration fee?",
+      answer: feeAnswer,
+    },
+    {
+      question: "How are profiles verified?",
+      answer:
+        "Profiles are reviewed and verified by our team before being displayed on the platform to maintain a safe and respectful community.",
+    },
+    {
+      question: "Can I update my profile details?",
+      answer:
+        "Yes. Registered members can log in using their registered mobile number and update their photos and personal details anytime from their Dashboard.",
+    },
+    {
+      question: "How can I contact support?",
+      answer:
+        `You can contact our support team at ${BUSINESS_INFO.email} or message us on WhatsApp at +91 ${BUSINESS_INFO.primaryWhatsApp} (WhatsApp Only – Do Not Call).`,
+    },
+    {
+      question: "What happened to my existing NNVS Matrimony profile?",
+      answer:
+        "All existing NNVS Matrimony profiles, profile IDs, and member data remain fully active and safely preserved on RishteClub. You can continue logging in seamlessly with your registered mobile number.",
+    },
+  ];
+
   const faqSchema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
