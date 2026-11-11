@@ -44,11 +44,13 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    const rawMobile = String(body.mobile ?? "").trim();
+    const rawMobile = String(
+      body.mobile ?? body.phoneNumber ?? body.phone ?? ""
+    ).trim();
     const cleanMobile = rawMobile.replace(/\D/g, "").slice(-10);
 
     const otpType =
-      body.type === "REGISTRATION"
+      String(body.type ?? "LOGIN").trim().toUpperCase() === "REGISTRATION"
         ? "REGISTRATION"
         : "LOGIN";
 
@@ -68,13 +70,19 @@ export async function POST(req: NextRequest) {
     // ===========================
     // 2. Cooldown Check (30 seconds)
     // ===========================
-    const lastOtp = await prisma.oTP.findFirst({
-      where: { mobile: cleanMobile },
+    const now = new Date();
+    const lastPendingOtp = await prisma.oTP.findFirst({
+      where: {
+        mobile: cleanMobile,
+        type: otpType,
+        verified: false,
+        expiresAt: { gt: now },
+      },
       orderBy: { createdAt: "desc" },
     });
 
-    if (lastOtp) {
-      const secondsSinceLastOtp = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+    if (lastPendingOtp) {
+      const secondsSinceLastOtp = (Date.now() - new Date(lastPendingOtp.createdAt).getTime()) / 1000;
       if (secondsSinceLastOtp < 30) {
         const remaining = Math.ceil(30 - secondsSinceLastOtp);
         return NextResponse.json(
@@ -137,7 +145,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = getOTPExpiry();
 
     // ===========================
-    // 4. Update / Save Fresh Record in DB
+    // 4. Update / Save Fresh Record in DB (Atomically replace unverified/expired OTPs)
     // ===========================
     const storedOtpCode =
       resendResult.routeUsed !== "SMART_OTP" && resendResult.otp
@@ -146,23 +154,32 @@ export async function POST(req: NextRequest) {
         ? resendResult.requestId
         : `FAST2SMS_${resendResult.requestId || "RESEND"}`;
 
-    await prisma.oTP.deleteMany({
-      where: {
-        mobile: cleanMobile,
-        type: otpType,
-        verified: false,
-      },
-    });
+    const cleanupNow = new Date();
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
-    await prisma.oTP.create({
-      data: {
-        mobile: cleanMobile,
-        code: storedOtpCode,
-        type: otpType,
-        expiresAt,
-        verified: false,
-      },
-    });
+    await prisma.$transaction([
+      prisma.oTP.deleteMany({
+        where: {
+          mobile: cleanMobile,
+          type: otpType,
+          OR: [
+            { verified: false },
+            ...(otpType === "LOGIN"
+              ? [{ expiresAt: { lt: cleanupNow } }]
+              : [{ createdAt: { lt: twoHoursAgo } }]),
+          ],
+        },
+      }),
+      prisma.oTP.create({
+        data: {
+          mobile: cleanMobile,
+          code: storedOtpCode,
+          type: otpType,
+          expiresAt,
+          verified: false,
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

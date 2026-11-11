@@ -77,6 +77,7 @@ export default function KundliMilanPage() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  const kundliOtpInFlightRef = useRef(false);
 
   // Results & Lead State
   const [formError, setFormError] = useState("");
@@ -201,12 +202,15 @@ export default function KundliMilanPage() {
 
   // Send OTP Handler
   async function handleSendOtp() {
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    if (kundliOtpInFlightRef.current || sendingOtp) return;
+
+    const cleanPhone = phone.trim().replace(/\D/g, "").slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       setOtpError("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
 
+    kundliOtpInFlightRef.current = true;
     setSendingOtp(true);
     setOtpError("");
     setToastError(null);
@@ -215,6 +219,7 @@ export default function KundliMilanPage() {
       const res = await fetchWithTimeout("/api/kundli/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ phoneNumber: cleanPhone }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
@@ -242,20 +247,29 @@ export default function KundliMilanPage() {
       setOtpError(msg);
       setToastError(msg);
     } finally {
+      kundliOtpInFlightRef.current = false;
       setSendingOtp(false);
     }
   }
 
   // Verify OTP & Calculate Result Handler
   async function handleVerifyOtp() {
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    const cleanOtp = otp.trim();
+    if (kundliOtpInFlightRef.current || verifyingOtp) return;
+
+    const cleanPhone = phone.trim().replace(/\D/g, "").slice(-10);
+    const cleanOtp = otp.trim().replace(/\D/g, "");
+
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setOtpError("Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
 
     if (!cleanOtp || cleanOtp.length < 4) {
       setOtpError("Please enter the complete OTP received on your mobile.");
       return;
     }
 
+    kundliOtpInFlightRef.current = true;
     setVerifyingOtp(true);
     setOtpError("");
     setToastError(null);
@@ -280,6 +294,7 @@ export default function KundliMilanPage() {
       const res = await fetchWithTimeout("/api/kundli/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
@@ -317,6 +332,7 @@ export default function KundliMilanPage() {
       setOtpError(msg);
       setToastError(msg);
     } finally {
+      kundliOtpInFlightRef.current = false;
       setVerifyingOtp(false);
     }
   }
@@ -1317,14 +1333,16 @@ export default function KundliMilanPage() {
                     </span>
                     <input
                       type="tel"
-                      maxLength={10}
+                      maxLength={20}
                       placeholder="9876543210"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) =>
+                        setPhone(e.target.value.replace(/\D/g, "").slice(-10))
+                      }
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          if (!sendingOtp && phone.replace(/\D/g, "").length === 10) {
+                          if (!sendingOtp && phone.replace(/\D/g, "").slice(-10).length === 10) {
                             handleSendOtp();
                           }
                         }
@@ -1336,7 +1354,7 @@ export default function KundliMilanPage() {
 
                 <button
                   type="button"
-                  disabled={sendingOtp || phone.replace(/\D/g, "").length < 10}
+                  disabled={sendingOtp || phone.replace(/\D/g, "").slice(-10).length < 10}
                   onClick={handleSendOtp}
                   className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -1370,14 +1388,16 @@ export default function KundliMilanPage() {
                   </label>
                   <input
                     type="text"
-                    maxLength={6}
+                    maxLength={12}
                     placeholder="Enter code"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        if (!verifyingOtp && otp.length >= 4) {
+                        if (!verifyingOtp && otp.trim().replace(/\D/g, "").length >= 4) {
                           handleVerifyOtp();
                         }
                       }
@@ -1388,7 +1408,7 @@ export default function KundliMilanPage() {
 
                 <button
                   type="button"
-                  disabled={verifyingOtp || otp.length < 4}
+                  disabled={verifyingOtp || otp.trim().replace(/\D/g, "").length < 4}
                   onClick={handleVerifyOtp}
                   className="w-full h-12 min-h-[48px] rounded-xl text-sm font-bold bg-[#4A121A] text-white hover:bg-[#601722] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >

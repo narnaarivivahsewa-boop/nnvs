@@ -24,12 +24,18 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
     const windowMs = 10 * 60 * 1000; // 10 minutes
 
-    // 2. Rate limit to 3 attempts within 10 minutes
+    // 2. Rate limit to 3 active attempts within 10 minutes (reset if already verified or expired)
     const existing = await prisma.otpVerification.findUnique({
       where: { phoneNumber: cleanPhone },
     });
 
-    if (existing) {
+    const isExistingConsumedOrExpired =
+      !existing ||
+      existing.otpHash.startsWith("VERIFIED|") ||
+      now > existing.expiresAt.getTime() ||
+      now - existing.updatedAt.getTime() >= windowMs;
+
+    if (existing && !isExistingConsumedOrExpired) {
       const elapsed = now - existing.updatedAt.getTime();
       if (elapsed < windowMs && existing.attempts >= 3) {
         const remainingMinutes = Math.max(1, Math.ceil((windowMs - elapsed) / 60000));
@@ -44,13 +50,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Generate OTP, hash with SHA-256 and store in OtpVerification
+    // 3. Generate OTP, hash with SHA-256 and store in OtpVerification (replaces unverified/expired cleanly)
     const otp = generateOTP();
     const otpHash = hashOTP(otp);
     const expiresAt = new Date(now + windowMs);
 
-    const isNewWindow = !existing || now - existing.updatedAt.getTime() >= windowMs;
-    const newAttempts = isNewWindow ? 1 : existing.attempts + 1;
+    const newAttempts = isExistingConsumedOrExpired ? 1 : existing.attempts + 1;
 
     await prisma.otpVerification.upsert({
       where: { phoneNumber: cleanPhone },

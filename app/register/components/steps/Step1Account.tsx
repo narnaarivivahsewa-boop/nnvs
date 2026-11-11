@@ -97,10 +97,17 @@ export default function Step1Account({
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
-            maxLength={10}
+            maxLength={20}
             placeholder="e.g. 9876543210"
             required
-            registration={register("mobile")}
+            registration={register("mobile", {
+              onChange: (e) => {
+                const digits = String(e.target.value ?? "")
+                  .replace(/\D/g, "")
+                  .slice(-10);
+                e.target.value = digits;
+              },
+            })}
             error={errors.mobile}
             readOnly={otpVerified || otpSent}
             className={
@@ -111,7 +118,9 @@ export default function Step1Account({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !otpSent && !otpVerified) {
                 e.preventDefault();
-                onSendOTP();
+                if (!otpLoading) {
+                  onSendOTP();
+                }
               }
             }}
           />
@@ -123,6 +132,7 @@ export default function Step1Account({
                 type="button"
                 onClick={onSendOTP}
                 disabled={otpLoading}
+                aria-busy={otpLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4A121A] px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-[#380C13] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {otpLoading ? (
@@ -192,12 +202,12 @@ export default function Step1Account({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    if (!otpLoading && otp.length >= 4) {
+                    if (!otpLoading && otp.trim().replace(/\D/g, "").length >= 4) {
                       onVerifyOTP();
                     }
                   }
                 }}
-                maxLength={6}
+                maxLength={12}
                 placeholder="• • • • • •"
                 className="w-full sm:w-60 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-center text-2xl font-mono font-bold tracking-widest text-gray-900 outline-none focus:border-[#4A121A] focus:ring-3 focus:ring-red-100"
               />
@@ -206,7 +216,8 @@ export default function Step1Account({
                 <button
                   type="button"
                   onClick={onVerifyOTP}
-                  disabled={otpLoading || otp.length < 4}
+                  disabled={otpLoading || otp.trim().replace(/\D/g, "").length < 4}
+                  aria-busy={otpLoading}
                   className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-xs transition hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {otpLoading ? "Verifying..." : "Verify OTP ✓"}

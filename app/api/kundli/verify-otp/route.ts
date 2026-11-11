@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hashOTP } from "@/lib/auth/otp";
+import { hashOTP, OTP_VERIFY_IDEMPOTENCY_MS } from "@/lib/auth/otp";
 import { calculateKundliMilan } from "@/lib/ashtakoot";
 import { resolveBirthLocationAsync } from "@/lib/astrology/location-resolver";
 import {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const rawPhone = String(body.phoneNumber ?? body.phone ?? body.mobile ?? "").trim();
     const cleanPhone = rawPhone.replace(/\D/g, "").slice(-10);
-    const userOtp = String(body.otp ?? "").trim();
+    const userOtp = String(body.otp ?? "").trim().replace(/\s+/g, "");
 
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return NextResponse.json(
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!userOtp || userOtp.length < 4) {
+    if (!/^\d{4,6}$/.test(userOtp)) {
       return NextResponse.json(
         {
           error: "Please provide the valid OTP sent to your phone.",
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch OTP record & match
+    // 1. Fetch OTP record & match (including 5s idempotency window for rapid double-submits)
     const verification = await prisma.otpVerification.findUnique({
       where: { phoneNumber: cleanPhone },
     });
@@ -55,47 +55,93 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (new Date() > verification.expiresAt) {
-      return NextResponse.json(
-        {
-          error: "The OTP has expired. Please request a new OTP.",
-          message: "The OTP has expired. Please request a new OTP.",
-          success: false,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Verify local SHA-256 hash first; fallback to Smart OTP gateway only if hash mismatches
     const hashedInput = hashOTP(userOtp);
-    const isHashValid = hashedInput === verification.otpHash;
-    let smartVerifyError: string | undefined;
-    let isSmartOtpValid = false;
+    const verifiedPrefix = "VERIFIED|";
+    let isIdempotentReplay = false;
 
-    if (!isHashValid) {
-      const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
-      const verifyResult = await verifyFast2SmsOTP(cleanPhone, userOtp);
-      isSmartOtpValid = verifyResult.success;
-      smartVerifyError = verifyResult.error;
+    if (verification.otpHash.startsWith(verifiedPrefix)) {
+      const verifiedHash = verification.otpHash.slice(verifiedPrefix.length);
+      const elapsedSinceVerifyMs = Date.now() - verification.updatedAt.getTime();
+      if (
+        verifiedHash === hashedInput &&
+        elapsedSinceVerifyMs >= 0 &&
+        elapsedSinceVerifyMs <= OTP_VERIFY_IDEMPOTENCY_MS
+      ) {
+        isIdempotentReplay = true;
+      } else {
+        return NextResponse.json(
+          {
+            error: "No active OTP request found for this number. Please request a new OTP.",
+            message: "No active OTP request found for this number. Please request a new OTP.",
+            success: false,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    if (!isHashValid && !isSmartOtpValid) {
-      return NextResponse.json(
-        {
-          error: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
-          message: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
-          success: false,
-        },
-        { status: 400 }
-      );
-    }
+    if (!isIdempotentReplay) {
+      if (new Date() > verification.expiresAt) {
+        return NextResponse.json(
+          {
+            error: "The OTP has expired. Please request a new OTP.",
+            message: "The OTP has expired. Please request a new OTP.",
+            success: false,
+          },
+          { status: 400 }
+        );
+      }
 
-    // OTP is valid - remove consumed OTP record
-    await prisma.otpVerification
-      .delete({
-        where: { phoneNumber: cleanPhone },
-      })
-      .catch(() => {});
+      // Verify local SHA-256 hash first; fallback to Smart OTP gateway only if hash mismatches
+      const isHashValid = hashedInput === verification.otpHash;
+      let smartVerifyError: string | undefined;
+      let isSmartOtpValid = false;
+
+      if (!isHashValid) {
+        const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
+        const verifyResult = await verifyFast2SmsOTP(cleanPhone, userOtp);
+        isSmartOtpValid = verifyResult.success;
+        smartVerifyError = verifyResult.error;
+      }
+
+      if (!isHashValid && !isSmartOtpValid) {
+        // Re-check DB in case concurrent request just verified this exact OTP within 5s
+        const rechecked = await prisma.otpVerification.findUnique({
+          where: { phoneNumber: cleanPhone },
+        });
+        const recheckedValid =
+          rechecked &&
+          rechecked.otpHash === `${verifiedPrefix}${hashedInput}` &&
+          Date.now() - rechecked.updatedAt.getTime() <= OTP_VERIFY_IDEMPOTENCY_MS;
+
+        if (!recheckedValid) {
+          return NextResponse.json(
+            {
+              error: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
+              message: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
+              success: false,
+            },
+            { status: 400 }
+          );
+        }
+        isIdempotentReplay = true;
+      }
+
+      if (!isIdempotentReplay) {
+        const claim = await prisma.otpVerification.updateMany({
+          where: {
+            id: verification.id,
+            otpHash: verification.otpHash,
+          },
+          data: {
+            otpHash: `${verifiedPrefix}${hashedInput}`,
+          },
+        });
+        if (claim.count === 0) {
+          isIdempotentReplay = true;
+        }
+      }
+    }
 
     // 2. Validate submitted partner details
     const boyName = String(body.boyName ?? "Groom").trim() || "Groom";
@@ -146,24 +192,37 @@ export async function POST(req: NextRequest) {
     });
     const isRegistered = Boolean(existingUser);
 
-    // 6. Upsert/create KundliLead record with isOtpVerified: true
-    const lead = await prisma.kundliLead.create({
-      data: {
-        phoneNumber: cleanPhone,
-        isOtpVerified: true,
-        boyName,
-        boyDob,
-        boyTime,
-        boyPlace: resolvedBoyLoc.displayPlace,
-        girlName,
-        girlDob,
-        girlTime,
-        girlPlace: resolvedGirlLoc.displayPlace,
-        gunaScore: result.totalScore,
-        manglikStatus: result.manglikAnalysis.status,
-        isRegistered,
-      },
-    });
+    // 6. Reuse recent KundliLead on double-submit or create new verified lead
+    const recentLead = isIdempotentReplay
+      ? await prisma.kundliLead.findFirst({
+          where: {
+            phoneNumber: cleanPhone,
+            isOtpVerified: true,
+            createdAt: { gte: new Date(Date.now() - OTP_VERIFY_IDEMPOTENCY_MS) },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+
+    const lead =
+      recentLead ||
+      (await prisma.kundliLead.create({
+        data: {
+          phoneNumber: cleanPhone,
+          isOtpVerified: true,
+          boyName,
+          boyDob,
+          boyTime,
+          boyPlace: resolvedBoyLoc.displayPlace,
+          girlName,
+          girlDob,
+          girlTime,
+          girlPlace: resolvedGirlLoc.displayPlace,
+          gunaScore: result.totalScore,
+          manglikStatus: result.manglikAnalysis.status,
+          isRegistered,
+        },
+      }));
 
     const registrationToken = !isRegistered
       ? await generateRegistrationToken(cleanPhone)

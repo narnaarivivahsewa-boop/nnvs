@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -49,6 +49,7 @@ function LoginContent() {
 
   // General State
   const [loading, setLoading] = useState(false);
+  const authActionInFlightRef = useRef(false);
   const [message, setMessage] = useState("");
   const [toastError, setToastError] = useState<string | null>(null);
   const [isNotRegistered, setIsNotRegistered] = useState(false);
@@ -108,22 +109,28 @@ function LoginContent() {
   // ==========================================
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authActionInFlightRef.current || loading) return;
+
     setMessage("");
     setToastError(null);
     setIsNotRegistered(false);
 
-    if (!username.trim()) {
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanUsername) {
       setMessage("Please enter your registered mobile number or username.");
       return;
     }
 
-    if (!password.trim()) {
+    if (!cleanPassword) {
       setMessage("Please enter your password.");
       return;
     }
 
     let redirecting = false;
     try {
+      authActionInFlightRef.current = true;
       setLoading(true);
 
       const res = await fetchWithTimeout("/api/auth/login-password", {
@@ -131,8 +138,8 @@ function LoginContent() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          username,
-          password,
+          username: cleanUsername,
+          password: cleanPassword,
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
@@ -176,6 +183,7 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
+      authActionInFlightRef.current = false;
       if (!redirecting) {
         setLoading(false);
       }
@@ -186,16 +194,22 @@ function LoginContent() {
   // 2. ALTERNATIVE: OTP LOGIN
   // ==========================================
   const handleSendOTP = async () => {
+    if (authActionInFlightRef.current || loading) return;
+
     setMessage("");
     setToastError(null);
     setIsNotRegistered(false);
 
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       setMessage("Please enter a valid 10 digit Indian mobile number.");
       return;
     }
 
+    setMobile(cleanMobile);
+
     try {
+      authActionInFlightRef.current = true;
       setLoading(true);
 
       const res = await fetchWithTimeout("/api/auth/send-otp", {
@@ -203,7 +217,7 @@ function LoginContent() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          mobile,
+          mobile: cleanMobile,
           type: "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
@@ -232,26 +246,31 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
+      authActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
+    if (authActionInFlightRef.current || loading) return;
+
     setMessage("");
     setToastError(null);
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       setMessage("Please enter a valid 10 digit Indian mobile number.");
       return;
     }
 
     try {
+      authActionInFlightRef.current = true;
       setLoading(true);
       const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          mobile,
+          mobile: cleanMobile,
           type: "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
@@ -279,15 +298,25 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
+      authActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleVerifyOTP = async () => {
+    if (authActionInFlightRef.current || loading) return;
+
     setMessage("");
     setToastError(null);
 
-    const cleanOtp = otp.trim();
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
+    const cleanOtp = otp.trim().replace(/\D/g, "");
+
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setMessage("Please enter a valid 10 digit Indian mobile number.");
+      return;
+    }
+
     if (!/^\d{4,6}$/.test(cleanOtp)) {
       setMessage("Please enter the valid 4 to 6 digit OTP received via SMS.");
       return;
@@ -295,6 +324,7 @@ function LoginContent() {
 
     let redirecting = false;
     try {
+      authActionInFlightRef.current = true;
       setLoading(true);
 
       const res = await fetchWithTimeout("/api/auth/verify-otp", {
@@ -302,7 +332,7 @@ function LoginContent() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          mobile,
+          mobile: cleanMobile,
           otp: cleanOtp,
           type: "LOGIN",
         }),
@@ -346,6 +376,7 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
+      authActionInFlightRef.current = false;
       if (!redirecting) {
         setLoading(false);
       }
@@ -465,7 +496,7 @@ function LoginContent() {
                     type="button"
                     onClick={() => {
                       setLoginMode("OTP");
-                      setMobile(username.replace(/\D/g, ""));
+                      setMobile(username.replace(/\D/g, "").slice(-10));
                       setMessage("");
                     }}
                     className="text-[11px] font-semibold text-[#C5A059] hover:underline"
@@ -566,9 +597,9 @@ function LoginContent() {
                     autoComplete="tel"
                     inputMode="numeric"
                     value={mobile}
-                    maxLength={10}
+                    maxLength={20}
                     disabled={otpSent || loading}
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(-10))}
                     placeholder="Enter 10 digit mobile"
                     className="w-full rounded-xl border border-[#DACBB4] bg-white pl-12 pr-4 py-3 text-xs sm:text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] disabled:bg-gray-100"
                   />
@@ -607,8 +638,8 @@ function LoginContent() {
                         autoComplete="one-time-code"
                         inputMode="numeric"
                         value={otp}
-                        maxLength={6}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                        maxLength={12}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="• • • • • •"
                         className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-4 py-3 text-center text-lg font-bold tracking-[0.3em] text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
                       />
@@ -617,7 +648,8 @@ function LoginContent() {
 
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || otp.trim().replace(/\D/g, "").length < 4}
+                    aria-busy={loading}
                     className="w-full rounded-xl bg-[#C5A059] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition hover:bg-[#B88E4C] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <ShieldCheck className="h-4 w-4 text-white" />

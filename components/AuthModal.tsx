@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -45,6 +45,7 @@ export default function AuthModal({
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const otpActionInFlightRef = useRef(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [toastError, setToastError] = useState<string | null>(null);
   const [status, setStatus] = useState<{
@@ -99,10 +100,12 @@ export default function AuthModal({
 
   const handleSendOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (otpActionInFlightRef.current || loading) return;
+
     setStatus({ type: null, message: "" });
     setToastError(null);
 
-    const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       setStatus({
         type: "error",
@@ -111,7 +114,10 @@ export default function AuthModal({
       return;
     }
 
+    setMobile(cleanMobile);
+
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
       setStatus({ type: "info", message: "Sending OTP via SMS..." });
 
@@ -158,16 +164,27 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
+    if (otpActionInFlightRef.current || loading) return;
+
     setStatus({ type: null, message: "" });
     setToastError(null);
-    const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setStatus({
+        type: "error",
+        message: "Please enter a valid 10-digit Indian mobile number.",
+      });
+      return;
+    }
 
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
       setStatus({ type: "info", message: "Resending OTP via Fast2SMS..." });
 
@@ -213,17 +230,20 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (otpActionInFlightRef.current || loading) return;
+
     setStatus({ type: null, message: "" });
     setToastError(null);
 
-    const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
-    const cleanOtp = otp.trim();
+    const cleanMobile = mobile.trim().replace(/\D/g, "").slice(-10);
+    const cleanOtp = otp.trim().replace(/\D/g, "");
 
     if (!/^\d{4,6}$/.test(cleanOtp)) {
       setStatus({
@@ -234,8 +254,9 @@ export default function AuthModal({
     }
 
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
-      setStatus({ type: "info", message: "Verifying OTP with Fast2SMS..." });
+      setStatus({ type: "info", message: "Verifying OTP..." });
 
       const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
@@ -314,6 +335,7 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -440,10 +462,10 @@ export default function AuthModal({
                   type="tel"
                   inputMode="numeric"
                   autoComplete="tel-national"
-                  maxLength={10}
+                  maxLength={20}
                   value={mobile}
                   onChange={(e) =>
-                    setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))
+                    setMobile(e.target.value.replace(/\D/g, "").slice(-10))
                   }
                   placeholder="9876543210"
                   required
@@ -454,7 +476,7 @@ export default function AuthModal({
 
             <button
               type="submit"
-              disabled={loading || mobile.length !== 10}
+              disabled={loading || mobile.trim().replace(/\D/g, "").slice(-10).length !== 10}
               className="w-full rounded-xl bg-[#4A121A] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#6B1F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
               <Phone className="h-4 w-4" />
@@ -490,7 +512,7 @@ export default function AuthModal({
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
+                maxLength={12}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="• • • • • •"
@@ -501,7 +523,8 @@ export default function AuthModal({
 
             <button
               type="submit"
-              disabled={loading || otp.length < 4}
+              disabled={loading || otp.trim().replace(/\D/g, "").length < 4}
+              aria-busy={loading}
               className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
               <ShieldCheck className="h-4 w-4" />

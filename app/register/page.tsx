@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -68,6 +68,7 @@ function RegisterContent() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
+  const otpActionInFlightRef = useRef(false);
   const [otp, setOtp] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const [maskedMobile, setMaskedMobile] = useState("");
@@ -274,6 +275,7 @@ function RegisterContent() {
       const emailRes = await fetchWithTimeout("/api/auth/check-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email: trimmedEmail }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
@@ -306,10 +308,16 @@ function RegisterContent() {
   };
 
   const sendOTP = async () => {
+    if (otpActionInFlightRef.current || otpLoading) return;
+
     setFormError("");
     setToastError(null);
-    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
-    const email = getValues("email")?.trim() || "";
+    const mobile =
+      String(getValues("mobile") ?? "")
+        .trim()
+        .replace(/\D/g, "")
+        .slice(-10);
+    const email = String(getValues("email") ?? "").trim();
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
@@ -322,6 +330,7 @@ function RegisterContent() {
     setValue("mobile", mobile, { shouldValidate: true });
 
     try {
+      otpActionInFlightRef.current = true;
       setOtpLoading(true);
       setOtpStatus({ type: "info", message: "Sending SMS OTP..." });
 
@@ -337,6 +346,7 @@ function RegisterContent() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           type: "REGISTRATION",
@@ -384,14 +394,21 @@ function RegisterContent() {
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setOtpLoading(false);
     }
   };
 
   const resendOTP = async () => {
+    if (otpActionInFlightRef.current || otpLoading) return;
+
     setFormError("");
     setToastError(null);
-    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
+    const mobile =
+      String(getValues("mobile") ?? "")
+        .trim()
+        .replace(/\D/g, "")
+        .slice(-10);
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
         type: "error",
@@ -400,13 +417,17 @@ function RegisterContent() {
       return;
     }
 
+    setValue("mobile", mobile, { shouldValidate: true });
+
     try {
+      otpActionInFlightRef.current = true;
       setOtpLoading(true);
       setOtpStatus({ type: "info", message: "Resending SMS OTP..." });
 
       const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           type: "REGISTRATION",
@@ -451,15 +472,22 @@ function RegisterContent() {
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setOtpLoading(false);
     }
   };
 
   const verifyOTP = async () => {
+    if (otpActionInFlightRef.current || otpLoading) return;
+
     setFormError("");
     setToastError(null);
-    const mobile = getValues("mobile")?.replace(/\D/g, "").slice(-10) || "";
-    const cleanOtp = otp.trim();
+    const mobile =
+      String(getValues("mobile") ?? "")
+        .trim()
+        .replace(/\D/g, "")
+        .slice(-10);
+    const cleanOtp = String(otp ?? "").trim().replace(/\D/g, "");
 
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setOtpStatus({
@@ -477,7 +505,10 @@ function RegisterContent() {
       return;
     }
 
+    setValue("mobile", mobile, { shouldValidate: true });
+
     try {
+      otpActionInFlightRef.current = true;
       setOtpLoading(true);
       setOtpStatus({ type: "info", message: "Verifying OTP..." });
 
@@ -486,6 +517,7 @@ function RegisterContent() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           otp: cleanOtp,
@@ -568,6 +600,7 @@ function RegisterContent() {
       });
       setToastError(msg);
     } finally {
+      otpActionInFlightRef.current = false;
       setOtpLoading(false);
     }
   };
