@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
-    if (!token) {
+    const { session } = await verifyRequestSession(req);
+    if (!session) {
       return NextResponse.json(
         { success: false, message: "Unauthorized. Please login first." },
         { status: 401 }
       );
     }
 
-    const payload = await verifyToken(token);
     const body = await req.json();
     const { newPassword, confirmPassword } = body;
 
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
-      where: { id: payload.userId },
+      where: { id: session.userId },
       data: {
         password: hashedPassword,
         mustChangePassword: false,

@@ -15,7 +15,12 @@ import {
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
-import { saveAuthSession, clearAuthSession } from "@/lib/auth/session-storage";
+import {
+  saveAuthSession,
+  clearAuthSession,
+  fetchAuthMeWithFallback,
+  getAuthSession,
+} from "@/lib/auth/session-storage";
 
 interface ProfileItem {
   id: string;
@@ -57,19 +62,10 @@ function SelectProfileContent() {
     async function loadAccountProfiles() {
       try {
         setLoading(true);
-        const res = await fetch("/api/auth/me", {
-          cache: "no-store",
-          credentials: "include",
-        });
+        const { res, data } = await fetchAuthMeWithFallback(10000);
 
-        if (!res.ok) {
-          router.push(`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`);
-          return;
-        }
-
-        const data = await res.json();
-        if (!data.success || !data.user) {
-          router.push("/login");
+        if (!res.ok || !data?.success || !data?.user) {
+          router.replace(`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`);
           return;
         }
 
@@ -108,9 +104,17 @@ function SelectProfileContent() {
       setSwitching(profileId);
       setError("");
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/auth/select-profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         credentials: "include",
         body: JSON.stringify({ profileId }),
       });
@@ -141,7 +145,7 @@ function SelectProfileContent() {
 
   async function handleLogout() {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } finally {
       await clearAuthSession();
       router.push("/login");

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateOTP, getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
+import { getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
 import { sendFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 // In-memory IP rate limiter (Sliding window: Max 10 requests per 10 minutes per IP)
@@ -122,6 +122,16 @@ export async function POST(req: NextRequest) {
           { status: 404 }
         );
       }
+
+      if (existingUser.status === "BLOCKED" || existingUser.status === "DELETED") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Your account is currently suspended. Please contact RishteClub support.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // ===========================
@@ -185,11 +195,19 @@ export async function POST(req: NextRequest) {
     const expiresAt = getOTPExpiry();
 
     // ===========================
-    // 6. Save OTP Record in DB
+    // 6. Save Fresh OTP Record in DB
     // ===========================
+    const storedOtpCode =
+      smsResult.routeUsed !== "SMART_OTP" && smsResult.otp
+        ? hashOTP(smsResult.otp)
+        : smsResult.requestId?.startsWith("FAST2SMS_")
+        ? smsResult.requestId
+        : `FAST2SMS_${smsResult.requestId || "OTP"}`;
+
     await prisma.oTP.deleteMany({
       where: {
         mobile: cleanMobile,
+        type: otpType,
         verified: false,
       },
     });
@@ -197,9 +215,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: smsResult.requestId?.startsWith("FAST2SMS_")
-          ? smsResult.requestId
-          : `FAST2SMS_${smsResult.requestId || "OTP"}`,
+        code: storedOtpCode,
         type: otpType,
         expiresAt,
         verified: false,

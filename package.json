@@ -10,6 +10,7 @@
     "lint": "eslint",
     "generate:pdfs:with-contact": "tsx scripts/generate-all-biodata-pdfs.ts",
     "generate:pdfs:without-contact": "tsx scripts/generate-all-biodata-pdfs-without-contact.ts",
+    "export:whatsapp-cards": "tsx scripts/export-whatsapp-biodata-jpegs.ts",
     "cap:sync": "cap sync",
     "cap:sync:ios": "cap sync ios",
     "cap:assets": "node scripts/generate-capacitor-assets.js",

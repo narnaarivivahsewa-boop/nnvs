@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateToken, verifyToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
+import {
+  generateToken,
+  verifyRequestSession,
+  isSecureCookieRequest,
+  sanitizeProfilePhotoUrl,
+  AUTH_COOKIE_MAX_AGE,
+} from "@/lib/jwt";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.substring(7).trim()
-      : null;
-    const token =
-      req.cookies.get("nnvs_token")?.value ||
-      bearerToken ||
-      req.headers.get("x-nnvs-token");
+    const { session } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!session) {
       return NextResponse.json(
         { success: false, message: "Authentication required." },
         { status: 401 }
       );
     }
-
-    const session = await verifyToken(token);
     const body = await req.json().catch(() => ({}));
     const profileId = String(body.profileId || "").trim();
 
@@ -47,6 +46,7 @@ export async function POST(req: NextRequest) {
         approvalStatus: true,
         photos: {
           select: { imageUrl: true, isPrimary: true },
+          orderBy: { isPrimary: "desc" },
           take: 1,
         },
         user: {
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       firstName: profile.firstName,
       lastName: profile.lastName,
       gender: profile.user?.gender || null,
-      photo: profile.photos?.[0]?.imageUrl || null,
+      photo: sanitizeProfilePhotoUrl(profile.photos?.[0]?.imageUrl, profile.profileId),
       dateOfBirth: profile.dateOfBirth,
       paymentCompleted: profile.paymentCompleted,
       approvalStatus: profile.approvalStatus,
@@ -91,19 +91,28 @@ export async function POST(req: NextRequest) {
         )}&gender=${encodeURIComponent(profile.user?.gender || "")}`
       : "/dashboard";
 
-    const response = NextResponse.json({
-      success: true,
-      message: `Switched active profile to ${profile.firstName || profile.profileId}.`,
-      token: updatedToken,
-      maxAge: AUTH_COOKIE_MAX_AGE,
-      activeProfileId: profile.id,
-      activeProfile: formattedProfile,
-      redirectTo,
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: `Switched active profile to ${profile.firstName || profile.profileId}.`,
+        token: updatedToken,
+        maxAge: AUTH_COOKIE_MAX_AGE,
+        activeProfileId: profile.id,
+        activeProfile: formattedProfile,
+        redirectTo,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        },
+      }
+    );
+
+    const secureCookie = isSecureCookieRequest(req);
 
     response.cookies.set("activeProfileId", profile.id, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,
@@ -111,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     response.cookies.set("nnvs_token", updatedToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,

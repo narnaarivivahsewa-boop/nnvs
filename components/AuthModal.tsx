@@ -118,6 +118,7 @@ export default function AuthModal({
       const res = await fetchWithTimeout("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile: cleanMobile,
           type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
@@ -173,6 +174,7 @@ export default function AuthModal({
       const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile: cleanMobile,
           type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
@@ -238,6 +240,7 @@ export default function AuthModal({
       const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile: cleanMobile,
           otp: cleanOtp,

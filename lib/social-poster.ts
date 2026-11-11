@@ -308,8 +308,8 @@ export function generateSocialCaption(
     const city = c.city || "Delhi NCR";
 
     return (
-      `✨ वधू प्रोफाइल (Verified Bride Spotlight) — RishteClub Matrimony ✨\n` +
-      `पारिवारिक मूल्यों और विश्वास पर आधारित 100% सत्यापित रिश्ता 💍\n\n` +
+      `💍 संस्कारी वधू की तलाश? RishteClub Verified Bride ✨\n` +
+      `पारिवारिक मूल्यों और विश्वास पर आधारित 100% सत्यापित वधू प्रोफाइल!\n\n` +
       `🆔 Profile ID: ${id}\n` +
       `👰 Candidate: ${displayName} (Verified Bride)\n` +
       `• 🎂 Age & Height: ${age} • ${height}\n` +
@@ -330,15 +330,15 @@ export function generateSocialCaption(
   // =========================================================================
   if (category === "KUNDLI_MILAN") {
     return (
-      `🔮 RishteClub पर पाएं 100% Free & Accurate Kundali Matching! ✨\n` +
-      `शादी का सही फ़ैसला लें वैदिक ज्योतिष और सटीक 36 गुण मिलान के साथ 🙏\n\n` +
-      `विवाह से पहले वर-वधू की कुंडली का सटीक अष्टकूट मिलान (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब बिल्कुल मुफ़्त — कुछ ही सेकंड में!\n\n` +
+      `✨ 100% फ्री 36-गुण कुंडली मिलान! (RishteClub Vedic Kundali Matching) 🔮\n` +
+      `शादी का सही फ़ैसला लें सटीक अष्टकूट गुण मिलान और मांगलिक दोष जांच के साथ 🙏\n\n` +
+      `विवाह से पहले वर-वधू की कुंडली का संपूर्ण वैदिक विश्लेषण (वर्ण, वश्य, तारा, योनि, ग्रह मैत्री, गण, भकूट, नाड़ी) अब 100% मुफ़्त — बिना किसी ऐप इंस्टॉल के तुरंत!\n\n` +
       `⭐ Free Kundali Milan Features:\n` +
       `• ✅ 36 Guna Ashtakoot Score + सरल हिंदी व अंग्रेज़ी व्याख्या\n` +
       `• ✅ सटीक मांगलिक दोष (Manglik Dosha) जांच व वैदिक समाधान\n` +
       `• ✅ नाड़ी व भकूट दोष का शास्त्रीय विश्लेषण\n` +
       `• ✅ परिवार के साथ शेयर करने योग्य Free Instant PDF Report\n\n` +
-      `👉 फ्री कुंडली मिलान के लिए क्लिक करें: ${website}/kundali\n\n` +
+      `👉 अभी फ्री कुंडली मिलान करें: ${website}/kundali\n\n` +
       `📞 WhatsApp & Astrology Helpline:\n` +
       `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
       `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #FreeKundali #GunMilan #ManglikDosha #VedicAstrology #IndianWedding`
@@ -350,16 +350,16 @@ export function generateSocialCaption(
   // =========================================================================
   if (category === "TRUST_VERIFIED") {
     return (
-      `🛡️ 100% Manually Verified Matches | Direct Family Connect — RishteClub Matrimony 💍\n` +
-      `Managed by NNVS Matrimony — जहाँ हर रिश्ता विश्वास, सुरक्षा और सम्मान के साथ जुड़ता है 🙏\n\n` +
+      `🛡️ 100% Manually Verified Rishte | No Fake Profiles — RishteClub Matrimony 💍\n` +
+      `Managed by NNVS Matrimony — जहाँ हर रिश्ता विश्वास, सुरक्षा और पारिवारिक सम्मान के साथ जुड़ता है 🙏\n\n` +
       `अजनबी प्रोफाइल्स और फेक कॉल्स से परेशान हैं? RishteClub पर हम हर बायोडाटा को मैनुअली वेरिफाई करते हैं ताकि आपका परिवार सुरक्षित व सही जीवनसाथी चुन सके।\n\n` +
       `⭐ क्यों चुनें RishteClub Matrimony?\n` +
       `• ✅ 100% Manually Verified & Family-Screened Biodatas\n` +
       `• ✅ Direct Family Contact — सीधे माता-पिता/परिवार से बात, Zero Brokerage\n` +
       `• ✅ Agarwal, Baniya, Brahmin, Punjabi, Khatri, Jain & All Communities\n` +
       `• ✅ Strong Photo & Contact Privacy Safeguards\n\n` +
-      `👉 पूरी प्रोफाइल देखने और संपर्क करने के लिए विजिट करें: ${website}/register\n` +
-      `👉 फ्री कुंडली मिलान के लिए क्लिक करें: ${website}/kundali\n\n` +
+      `👉 रजिस्टर करें और सत्यापित रिश्ते देखें: ${website}/register\n` +
+      `👉 100% फ्री 36-गुण कुंडली मिलान: ${website}/kundali\n\n` +
       `📞 WhatsApp & Matchmaker Support:\n` +
       `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
       `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #DirectFamilyConnect #TrustedMatrimony #Vivah #HinduMatrimony #Rishtey`
@@ -371,12 +371,12 @@ export function generateSocialCaption(
   // =========================================================================
   if (isOfferActive) {
     return (
-      `🎉 धमाकेदार लॉन्च ऑफर! Get Direct Verified Match Contacts at just ₹${femalePricing.baseFee}! 🎉\n` +
-      `सीमित समय का विशेष अवसर (${OFFER_VALIDITY_LABEL}) — अब सिर्फ ₹${femalePricing.baseFee} + GST (कुल ₹${Math.round(femalePricing.totalAmount)}) में जुड़ें! 💍\n\n` +
+      `🔥 सिर्फ ₹${femalePricing.baseFee} में खोजें अपना जीवनसाथी! Rishte Hi Rishte! Direct Contacts @ ₹${femalePricing.baseFee} 🔥\n` +
+      `सीमित समय का महा-बचत लॉन्च ऑफर (${OFFER_VALIDITY_LABEL}) — अब मात्र ₹${femalePricing.baseFee} + GST (कुल ₹${Math.round(femalePricing.totalAmount)}) में सीधे परिवारों के फ़ोन नंबर पाएं! 💍\n\n` +
       `⭐ इस विशेष ₹${femalePricing.baseFee} ऑफर में क्या मिलेगा?\n` +
       `• 👰 Brides (Kanya): मात्र ₹${femalePricing.baseFee} + GST (Regular ₹${femalePricing.regularBaseFee} + GST — 88% तक की बचत)\n` +
       `• 🤵 Grooms (Var): मात्र ₹${malePricing.baseFee} + GST (Regular ₹${malePricing.regularBaseFee} + GST — 88% तक की बचत)\n` +
-      `• 📞 परिवारों के सीधे संपर्क नंबर (Zero Middlemen / Zero Monthly Fee)\n` +
+      `• 📞 परिवारों के सीधे संपर्क नंबर — Zero Middlemen / Zero Monthly Fee\n` +
       `• 🔮 100% Verified Profiles + Free 36 Guna Kundali Milan\n\n` +
       `👉 ऑफर का लाभ उठाने के लिए अभी रजिस्टर करें: ${website}\n\n` +
       `📞 WhatsApp Registration Support:\n` +
@@ -386,14 +386,14 @@ export function generateSocialCaption(
   }
 
   return (
-    `💍 अपनों के लिए सही जीवनसाथी — RishteClub Matrimony 💍\n` +
+    `💍 Rishte Hi Rishte! 100% Verified Direct Match Contacts — RishteClub Matrimony 💍\n` +
     `Managed by NNVS Matrimony — पारिवारिक प्रतिष्ठा और शुद्ध भारतीय संस्कारों का संगम 🙏\n\n` +
     `⭐ Transparent Lifetime Membership:\n` +
     `• 👰 Kanya (Bride) Registration: ₹${Math.round(femalePricing.totalAmount)} (₹${femalePricing.baseFee} + GST)\n` +
     `• 🤵 Var (Groom) Registration: ₹${Math.round(malePricing.totalAmount)} (₹${malePricing.baseFee} + GST)\n` +
     `• 📞 Direct Family Contact — कोई मासिक शुल्क या ब्रोकरेज नहीं\n` +
     `• 🔮 100% Manually Verified Profiles & Free 36 Guna Kundali Milan\n\n` +
-    `👉 ऑफर का लाभ उठाने के लिए अभी रजिस्टर करें: ${website}\n\n` +
+    `👉 अभी रजिस्टर करें: ${website}\n\n` +
     `📞 WhatsApp & Matchmaking Helpline:\n` +
     `• WhatsApp / Call: ${helpline1} | ${helpline2}\n\n` +
     `#RishteClub #Matrimony #Shaadi #KundaliMilan #VerifiedMatches #Vivah #IndianMatrimony #HinduMatrimony #Rishtey`

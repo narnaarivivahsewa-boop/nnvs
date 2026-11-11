@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOTPExpiry, maskMobileNumber } from "@/lib/auth/otp";
+import { getOTPExpiry, hashOTP, maskMobileNumber } from "@/lib/auth/otp";
 import { resendFast2SmsOTP, sendFast2SmsOTP } from "@/lib/sms/fast2sms";
 
 // In-memory IP rate limiter (Sliding window: Max 10 requests per 10 minutes per IP)
@@ -129,17 +129,27 @@ export async function POST(req: NextRequest) {
         success: true,
         requestId: sendResult.requestId,
         message: sendResult.message,
+        otp: sendResult.otp,
+        routeUsed: sendResult.routeUsed,
       };
     }
 
     const expiresAt = getOTPExpiry();
 
     // ===========================
-    // 4. Update / Save Record in DB
+    // 4. Update / Save Fresh Record in DB
     // ===========================
+    const storedOtpCode =
+      resendResult.routeUsed !== "SMART_OTP" && resendResult.otp
+        ? hashOTP(resendResult.otp)
+        : resendResult.requestId?.startsWith("FAST2SMS_")
+        ? resendResult.requestId
+        : `FAST2SMS_${resendResult.requestId || "RESEND"}`;
+
     await prisma.oTP.deleteMany({
       where: {
         mobile: cleanMobile,
+        type: otpType,
         verified: false,
       },
     });
@@ -147,9 +157,7 @@ export async function POST(req: NextRequest) {
     await prisma.oTP.create({
       data: {
         mobile: cleanMobile,
-        code: resendResult.requestId?.startsWith("FAST2SMS_")
-          ? resendResult.requestId
-          : `FAST2SMS_${resendResult.requestId || "RESEND"}`,
+        code: storedOtpCode,
         type: otpType,
         expiresAt,
         verified: false,

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 import { getActiveProfileId } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -17,8 +17,6 @@ export async function GET(req: NextRequest) {
         { status: 401 }
       );
     }
-
-    const payload = await verifyToken(token);
     const { searchParams } = new URL(req.url);
     const profileIdParam = searchParams.get("profileId");
     const activeProfileId = getActiveProfileId(req, payload.activeProfileId);
@@ -108,9 +106,9 @@ function safeDate(val: any): Date | null | undefined {
 
 export async function PUT(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -119,8 +117,6 @@ export async function PUT(req: NextRequest) {
         { status: 401 }
       );
     }
-
-    const payload = await verifyToken(token);
     const body = await req.json();
 
     const {

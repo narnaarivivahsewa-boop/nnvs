@@ -5,6 +5,7 @@ import { calculateKundliMilan } from "@/lib/ashtakoot";
 import { resolveBirthLocationAsync } from "@/lib/astrology/location-resolver";
 import {
   generateRegistrationToken,
+  isSecureCookieRequest,
   REG_VERIFICATION_COOKIE_NAME,
   REG_VERIFICATION_MAX_AGE,
 } from "@/lib/jwt";
@@ -65,17 +66,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify against Fast2SMS official gateway and local hash fallback
-    const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
-    const verifyResult = await verifyFast2SmsOTP(cleanPhone, userOtp);
+    // Verify local SHA-256 hash first; fallback to Smart OTP gateway only if hash mismatches
     const hashedInput = hashOTP(userOtp);
     const isHashValid = hashedInput === verification.otpHash;
+    let smartVerifyError: string | undefined;
+    let isSmartOtpValid = false;
 
-    if (!verifyResult.success && !isHashValid) {
+    if (!isHashValid) {
+      const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
+      const verifyResult = await verifyFast2SmsOTP(cleanPhone, userOtp);
+      isSmartOtpValid = verifyResult.success;
+      smartVerifyError = verifyResult.error;
+    }
+
+    if (!isHashValid && !isSmartOtpValid) {
       return NextResponse.json(
         {
-          error: verifyResult.error || "Incorrect OTP entered. Please check and try again.",
-          message: verifyResult.error || "Incorrect OTP entered. Please check and try again.",
+          error: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
+          message: smartVerifyError || "Incorrect OTP entered. Please check and try again.",
           success: false,
         },
         { status: 400 }
@@ -174,7 +182,7 @@ export async function POST(req: NextRequest) {
     if (registrationToken) {
       response.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureCookieRequest(req),
         sameSite: "lax",
         path: "/",
         maxAge: REG_VERIFICATION_MAX_AGE,

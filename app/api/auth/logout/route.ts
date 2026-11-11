@@ -1,14 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { isSecureCookieRequest } from "@/lib/jwt";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const response = NextResponse.json({
     success: true,
     message: "Logged out successfully.",
   });
 
+  const secureCookie = isSecureCookieRequest(req);
+
   response.cookies.set("nnvs_token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     sameSite: "lax",
     path: "/",
     maxAge: 0,
@@ -16,7 +19,7 @@ export async function POST() {
 
   response.cookies.set("activeProfileId", "", {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     sameSite: "lax",
     path: "/",
     maxAge: 0,

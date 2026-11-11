@@ -95,10 +95,14 @@ export default function Navbar() {
         if (token) {
           res = await fetch("/api/auth/me", {
             cache: "no-store",
+            credentials: "include",
             headers: {
               Authorization: `Bearer ${token}`,
             },
           });
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
+            await clearAuthSession();
+          }
         }
       }
 
@@ -191,6 +195,7 @@ export default function Navbar() {
       setLoggingOut(true);
       await fetch("/api/auth/logout", {
         method: "POST",
+        credentials: "include",
       });
     } finally {
       await clearAuthSession();

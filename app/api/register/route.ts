@@ -6,6 +6,7 @@ import { checkDuplicateRegistration } from "@/lib/duplicate-detector";
 import {
   verifyRegistrationToken,
   generateToken,
+  isSecureCookieRequest,
   AUTH_COOKIE_MAX_AGE,
   REG_VERIFICATION_COOKIE_NAME,
   REG_VERIFICATION_MAX_AGE,
@@ -417,6 +418,8 @@ export async function POST(req: NextRequest) {
       token: sessionToken,
     });
 
+    const secureCookie = isSecureCookieRequest(req);
+
     successResponse.cookies.set(REG_VERIFICATION_COOKIE_NAME, "", {
       path: "/",
       maxAge: 0,
@@ -424,7 +427,7 @@ export async function POST(req: NextRequest) {
 
     successResponse.cookies.set("nnvs_token", sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,
@@ -432,7 +435,7 @@ export async function POST(req: NextRequest) {
 
     successResponse.cookies.set("activeProfileId", result.profile.id, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,

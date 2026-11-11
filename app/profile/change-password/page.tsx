@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -28,9 +29,18 @@ export default function ChangePasswordPage() {
 
     try {
       setLoading(true);
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/auth/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({ newPassword, confirmPassword }),
       });
 

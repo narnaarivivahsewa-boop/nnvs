@@ -19,6 +19,7 @@ export interface Fast2SmsSendResult {
   error?: string;
   statusCode?: number;
   otp?: string;
+  routeUsed?: "DLT" | "SMART_OTP";
 }
 
 export interface Fast2SmsVerifyResult {
@@ -34,6 +35,8 @@ export interface Fast2SmsResendResult {
   message?: string;
   error?: string;
   statusCode?: number;
+  otp?: string;
+  routeUsed?: "DLT" | "SMART_OTP";
 }
 
 export const DLT_APPROVED_TEMPLATE =
@@ -176,6 +179,7 @@ export async function sendFast2SmsOTP(
           : data.message || "OTP sent successfully via SMS",
         statusCode: 200,
         otp: otpToSend,
+        routeUsed: "DLT",
       };
     }
 
@@ -210,6 +214,7 @@ export async function sendFast2SmsOTP(
             : dltData.message || "OTP sent successfully via SMS",
           statusCode: 200,
           otp: otpToSend,
+          routeUsed: "DLT",
         };
       }
     }
@@ -249,7 +254,12 @@ export async function sendFast2SmsOTP(
 
     const data = await response.json().catch(() => null);
 
-    if (response.ok && data && data.return === true && data.status_code === 200) {
+    if (
+      response.ok &&
+      data &&
+      data.return === true &&
+      (!data.status_code || Number(data.status_code) === 200)
+    ) {
       return {
         success: true,
         requestId: data.request_id || "FAST2SMS_OTP",
@@ -257,7 +267,7 @@ export async function sendFast2SmsOTP(
           ? data.message[0]
           : data.message || "OTP sent successfully via SMS",
         statusCode: 200,
-        otp: otpToSend,
+        routeUsed: "SMART_OTP",
       };
     } else {
       const errorMsg =
@@ -343,7 +353,12 @@ export async function verifyFast2SmsOTP(
 
     const data = await response.json().catch(() => null);
 
-    if (response.ok && data && data.return === true && data.status_code === 200) {
+    if (
+      response.ok &&
+      data &&
+      data.return === true &&
+      (!data.status_code || Number(data.status_code) === 200)
+    ) {
       return {
         success: true,
         message:
@@ -384,15 +399,18 @@ export async function verifyFast2SmsOTP(
  * Tries DLT route first with Sender ID NNVS, then falls back to official resend endpoint
  */
 export async function resendFast2SmsOTP(
-  mobile: string
+  mobile: string,
+  customOtp?: string
 ): Promise<Fast2SmsResendResult> {
-  const dltResult = await sendFast2SmsOTP(mobile);
+  const dltResult = await sendFast2SmsOTP(mobile, customOtp);
   if (dltResult.success) {
     return {
       success: true,
       requestId: dltResult.requestId,
       message: dltResult.message || "OTP resent successfully via SMS.",
       statusCode: 200,
+      otp: dltResult.otp,
+      routeUsed: dltResult.routeUsed,
     };
   }
 
@@ -436,7 +454,12 @@ export async function resendFast2SmsOTP(
 
     const data = await response.json().catch(() => null);
 
-    if (response.ok && data && data.return === true && data.status_code === 200) {
+    if (
+      response.ok &&
+      data &&
+      data.return === true &&
+      (!data.status_code || Number(data.status_code) === 200)
+    ) {
       return {
         success: true,
         requestId: data.request_id || "FAST2SMS_RESEND",
@@ -444,6 +467,7 @@ export async function resendFast2SmsOTP(
           (Array.isArray(data.message) ? data.message[0] : data.message) ||
           "OTP resent successfully via SMS.",
         statusCode: 200,
+        routeUsed: "SMART_OTP",
       };
     } else {
       const errorMsg =

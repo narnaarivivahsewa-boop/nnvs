@@ -27,7 +27,11 @@ import {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "";
+  const rawRedirectUrl = searchParams.get("redirect") || "";
+  const redirectUrl =
+    rawRedirectUrl.startsWith("/") && !rawRedirectUrl.startsWith("//")
+      ? rawRedirectUrl
+      : "";
 
   // Mode: 'PASSWORD' (Default for all users & admin) or 'OTP' (Alternative/Fallback)
   const [loginMode, setLoginMode] = useState<"PASSWORD" | "OTP">("PASSWORD");
@@ -69,8 +73,24 @@ function LoginContent() {
     let mounted = true;
     async function checkSession() {
       try {
+        // Prevent rapid redirect bounce loops between /login and /dashboard
+        try {
+          const lastRedirectTs = Number(
+            sessionStorage.getItem("nnvs_login_autoroute_ts") || "0"
+          );
+          if (lastRedirectTs && Date.now() - lastRedirectTs < 5000) {
+            return;
+          }
+        } catch {}
+
         const restored = await syncSessionToCookies();
         if (restored && mounted) {
+          try {
+            sessionStorage.setItem(
+              "nnvs_login_autoroute_ts",
+              String(Date.now())
+            );
+          } catch {}
           window.location.href = redirectUrl || "/dashboard";
         }
       } catch (err) {
@@ -102,12 +122,14 @@ function LoginContent() {
       return;
     }
 
+    let redirecting = false;
     try {
       setLoading(true);
 
       const res = await fetchWithTimeout("/api/auth/login-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           username,
           password,
@@ -135,14 +157,17 @@ function LoginContent() {
       }
 
       setMessage("Login Successful! Redirecting...");
+      redirecting = true;
 
       setTimeout(() => {
         const isProfileSelection = data.requiresProfileSelection || data.redirectTo === "/select-profile";
-        const dest = isProfileSelection
+        const dest = data.mustChangePassword
+          ? "/profile/change-password"
+          : isProfileSelection
           ? `/select-profile${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`
           : (redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard"));
         window.location.href = dest;
-      }, 300);
+      }, 150);
     } catch (err) {
       const msg = getFriendlyFetchErrorMessage(
         err,
@@ -151,7 +176,9 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
-      setLoading(false);
+      if (!redirecting) {
+        setLoading(false);
+      }
     }
   };
 
@@ -174,6 +201,7 @@ function LoginContent() {
       const res = await fetchWithTimeout("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           type: "LOGIN",
@@ -221,6 +249,7 @@ function LoginContent() {
       const res = await fetchWithTimeout("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           type: "LOGIN",
@@ -264,12 +293,14 @@ function LoginContent() {
       return;
     }
 
+    let redirecting = false;
     try {
       setLoading(true);
 
       const res = await fetchWithTimeout("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           mobile,
           otp: cleanOtp,
@@ -296,14 +327,17 @@ function LoginContent() {
       }
 
       setMessage("Login Successful! Redirecting...");
+      redirecting = true;
 
       setTimeout(() => {
         const isProfileSelection = data.requiresProfileSelection || data.redirectTo === "/select-profile";
-        const dest = isProfileSelection
+        const dest = data.mustChangePassword
+          ? "/profile/change-password"
+          : isProfileSelection
           ? `/select-profile${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`
           : (redirectUrl || data.redirectTo || (data.role === "ADMIN" ? "/admin" : "/dashboard"));
         window.location.href = dest;
-      }, 300);
+      }, 150);
     } catch (err) {
       const msg = getFriendlyFetchErrorMessage(
         err,
@@ -312,7 +346,9 @@ function LoginContent() {
       setMessage(msg);
       setToastError(msg);
     } finally {
-      setLoading(false);
+      if (!redirecting) {
+        setLoading(false);
+      }
     }
   };
 
@@ -388,7 +424,6 @@ function LoginContent() {
           {loginMode === "PASSWORD" && (
             <form
               method="post"
-              action="/api/auth/login-password"
               onSubmit={handlePasswordLogin}
               className="space-y-4"
             >

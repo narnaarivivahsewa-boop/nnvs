@@ -18,7 +18,12 @@ import {
   Key,
 } from "lucide-react";
 import AIMatchmakerModal from "@/components/AIMatchmakerModal";
-import { clearAuthSession, saveAuthSession } from "@/lib/auth/session-storage";
+import {
+  clearAuthSession,
+  fetchAuthMeWithFallback,
+  getAuthSession,
+  saveAuthSession,
+} from "@/lib/auth/session-storage";
 
 type UserProfile = {
   id: string;
@@ -60,23 +65,28 @@ function DashboardContent() {
   const [showAiModal, setShowAiModal] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadUser() {
       try {
-        const res = await fetch("/api/auth/me", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
+        const { res, data } = await fetchAuthMeWithFallback(10000);
+        if (cancelled) return;
 
-        const data = await res.json();
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
+          router.replace("/login");
+          return;
+        }
 
-        if (!res.ok || !data.success) {
-          router.push("/login");
+        if (!res.ok || !data?.success || !data?.user) {
+          setError(
+            data?.message ||
+              "Temporary server issue loading your dashboard. Please tap Retry."
+          );
           return;
         }
 
         if (data.user?.mustChangePassword) {
-          router.push("/profile/change-password");
+          router.replace("/profile/change-password");
           return;
         }
 
@@ -113,6 +123,9 @@ function DashboardContent() {
     }
 
     loadUser();
+    return () => {
+      cancelled = true;
+    };
   }, [router, searchParams]);
 
   // Synchronize if profile switched from Navbar or other component
@@ -130,9 +143,17 @@ function DashboardContent() {
   const handleSwitchProfile = async (targetId: string) => {
     setSelectedProfileId(targetId);
     try {
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/auth/select-profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         credentials: "include",
         body: JSON.stringify({ profileId: targetId }),
       });
@@ -153,6 +174,7 @@ function DashboardContent() {
       setLoggingOut(true);
       await fetch("/api/auth/logout", {
         method: "POST",
+        credentials: "include",
       });
     } finally {
       await clearAuthSession();

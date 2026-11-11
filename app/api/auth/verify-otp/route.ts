@@ -5,10 +5,14 @@ import {
   generateToken,
   generateRegistrationToken,
   verifyRegistrationToken,
+  isSecureCookieRequest,
+  sanitizeProfilePhotoUrl,
   AUTH_COOKIE_MAX_AGE,
   REG_VERIFICATION_COOKIE_NAME,
   REG_VERIFICATION_MAX_AGE,
 } from "@/lib/jwt";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -90,7 +94,7 @@ export async function GET(req: NextRequest) {
       });
       res.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureCookieRequest(req),
         sameSite: "lax",
         path: "/",
         maxAge: REG_VERIFICATION_MAX_AGE,
@@ -176,17 +180,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify OTP with Fast2SMS official verification endpoint
-    const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
-    const verifyResult = await verifyFast2SmsOTP(cleanMobile, otp);
+    // 1. Check SHA-256 hash FIRST for DLT OTPs (avoids erroneous Smart OTP /dev/otp/verify failures)
     const isHashValid = otpRecord.code === hashOTP(otp);
+    let smartVerifyError: string | undefined;
+    let isSmartOtpValid = false;
 
-    if (!verifyResult.success && !isHashValid) {
+    if (!isHashValid && otpRecord.code.startsWith("FAST2SMS_")) {
+      const { verifyFast2SmsOTP } = await import("@/lib/sms/fast2sms");
+      const verifyResult = await verifyFast2SmsOTP(cleanMobile, otp);
+      isSmartOtpValid = verifyResult.success;
+      smartVerifyError = verifyResult.error;
+    }
+
+    if (!isHashValid && !isSmartOtpValid) {
       return NextResponse.json(
         {
           success: false,
           message:
-            verifyResult.error ||
+            smartVerifyError ||
             "Incorrect OTP. Please enter the valid code received on SMS.",
         },
         { status: 400 }
@@ -203,15 +214,23 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let user = await prisma.user.findUnique({
+    let user = await prisma.user.findFirst({
       where: {
-        mobile: cleanMobile,
+        OR: [
+          { mobile: cleanMobile },
+          { profiles: { some: { phoneNumbers: { some: { phone: cleanMobile } } } } },
+        ],
       },
     });
 
     // Registration Flow
     if (otpType === "REGISTRATION") {
-      if (user) {
+      const directRegisteredUser = await prisma.user.findUnique({
+        where: { mobile: cleanMobile },
+        select: { id: true },
+      });
+
+      if (directRegisteredUser) {
         return NextResponse.json(
           {
             success: false,
@@ -232,7 +251,7 @@ export async function POST(req: NextRequest) {
 
       regResponse.cookies.set(REG_VERIFICATION_COOKIE_NAME, registrationToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureCookieRequest(req),
         sameSite: "lax",
         path: "/",
         maxAge: REG_VERIFICATION_MAX_AGE,
@@ -266,12 +285,23 @@ export async function POST(req: NextRequest) {
         );
       }
     } else {
+      if (!isAdmin && (user.status === "BLOCKED" || user.status === "DELETED")) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Your account is currently suspended. Please contact RishteClub support.",
+          },
+          { status: 403 }
+        );
+      }
+
       user = await prisma.user.update({
         where: {
           id: user.id,
         },
         data: {
           mobileVerified: true,
+          ...(user.status === "PENDING" ? { status: "ACTIVE" } : {}),
           ...(isAdmin ? { role: "ADMIN", status: "ACTIVE" } : {}),
         },
       });
@@ -302,6 +332,7 @@ export async function POST(req: NextRequest) {
           approvalStatus: true,
           photos: {
             select: { imageUrl: true, isPrimary: true },
+            orderBy: { isPrimary: "desc" },
             take: 1,
           },
           user: {
@@ -317,7 +348,7 @@ export async function POST(req: NextRequest) {
         firstName: p.firstName,
         lastName: p.lastName,
         gender: p.user?.gender || user.gender || null,
-        photo: p.photos?.[0]?.imageUrl || null,
+        photo: sanitizeProfilePhotoUrl(p.photos?.[0]?.imageUrl, p.profileId),
         dateOfBirth: p.dateOfBirth,
         paymentCompleted: p.paymentCompleted,
         approvalStatus: p.approvalStatus,
@@ -366,26 +397,35 @@ export async function POST(req: NextRequest) {
       activeProfileId
     );
 
-    const response = NextResponse.json({
-      success: true,
-      message: requiresProfileSelection
-        ? "Please select which profile to manage."
-        : "OTP verified successfully.",
-      token,
-      maxAge: AUTH_COOKIE_MAX_AGE,
-      userId: user.id,
-      role: roleToAssign,
-      requiresProfileSelection,
-      activeProfileId,
-      profiles,
-      redirectTo,
-      mustChangePassword: mustChange,
-      isNewUser: false,
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: requiresProfileSelection
+          ? "Please select which profile to manage."
+          : "OTP verified successfully.",
+        token,
+        maxAge: AUTH_COOKIE_MAX_AGE,
+        userId: user.id,
+        role: roleToAssign,
+        requiresProfileSelection,
+        activeProfileId,
+        profiles,
+        redirectTo,
+        mustChangePassword: mustChange,
+        isNewUser: false,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        },
+      }
+    );
+
+    const secureCookie = isSecureCookieRequest(req);
 
     response.cookies.set("nnvs_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,
@@ -394,13 +434,16 @@ export async function POST(req: NextRequest) {
     if (activeProfileId) {
       response.cookies.set("activeProfileId", activeProfileId, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookie,
         sameSite: "lax",
         path: "/",
         maxAge: AUTH_COOKIE_MAX_AGE,
       });
     } else if (requiresProfileSelection) {
       response.cookies.set("activeProfileId", "", {
+        httpOnly: false,
+        secure: secureCookie,
+        sameSite: "lax",
         path: "/",
         maxAge: 0,
       });

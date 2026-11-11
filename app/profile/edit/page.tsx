@@ -15,6 +15,7 @@ import EducationForm from "./components/EducationForm";
 import OccupationForm from "./components/OccupationForm";
 import PartnerPreferenceForm from "./components/PartnerPreferenceForm";
 import SaveButton from "./components/SaveButton";
+import { fetchAuthMeWithFallback, getAuthSession } from "@/lib/auth/session-storage";
 
 interface ProfileSummary {
   id: string;
@@ -48,19 +49,16 @@ function EditProfileContent() {
         setLoading(true);
 
         // 1. Load account profiles for switcher
-        const meRes = await fetch("/api/auth/me", { cache: "no-store", credentials: "include" });
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.success && meData.user?.profiles) {
-            setAllProfiles(
-              meData.user.profiles.map((p: any) => ({
-                id: p.id,
-                profileId: p.profileId,
-                firstName: p.firstName,
-                lastName: p.lastName,
-              }))
-            );
-          }
+        const { res: meRes, data: meData } = await fetchAuthMeWithFallback(10000);
+        if (meRes.ok && meData?.success && meData.user?.profiles) {
+          setAllProfiles(
+            meData.user.profiles.map((p: any) => ({
+              id: p.id,
+              profileId: p.profileId,
+              firstName: p.firstName,
+              lastName: p.lastName,
+            }))
+          );
         }
 
         // 2. Load target profile
@@ -68,7 +66,15 @@ function EditProfileContent() {
           ? `/api/profile?profileId=${encodeURIComponent(queryProfileId)}`
           : "/api/profile";
 
-        const res = await fetch(targetUrl, { cache: "no-store", credentials: "include" });
+        const { token } = await getAuthSession();
+        const authHeaders: Record<string, string> = {};
+        if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(targetUrl, {
+          cache: "no-store",
+          credentials: "include",
+          headers: authHeaders,
+        });
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -201,11 +207,15 @@ function EditProfileContent() {
     try {
       setSaving(true);
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/profile", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         credentials: "include",
         body: JSON.stringify({
           ...data,

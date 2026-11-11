@@ -1,29 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
+import {
+  verifyRequestSession,
+  isSecureCookieRequest,
+  sanitizeProfilePhotoUrl,
+  AUTH_COOKIE_MAX_AGE,
+} from "@/lib/jwt";
+
+export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, no-cache, must-revalidate",
+  Vary: "Cookie, Authorization",
+};
+
+function clearAuthCookies(res: NextResponse, secureCookie: boolean) {
+  res.cookies.set("nnvs_token", "", {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  res.cookies.set("activeProfileId", "", {
+    httpOnly: false,
+    secure: secureCookie,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
 
 export async function GET(req: NextRequest) {
+  const secureCookie = isSecureCookieRequest(req);
+
   try {
-    const cookieToken = req.cookies.get("nnvs_token")?.value;
-    const authHeader = req.headers.get("authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.substring(7).trim()
-      : null;
-    const headerToken = req.headers.get("x-nnvs-token");
+    const { session, token, cookieToken, cookieWasInvalid } =
+      await verifyRequestSession(req);
 
-    const token = cookieToken || bearerToken || headerToken;
-
-    if (!token) {
-      return NextResponse.json(
+    if (!session || !token) {
+      const res = NextResponse.json(
         {
           success: false,
-          message: "Not authenticated.",
+          message: cookieWasInvalid
+            ? "Session expired. Please sign in again."
+            : "Not authenticated.",
         },
-        { status: 401 }
+        { status: 401, headers: NO_STORE_HEADERS }
       );
+      if (cookieToken || cookieWasInvalid) {
+        clearAuthCookies(res, secureCookie);
+      }
+      return res;
     }
-
-    const session = await verifyToken(token);
 
     const user = await prisma.user.findUnique({
       where: {
@@ -70,6 +99,7 @@ export async function GET(req: NextRequest) {
                 imageUrl: true,
                 isPrimary: true,
               },
+              orderBy: { isPrimary: "desc" },
               take: 1,
             },
             user: {
@@ -84,53 +114,92 @@ export async function GET(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           success: false,
           message: "User account not found.",
         },
-        { status: 404 }
+        { status: 404, headers: NO_STORE_HEADERS }
       );
+      if (cookieToken) {
+        clearAuthCookies(res, secureCookie);
+      }
+      return res;
+    }
+
+    if (
+      user.role !== "ADMIN" &&
+      (user.status === "BLOCKED" || user.status === "DELETED")
+    ) {
+      const res = NextResponse.json(
+        {
+          success: false,
+          message: "Your account is currently suspended.",
+        },
+        { status: 403, headers: NO_STORE_HEADERS }
+      );
+      clearAuthCookies(res, secureCookie);
+      return res;
     }
 
     const cookieActiveId = req.cookies.get("activeProfileId")?.value;
     const targetActiveId = cookieActiveId || session.activeProfileId;
 
-    const formattedProfiles = (user.profiles || []).map((p: any) => ({
-      ...p,
-      gender: p.user?.gender || user.gender || null,
-      photo: p.photos?.[0]?.imageUrl || null,
-    }));
+    const formattedProfiles = (user.profiles || []).map((p: any) => {
+      const sanitizedPhoto = sanitizeProfilePhotoUrl(
+        p.photos?.[0]?.imageUrl,
+        p.profileId
+      );
+      return {
+        ...p,
+        gender: p.user?.gender || user.gender || null,
+        photo: sanitizedPhoto,
+        photos:
+          p.photos?.length > 0 && sanitizedPhoto
+            ? [
+                {
+                  id: p.photos[0].id,
+                  isPrimary: p.photos[0].isPrimary,
+                  imageUrl: sanitizedPhoto,
+                },
+              ]
+            : [],
+      };
+    });
 
     let activeProfile = null;
     if (formattedProfiles.length > 0) {
       if (targetActiveId) {
-        activeProfile = formattedProfiles.find(
-          (p: any) => p.id === targetActiveId || p.profileId === targetActiveId
-        ) || null;
+        activeProfile =
+          formattedProfiles.find(
+            (p: any) => p.id === targetActiveId || p.profileId === targetActiveId
+          ) || null;
       }
       if (!activeProfile) {
         activeProfile = formattedProfiles[0];
       }
     }
 
-    const response = NextResponse.json({
-      success: true,
-      token,
-      maxAge: AUTH_COOKIE_MAX_AGE,
-      user: {
-        ...user,
-        activeProfile,
-        profile: activeProfile,
-        profiles: formattedProfiles,
+    const response = NextResponse.json(
+      {
+        success: true,
+        token,
+        maxAge: AUTH_COOKIE_MAX_AGE,
+        user: {
+          ...user,
+          activeProfile,
+          profile: activeProfile,
+          profiles: formattedProfiles,
+        },
       },
-    });
+      { headers: NO_STORE_HEADERS }
+    );
 
-    // If request authenticated via header but cookie was missing, re-hydrate cookie
-    if (!cookieToken && token) {
+    // Re-hydrate HttpOnly cookie if authenticated via Bearer/header or if cookie was stale
+    if ((!cookieToken || cookieWasInvalid) && token) {
       response.cookies.set("nnvs_token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookie,
         sameSite: "lax",
         path: "/",
         maxAge: AUTH_COOKIE_MAX_AGE,
@@ -140,7 +209,7 @@ export async function GET(req: NextRequest) {
     if (activeProfile && (!cookieActiveId || cookieActiveId !== activeProfile.id)) {
       response.cookies.set("activeProfileId", activeProfile.id, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookie,
         sameSite: "lax",
         path: "/",
         maxAge: AUTH_COOKIE_MAX_AGE,
@@ -156,7 +225,7 @@ export async function GET(req: NextRequest) {
         success: false,
         message: "Internal Server Error",
       },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }

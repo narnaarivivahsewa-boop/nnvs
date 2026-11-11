@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { generateToken, AUTH_COOKIE_MAX_AGE } from "@/lib/jwt";
+import {
+  generateToken,
+  isSecureCookieRequest,
+  sanitizeProfilePhotoUrl,
+  AUTH_COOKIE_MAX_AGE,
+} from "@/lib/jwt";
 import { isPermanentAdmin } from "@/lib/admin-auth";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,16 +88,29 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+
+      if (!isAdminAccount && (user.status === "BLOCKED" || user.status === "DELETED")) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Your account is currently suspended. Please contact RishteClub support.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const effectiveRole = (isAdminAccount || user.role === "ADMIN") ? "ADMIN" : user.role;
+    const mustChange = Boolean(user.mustChangePassword);
 
     let profiles: any[] = [];
     let activeProfileId: string | null = null;
     let requiresProfileSelection = false;
     let redirectTo = "/dashboard";
 
-    if (effectiveRole === "ADMIN") {
+    if (mustChange) {
+      redirectTo = "/profile/change-password";
+    } else if (effectiveRole === "ADMIN") {
       redirectTo = "/admin";
     } else {
       const userProfiles = await prisma.profile.findMany({
@@ -105,6 +125,7 @@ export async function POST(req: NextRequest) {
           approvalStatus: true,
           photos: {
             select: { imageUrl: true, isPrimary: true },
+            orderBy: { isPrimary: "desc" },
             take: 1,
           },
           user: {
@@ -120,7 +141,7 @@ export async function POST(req: NextRequest) {
         firstName: p.firstName,
         lastName: p.lastName,
         gender: p.user?.gender || user.gender || null,
-        photo: p.photos?.[0]?.imageUrl || null,
+        photo: sanitizeProfilePhotoUrl(p.photos?.[0]?.imageUrl, p.profileId),
         dateOfBirth: p.dateOfBirth,
         paymentCompleted: p.paymentCompleted,
         approvalStatus: p.approvalStatus,
@@ -149,7 +170,10 @@ export async function POST(req: NextRequest) {
     await Promise.allSettled([
       prisma.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: now },
+        data: {
+          lastLoginAt: now,
+          ...(user.status === "PENDING" ? { status: "ACTIVE" } : {}),
+        },
       }),
       prisma.loginHistory.create({
         data: {
@@ -165,25 +189,35 @@ export async function POST(req: NextRequest) {
     // Generate JWT token
     const token = await generateToken(user.id, user.mobile, effectiveRole, activeProfileId);
 
-    const response = NextResponse.json({
-      success: true,
-      message: requiresProfileSelection
-        ? "Please select which profile to manage."
-        : "Login successful.",
-      token,
-      maxAge: AUTH_COOKIE_MAX_AGE,
-      userId: user.id,
-      fullName: user.fullName,
-      role: effectiveRole,
-      requiresProfileSelection,
-      activeProfileId,
-      profiles,
-      redirectTo,
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: requiresProfileSelection
+          ? "Please select which profile to manage."
+          : "Login successful.",
+        token,
+        maxAge: AUTH_COOKIE_MAX_AGE,
+        userId: user.id,
+        fullName: user.fullName,
+        role: effectiveRole,
+        mustChangePassword: mustChange,
+        requiresProfileSelection,
+        activeProfileId,
+        profiles,
+        redirectTo,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        },
+      }
+    );
+
+    const secureCookie = isSecureCookieRequest(req);
 
     response.cookies.set("nnvs_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: AUTH_COOKIE_MAX_AGE,
@@ -192,13 +226,16 @@ export async function POST(req: NextRequest) {
     if (activeProfileId) {
       response.cookies.set("activeProfileId", activeProfileId, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookie,
         sameSite: "lax",
         path: "/",
         maxAge: AUTH_COOKIE_MAX_AGE,
       });
     } else if (requiresProfileSelection) {
       response.cookies.set("activeProfileId", "", {
+        httpOnly: false,
+        secure: secureCookie,
+        sameSite: "lax",
         path: "/",
         maxAge: 0,
       });

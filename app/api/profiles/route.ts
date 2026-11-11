@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
@@ -8,28 +8,16 @@ export async function GET(req: NextRequest) {
     // ===========================
     // Verify Login Authentication
     // ===========================
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload, cookieWasInvalid } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
           authenticated: false,
-          message: "Please login with your registered mobile number using OTP to view matrimonial profiles.",
-        },
-        { status: 401 }
-      );
-    }
-
-    let payload: any;
-    try {
-      payload = await verifyToken(token);
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          authenticated: false,
-          message: "Session expired. Please login again.",
+          message: cookieWasInvalid
+            ? "Session expired. Please login again."
+            : "Please login with your registered mobile number using OTP to view matrimonial profiles.",
         },
         { status: 401 }
       );
