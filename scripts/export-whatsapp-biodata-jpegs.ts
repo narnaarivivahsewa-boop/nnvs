@@ -77,7 +77,9 @@ interface CliOptions {
   limit: number | null;
   category: string | null;
   profileId: string | null;
+  phone: string | null;
   withoutContact: boolean;
+  force: boolean;
   concurrency: number;
 }
 
@@ -100,12 +102,35 @@ function normalizeCategoryArg(raw: string | null): string | null {
   );
 }
 
+function normalizePhoneNeedles(rawPhone: string): { last10: string; needles: string[] } {
+  const trimmed = rawPhone.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  const needles = new Set<string>();
+
+  if (last10) needles.add(last10);
+  if (digits) needles.add(digits);
+  if (trimmed) needles.add(trimmed);
+  if (last10.length === 10) {
+    needles.add(`${last10.slice(0, 5)} ${last10.slice(5)}`);
+    needles.add(`${last10.slice(0, 5)}-${last10.slice(5)}`);
+  }
+
+  const list = Array.from(needles).filter(Boolean);
+  if (list.length === 0) {
+    throw new Error(`Invalid --phone value "${rawPhone}". Provide a valid phone number.`);
+  }
+  return { last10, needles: list };
+}
+
 function parseCliArgs(argv: string[]): CliOptions {
   let sample = false;
   let limit: number | null = null;
   let category: string | null = null;
   let profileId: string | null = null;
+  let phone: string | null = null;
   let withoutContact = false;
+  let force = false;
   let concurrency = 4;
 
   for (let i = 0; i < argv.length; i++) {
@@ -114,10 +139,20 @@ function parseCliArgs(argv: string[]): CliOptions {
       sample = true;
     } else if (arg === "--without-contact") {
       withoutContact = true;
+    } else if (arg === "--force") {
+      force = true;
     } else if (arg.startsWith("--profileId=")) {
       profileId = arg.slice("--profileId=".length).trim() || null;
     } else if (arg === "--profileId" && argv[i + 1]) {
       profileId = argv[++i].trim() || null;
+    } else if (arg.startsWith("--phone=")) {
+      const val = arg.slice("--phone=".length).trim();
+      if (!val) throw new Error("Empty --phone= value is not allowed.");
+      phone = val;
+    } else if (arg === "--phone" && argv[i + 1]) {
+      const val = argv[++i].trim();
+      if (!val) throw new Error("Empty --phone value is not allowed.");
+      phone = val;
     } else if (arg.startsWith("--limit=")) {
       limit = Math.max(1, parseInt(arg.slice("--limit=".length), 10) || 4);
     } else if (arg === "--limit" && argv[i + 1]) {
@@ -137,7 +172,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     limit = 4;
   }
 
-  return { sample, limit, category, profileId, withoutContact, concurrency };
+  return { sample, limit, category, profileId, phone, withoutContact, force, concurrency };
 }
 
 // =============================================================================
@@ -367,12 +402,46 @@ function RichText({
 // =============================================================================
 // PROFILE FIELD EXTRACTION & SANITIZATION HELPERS
 // =============================================================================
+type Phase1ProfileIndexRow = {
+  id: string;
+  profileId: string;
+  legacyProfileId: string | null;
+  oldNnvsId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  maritalStatus: string | null;
+  updatedAt: Date;
+  user: {
+    fullName: string | null;
+    gender: "MALE" | "FEMALE" | null;
+    updatedAt: Date;
+  } | null;
+  photos: {
+    updatedAt: Date;
+  }[];
+  phoneNumbers: {
+    updatedAt: Date;
+  }[];
+};
+
+type ProfileIdentityShape = {
+  profileId: string;
+  legacyProfileId?: string | null;
+  oldNnvsId?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  maritalStatus?: string | null;
+  user?: {
+    fullName?: string | null;
+    gender?: "MALE" | "FEMALE" | null;
+  } | null;
+};
+
 type LiveProfileRow = {
   id: string;
   profileId: string;
   legacyProfileId: string | null;
   oldNnvsId: string | null;
-  source: string | null;
   firstName: string | null;
   lastName: string | null;
   dateOfBirth: Date | null;
@@ -380,7 +449,6 @@ type LiveProfileRow = {
   maritalStatus: string | null;
   religion: string | null;
   caste: string | null;
-  motherTongue: string | null;
   birthPlace: string | null;
   birthTime: string | null;
   diet: string | null;
@@ -388,12 +456,12 @@ type LiveProfileRow = {
   contactPerson: string | null;
   otherMatrimonyInfo: string | null;
   notes: string | null;
+  updatedAt: Date;
   user: {
     fullName: string | null;
     gender: "MALE" | "FEMALE" | null;
     mobile: string | null;
     email: string | null;
-    status: string;
   } | null;
   photos: {
     imageUrl: string;
@@ -406,7 +474,6 @@ type LiveProfileRow = {
   }[];
   education: {
     highestQualification: string | null;
-    college: string | null;
     occupationField: string | null;
   } | null;
   occupation: {
@@ -529,7 +596,7 @@ function formatManglikDisplay(raw?: string | null): string {
   return truncateText(toTitleCase(s), 28);
 }
 
-function extractValidLegacyId(profile: LiveProfileRow): string | null {
+function extractValidLegacyId(profile: ProfileIdentityShape): string | null {
   const candidates = [cleanString(profile.legacyProfileId), cleanString(profile.oldNnvsId)];
   for (const cand of candidates) {
     if (!cand) continue;
@@ -550,7 +617,7 @@ function extractValidLegacyId(profile: LiveProfileRow): string | null {
   return null;
 }
 
-function extractCandidateName(profile: LiveProfileRow): string {
+function extractCandidateName(profile: ProfileIdentityShape): string {
   const fromFirstLast = [cleanString(profile.firstName), cleanString(profile.lastName)]
     .filter(Boolean)
     .join(" ")
@@ -952,7 +1019,7 @@ function extractContactInfo(profile: LiveProfileRow): {
   };
 }
 
-function isFemaleProfile(profile: LiveProfileRow): boolean {
+function isFemaleProfile(profile: ProfileIdentityShape): boolean {
   const legacy = String(profile.legacyProfileId || "").toUpperCase().trim();
   if (
     legacy.includes("-G-") ||
@@ -982,7 +1049,7 @@ function sanitizeFilenamePart(raw: string): string {
 }
 
 function buildExportFilename(
-  profile: LiveProfileRow,
+  profile: ProfileIdentityShape,
   legacyId: string | null,
   candidateName: string
 ): string {
@@ -999,6 +1066,48 @@ function buildExportFilename(
     return `${safeLegacy}__${safeNewId}_${safeName}.jpg`;
   }
   return `${safeNewId}_${safeName}.jpg`;
+}
+
+interface ResolvedCardDestination {
+  baseCat: string;
+  targetSubfolder: string;
+  targetDir: string;
+  legacyId: string | null;
+  candidateName: string;
+  filename: string;
+  fullPath: string;
+  latestDbUpdatedMs: number;
+}
+
+function resolveCardDestination(
+  profile: Phase1ProfileIndexRow,
+  withoutContact: boolean
+): ResolvedCardDestination {
+  const baseCat = getBiodataCategoryFolder(profile as unknown as BiodataProfileInput);
+  const targetSubfolder = withoutContact ? `${baseCat} without contact` : baseCat;
+  const targetDir = path.join(BASE_OUTPUT_DIR, targetSubfolder);
+  const legacyId = extractValidLegacyId(profile);
+  const candidateName = extractCandidateName(profile);
+  const filename = buildExportFilename(profile, legacyId, candidateName);
+  const fullPath = path.join(targetDir, filename);
+
+  const latestDbUpdatedMs = Math.max(
+    profile.updatedAt.getTime(),
+    profile.user?.updatedAt?.getTime() ?? 0,
+    ...(profile.photos || []).map((ph) => ph.updatedAt.getTime()),
+    ...(profile.phoneNumbers || []).map((pn) => pn.updatedAt.getTime())
+  );
+
+  return {
+    baseCat,
+    targetSubfolder,
+    targetDir,
+    legacyId,
+    candidateName,
+    filename,
+    fullPath,
+    latestDbUpdatedMs,
+  };
 }
 
 // =============================================================================
@@ -1124,8 +1233,32 @@ async function fetchImageBufferWithRetry(url: string): Promise<Buffer | null> {
   return null;
 }
 
+async function normalizePhotoBuffer(rawBuf: Buffer): Promise<string | null> {
+  try {
+    const meta = await sharp(rawBuf).metadata();
+    if (!meta.width || !meta.height || meta.width < 40 || meta.height < 40) {
+      return null;
+    }
+
+    // Normalize orientation (EXIF) & crop smartly at 2x resolution for retina crispness
+    const cropped = await sharp(rawBuf)
+      .rotate()
+      .resize(PHOTO_FRAME_W * 2, PHOTO_FRAME_H * 2, {
+        fit: "cover",
+        position: "attention",
+      })
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+
+    return `data:image/jpeg;base64,${cropped.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCandidateNormalizedPhoto(
-  profile: LiveProfileRow
+  profile: LiveProfileRow,
+  hasAnyPhotoRowInIndex: boolean
 ): Promise<string | null> {
   // Prioritize APPROVED photos first, then PENDING (never REJECTED), respecting isPrimary ordering
   const candidateRows = [...(profile.photos || [])]
@@ -1153,26 +1286,36 @@ async function fetchCandidateNormalizedPhoto(
       try {
         const rawBuf = await fetchImageBufferWithRetry(url);
         if (!rawBuf) continue;
-
-        const meta = await sharp(rawBuf).metadata();
-        if (!meta.width || !meta.height || meta.width < 40 || meta.height < 40) {
-          continue;
-        }
-
-        // Normalize orientation (EXIF) & crop smartly at 2x resolution for retina crispness
-        const cropped = await sharp(rawBuf)
-          .rotate()
-          .resize(PHOTO_FRAME_W * 2, PHOTO_FRAME_H * 2, {
-            fit: "cover",
-            position: "attention",
-          })
-          .jpeg({ quality: 90, mozjpeg: true })
-          .toBuffer();
-
-        return `data:image/jpeg;base64,${cropped.toString("base64")}`;
+        const normalized = await normalizePhotoBuffer(rawBuf);
+        if (normalized) return normalized;
       } catch {
         continue;
       }
+    }
+  }
+
+  // Targeted single-profile fallback ONLY if Phase 1 saw a photo row and no remote URL succeeded
+  // (keeps bulk findMany queries completely free of base64 blobs)
+  if (hasAnyPhotoRowInIndex) {
+    try {
+      const singleDataPhoto = await prisma.profilePhoto.findFirst({
+        where: {
+          profileId: profile.id,
+          status: { not: "REJECTED" },
+          imageUrl: { startsWith: "data:image/" },
+        },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+        select: { imageUrl: true },
+      });
+      if (singleDataPhoto?.imageUrl) {
+        const rawBuf = await fetchImageBufferWithRetry(singleDataPhoto.imageUrl);
+        if (rawBuf) {
+          const normalized = await normalizePhotoBuffer(rawBuf);
+          if (normalized) return normalized;
+        }
+      }
+    } catch {
+      // Fallback safely to placeholder portrait
     }
   }
 
@@ -1443,7 +1586,8 @@ async function renderBiodataJpegCard(
     devanagariBoldFont: any;
     logoDataUri: string | null;
   },
-  withoutContact: boolean
+  withoutContact: boolean,
+  hasAnyPhotoRowInIndex: boolean = false
 ): Promise<{ jpgBuffer: Buffer; usedRealPhoto: boolean; legacyId: string | null; candidateName: string }> {
   const isFemale = isFemaleProfile(profile);
   const legacyId = extractValidLegacyId(profile);
@@ -1500,7 +1644,7 @@ async function renderBiodataJpegCard(
   const conciseMarital = truncateText(toTitleCase(rawMarital), 22);
 
   // Fetch ACTUAL photo whenever ANY photo exists in DB (APPROVED or PENDING) or Drive/Cloudinary
-  const photoDataUri = await fetchCandidateNormalizedPhoto(profile);
+  const photoDataUri = await fetchCandidateNormalizedPhoto(profile, hasAnyPhotoRowInIndex);
   const usedRealPhoto = Boolean(photoDataUri);
 
   // Adaptive name sizing so long names never overflow
@@ -2462,16 +2606,16 @@ async function renderBiodataJpegCard(
 }
 
 // =============================================================================
-// SAMPLE SELECTION (DIVERSE SAMPLE FOR VISUAL INSPECTION BEFORE BULK RUN)
+// SAMPLE SELECTION (LIGHTWEIGHT INDEX SAMPLE WITHOUT HEAVY DB TRANSFER)
 // =============================================================================
 function selectDiverseSample(
-  profiles: LiveProfileRow[],
+  profiles: Phase1ProfileIndexRow[],
   limit: number
-): LiveProfileRow[] {
-  const picked: LiveProfileRow[] = [];
+): Phase1ProfileIndexRow[] {
+  const picked: Phase1ProfileIndexRow[] = [];
   const usedIds = new Set<string>();
 
-  const pickFirstOf = (predicates: ((p: LiveProfileRow) => boolean)[]) => {
+  const pickFirstOf = (predicates: ((p: Phase1ProfileIndexRow) => boolean)[]) => {
     for (const pred of predicates) {
       const match = profiles.find((p) => !usedIds.has(p.id) && pred(p));
       if (match) {
@@ -2482,34 +2626,22 @@ function selectDiverseSample(
     }
   };
 
-  const hasCandidatePhoto = (p: LiveProfileRow) =>
-    p.photos.some(
-      (ph) =>
-        ph.status !== "REJECTED" &&
-        Boolean(ph.imageUrl?.trim()) &&
-        (ph.imageUrl.startsWith("data:image/") || ph.imageUrl.startsWith("http"))
-    );
-  const hasRichFamilyAndAddress = (p: LiveProfileRow) =>
-    Boolean(p.family?.fatherName && p.family?.motherName && p.notes && p.notes.length > 8);
+  const hasPhotoRow = (p: Phase1ProfileIndexRow) => (p.photos?.length || 0) > 0;
 
-  // Slot 1: Exactly ONE candidate WITH real downloadable photo + rich family/address details
+  // Slot 1: Female bride with photo
   pickFirstOf([
     (p) =>
       getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === "Never Married Female" &&
-      hasCandidatePhoto(p) &&
-      hasRichFamilyAndAddress(p),
-    (p) => hasCandidatePhoto(p) && hasRichFamilyAndAddress(p),
-    (p) => hasCandidatePhoto(p),
+      hasPhotoRow(p),
+    (p) => hasPhotoRow(p),
   ]);
 
-  // Slot 2: Exactly ONE candidate GENUINELY WITHOUT photo (0 ProfilePhoto rows) + rich family/address details
+  // Slot 2: Candidate without photo row
   pickFirstOf([
     (p) =>
-      p.photos.length === 0 &&
-      hasRichFamilyAndAddress(p) &&
-      Boolean(p.phoneNumbers?.length || p.user?.mobile),
-    (p) => p.photos.length === 0 && Boolean(p.family?.fatherName || p.family?.motherName),
-    (p) => p.photos.length === 0,
+      getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === "Never Married Female" &&
+      !hasPhotoRow(p),
+    (p) => !hasPhotoRow(p),
   ]);
 
   // Additional diversity if --limit > 2
@@ -2517,19 +2649,11 @@ function selectDiverseSample(
     pickFirstOf([
       (p) =>
         getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === "Never Married Male" &&
-        hasCandidatePhoto(p),
+        hasPhotoRow(p),
     ]);
     pickFirstOf([
       (p) =>
         getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === "Divorced Female",
-    ]);
-    pickFirstOf([
-      (p) =>
-        /[\u0900-\u097F]/.test(
-          [p.firstName, p.lastName, p.occupation?.profession, p.birthPlace, p.notes]
-            .filter(Boolean)
-            .join(" ")
-        ),
     ]);
     pickFirstOf([
       (p) =>
@@ -2549,21 +2673,203 @@ function selectDiverseSample(
 }
 
 // =============================================================================
+// TWO-PHASE MINIMAL NEON DB QUERIES (ZERO BULK BASE64 / LOG TRANSFERS)
+// =============================================================================
+function buildLiveProfileWhere(opts: CliOptions): any {
+  const andClauses: any[] = [
+    { approvalStatus: "APPROVED" },
+    { isVisible: true },
+    { user: { is: { status: "ACTIVE" } } },
+  ];
+
+  if (opts.profileId) {
+    andClauses.push({
+      OR: [
+        { id: { equals: opts.profileId, mode: "insensitive" } },
+        { profileId: { equals: opts.profileId, mode: "insensitive" } },
+        { legacyProfileId: { equals: opts.profileId, mode: "insensitive" } },
+        { oldNnvsId: { equals: opts.profileId, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (opts.phone) {
+    const { needles } = normalizePhoneNeedles(opts.phone);
+    andClauses.push({
+      OR: needles.flatMap((needle) => [
+        { user: { is: { mobile: { contains: needle } } } },
+        { phoneNumbers: { some: { phone: { contains: needle } } } },
+        { contactPerson: { contains: needle } },
+        { notes: { contains: needle } },
+      ]),
+    });
+  }
+
+  return { AND: andClauses };
+}
+
+async function fetchPhase1ProfileIndex(opts: CliOptions): Promise<Phase1ProfileIndexRow[]> {
+  return (await prisma.profile.findMany({
+    where: buildLiveProfileWhere(opts),
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      profileId: true,
+      legacyProfileId: true,
+      oldNnvsId: true,
+      firstName: true,
+      lastName: true,
+      maritalStatus: true,
+      updatedAt: true,
+      user: {
+        select: {
+          fullName: true,
+          gender: true,
+          updatedAt: true,
+        },
+      },
+      photos: {
+        where: { status: { not: "REJECTED" } },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: {
+          updatedAt: true,
+        },
+      },
+      phoneNumbers: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: {
+          updatedAt: true,
+        },
+      },
+    },
+  })) as Phase1ProfileIndexRow[];
+}
+
+async function fetchPhase2RenderProfiles(ids: string[]): Promise<Map<string, LiveProfileRow>> {
+  const byId = new Map<string, LiveProfileRow>();
+  const CHUNK_SIZE = 100;
+
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const batchIds = ids.slice(i, i + CHUNK_SIZE);
+    const rows = (await prisma.profile.findMany({
+      where: {
+        id: { in: batchIds },
+      },
+      select: {
+        id: true,
+        profileId: true,
+        legacyProfileId: true,
+        oldNnvsId: true,
+        firstName: true,
+        lastName: true,
+        dateOfBirth: true,
+        birthTime: true,
+        height: true,
+        maritalStatus: true,
+        religion: true,
+        caste: true,
+        birthPlace: true,
+        manglik: true,
+        diet: true,
+        contactPerson: true,
+        notes: true,
+        otherMatrimonyInfo: true,
+        updatedAt: true,
+        user: {
+          select: {
+            fullName: true,
+            gender: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        phoneNumbers: {
+          orderBy: { isPrimary: "desc" },
+          select: {
+            phone: true,
+            isPrimary: true,
+          },
+        },
+        photos: {
+          where: {
+            status: { not: "REJECTED" },
+            NOT: { imageUrl: { startsWith: "data:" } },
+          },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+          take: 5,
+          select: {
+            imageUrl: true,
+            status: true,
+            isPrimary: true,
+          },
+        },
+        education: {
+          select: {
+            highestQualification: true,
+            occupationField: true,
+          },
+        },
+        occupation: {
+          select: {
+            profession: true,
+            company: true,
+            annualIncome: true,
+          },
+        },
+        family: {
+          select: {
+            fatherName: true,
+            fatherOccupation: true,
+            motherName: true,
+            motherOccupation: true,
+            brothers: true,
+            sisters: true,
+            siblingsDetails: true,
+            familyType: true,
+            familyStatus: true,
+            propertyDetails: true,
+          },
+        },
+      },
+    })) as LiveProfileRow[];
+
+    for (const row of rows) {
+      byId.set(row.id, row);
+    }
+  }
+
+  return byId;
+}
+
+// =============================================================================
 // MAIN ENTRYPOINT
 // =============================================================================
 async function main() {
   const opts = parseCliArgs(process.argv.slice(2));
   const startedAt = Date.now();
+  const isTargetedSingle = Boolean(opts.profileId || opts.phone);
 
   console.log("================================================================================");
   console.log("RISHTECLUB / NNVS MATRIMONY - WHATSAPP 4:5 BIODATA JPEG EXPORTER");
   console.log("================================================================================");
   console.log(`Base Directory   : ${BASE_OUTPUT_DIR}`);
-  console.log(`Mode             : ${opts.sample ? "SAMPLE" : "FULL EXPORT"}${opts.withoutContact ? " (without contact folder)" : ""}`);
+  console.log(
+    `Mode             : ${
+      isTargetedSingle
+        ? "SINGLE PROFILE TARGETED REGEN"
+        : opts.sample
+        ? "SAMPLE INCREMENTAL"
+        : "INCREMENTAL SYNC"
+    }${opts.withoutContact ? " (without contact folder)" : ""}${opts.force ? " [FORCE]" : ""}`
+  );
   console.log(`Category Filter  : ${opts.category || "ALL"}`);
-  console.log(`Limit            : ${opts.limit ?? "NONE (all live profiles)"}`);
+  if (opts.profileId) console.log(`Profile ID Filter: ${opts.profileId}`);
+  if (opts.phone) console.log(`Phone Filter     : ${opts.phone}`);
+  console.log(`Limit            : ${opts.limit ?? "NONE (all matching live profiles)"}`);
   console.log(`Concurrency      : ${opts.concurrency}`);
-  console.log("Note: Existing .pdf files will NEVER be modified or deleted.");
+  console.log("Safety Policy    : Strict NO-DELETE mode; existing .jpg and .pdf files are preserved.");
 
   // Ensure target folders exist (read-safe, never deletes/touches existing files)
   const targetCategories = opts.category ? [opts.category] : [...BASE_CATEGORIES];
@@ -2575,7 +2881,85 @@ async function main() {
     }
   }
 
-  // Load fonts and brand logo once
+  // Phase 1: Ultra-lightweight index + timestamp check (zero heavy text or base64 blobs)
+  const allMatchingIndex = await fetchPhase1ProfileIndex(opts);
+  let filteredIndex = allMatchingIndex;
+  if (opts.category) {
+    filteredIndex = filteredIndex.filter(
+      (p) => getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === opts.category
+    );
+  }
+
+  if (isTargetedSingle && filteredIndex.length === 0) {
+    console.error(
+      `\n❌ No matching LIVE approved profile found for ${
+        opts.profileId ? `--profileId=${opts.profileId}` : `--phone=${opts.phone}`
+      }.`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  let selectedIndex = filteredIndex;
+  if (opts.sample) {
+    selectedIndex = selectDiverseSample(filteredIndex, opts.limit ?? 4);
+  } else if (opts.limit !== null) {
+    selectedIndex = filteredIndex.slice(0, opts.limit);
+  }
+
+  type RenderJob = {
+    indexRow: Phase1ProfileIndexRow;
+    dest: ResolvedCardDestination;
+  };
+
+  const renderQueue: RenderJob[] = [];
+  const skippedCategoryStats: Record<string, number> = {};
+  let skippedCount = 0;
+
+  for (const indexRow of selectedIndex) {
+    const dest = resolveCardDestination(indexRow, opts.withoutContact);
+    const shouldForceCard = opts.force || isTargetedSingle;
+
+    if (!shouldForceCard && fs.existsSync(dest.fullPath)) {
+      try {
+        const stat = fs.statSync(dest.fullPath);
+        if (stat.isFile() && stat.size > 0 && stat.mtimeMs >= dest.latestDbUpdatedMs) {
+          skippedCount++;
+          skippedCategoryStats[dest.targetSubfolder] =
+            (skippedCategoryStats[dest.targetSubfolder] || 0) + 1;
+          continue;
+        }
+      } catch {
+        // Unable to stat file safely; regenerate this card
+      }
+    }
+
+    renderQueue.push({ indexRow, dest });
+  }
+
+  const totalMatched = selectedIndex.length;
+  const totalToRender = renderQueue.length;
+  console.log(
+    `\nPhase 1 Index    : ${totalMatched} matched | ${skippedCount} skipped (up-to-date) | ${totalToRender} queued to generate.\n`
+  );
+
+  if (totalToRender === 0) {
+    const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.log("================================================================================");
+    console.log(`INCREMENTAL SYNC COMPLETED IN ${elapsedSec}s (ALL CARDS UP TO DATE)`);
+    console.log("================================================================================");
+    console.log(`Matched Profiles : ${totalMatched}`);
+    console.log(`Skipped Existing : ${skippedCount}`);
+    console.log(`Regenerated      : 0`);
+    console.log(`Failed           : 0`);
+    console.log("\nSkipped Category Breakdown:");
+    for (const [folder, count] of Object.entries(skippedCategoryStats)) {
+      console.log(`  📁 ${folder.padEnd(36)} : ${count} JPEGs skipped`);
+    }
+    return;
+  }
+
+  // Load fonts and brand logo only when cards actually need rendering
   const fontAssets = loadCardFonts();
   const logoDataUri = await loadLogoDataUri();
   const assets = {
@@ -2591,186 +2975,78 @@ async function main() {
       (logoDataUri ? " + embedded NNVS logo." : " (logo file not found).")
   );
 
-  // Fetch all LIVE profiles (user.status ACTIVE, approvalStatus APPROVED, isVisible true)
-  const allLiveProfiles = (await prisma.profile.findMany({
-    where: {
-      approvalStatus: "APPROVED",
-      isVisible: true,
-      user: {
-        status: "ACTIVE",
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      profileId: true,
-      legacyProfileId: true,
-      oldNnvsId: true,
-      source: true,
-      firstName: true,
-      lastName: true,
-      dateOfBirth: true,
-      birthTime: true,
-      height: true,
-      maritalStatus: true,
-      religion: true,
-      caste: true,
-      motherTongue: true,
-      birthPlace: true,
-      manglik: true,
-      diet: true,
-      contactPerson: true,
-      notes: true,
-      otherMatrimonyInfo: true,
-      user: {
-        select: {
-          fullName: true,
-          gender: true,
-          mobile: true,
-          email: true,
-          status: true,
-        },
-      },
-      phoneNumbers: {
-        orderBy: { isPrimary: "desc" },
-        select: {
-          phone: true,
-          isPrimary: true,
-        },
-      },
-      photos: {
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-        select: {
-          imageUrl: true,
-          status: true,
-          isPrimary: true,
-        },
-      },
-      education: {
-        select: {
-          highestQualification: true,
-          college: true,
-          occupationField: true,
-        },
-      },
-      occupation: {
-        select: {
-          profession: true,
-          company: true,
-          annualIncome: true,
-        },
-      },
-      family: {
-        select: {
-          fatherName: true,
-          fatherOccupation: true,
-          motherName: true,
-          motherOccupation: true,
-          brothers: true,
-          sisters: true,
-          siblingsDetails: true,
-          familyType: true,
-          familyStatus: true,
-          propertyDetails: true,
-        },
-      },
-    },
-  })) as LiveProfileRow[];
-
-  let filteredProfiles = allLiveProfiles;
-  if (opts.category) {
-    filteredProfiles = filteredProfiles.filter(
-      (p) => getBiodataCategoryFolder(p as unknown as BiodataProfileInput) === opts.category
-    );
-  }
-  if (opts.profileId) {
-    const target = opts.profileId.toLowerCase();
-    filteredProfiles = filteredProfiles.filter(
-      (p) =>
-        p.profileId.toLowerCase() === target ||
-        (p.legacyProfileId && p.legacyProfileId.toLowerCase() === target) ||
-        (p.oldNnvsId && p.oldNnvsId.toLowerCase() === target)
-    );
-  }
-
-  let selectedProfiles = filteredProfiles;
-  if (opts.sample) {
-    selectedProfiles = selectDiverseSample(filteredProfiles, opts.limit ?? 4);
-  } else if (opts.limit !== null) {
-    selectedProfiles = filteredProfiles.slice(0, opts.limit);
-  }
-
-  const total = selectedProfiles.length;
-  console.log(`\nMatched ${allLiveProfiles.length} total LIVE profiles; queued ${total} profiles for JPEG export.\n`);
+  // Phase 2: Minimal select ONLY for modified/new/targeted profiles
+  const profilesById = await fetchPhase2RenderProfiles(renderQueue.map((job) => job.indexRow.id));
 
   const categoryStats: Record<string, number> = {};
   let successCount = 0;
   let failCount = 0;
   let realPhotoCards = 0;
   let placeholderCards = 0;
-  const sampleOutputs: string[] = [];
+  const writtenOutputs: string[] = [];
   const errors: { profileId: string; name: string; error: string }[] = [];
 
   let cursor = 0;
   async function worker() {
     while (true) {
       const idx = cursor++;
-      if (idx >= total) break;
+      if (idx >= totalToRender) break;
 
-      const profile = selectedProfiles[idx];
-      const baseCat = getBiodataCategoryFolder(profile as unknown as BiodataProfileInput);
-      const targetSubfolder = opts.withoutContact ? `${baseCat} without contact` : baseCat;
-      const targetDir = path.join(BASE_OUTPUT_DIR, targetSubfolder);
+      const { indexRow, dest } = renderQueue[idx];
+      const profile = profilesById.get(indexRow.id);
+      if (!profile) {
+        failCount++;
+        errors.push({
+          profileId: indexRow.profileId,
+          name: dest.candidateName,
+          error: "Profile disappeared before Phase 2 render fetch",
+        });
+        continue;
+      }
 
       try {
+        const hasAnyPhotoRowInIndex = (indexRow.photos?.length || 0) > 0;
         const rendered = await renderBiodataJpegCard(
           profile,
-          baseCat,
+          dest.baseCat,
           assets,
-          opts.withoutContact
+          opts.withoutContact,
+          hasAnyPhotoRowInIndex
         );
 
-        const filename = buildExportFilename(
-          profile,
-          rendered.legacyId,
-          rendered.candidateName
-        );
-        const fullPath = path.join(targetDir, filename);
-
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
+        if (!fs.existsSync(dest.targetDir)) {
+          fs.mkdirSync(dest.targetDir, { recursive: true });
         }
-        fs.writeFileSync(fullPath, rendered.jpgBuffer);
+        fs.writeFileSync(dest.fullPath, rendered.jpgBuffer);
 
         successCount++;
-        categoryStats[targetSubfolder] = (categoryStats[targetSubfolder] || 0) + 1;
+        categoryStats[dest.targetSubfolder] = (categoryStats[dest.targetSubfolder] || 0) + 1;
         if (rendered.usedRealPhoto) realPhotoCards++;
         else placeholderCards++;
 
-        if (sampleOutputs.length < 10) {
-          sampleOutputs.push(fullPath);
+        if (writtenOutputs.length < 15) {
+          writtenOutputs.push(dest.fullPath);
         }
 
         const sizeKb = (rendered.jpgBuffer.length / 1024).toFixed(1);
         const photoTag = rendered.usedRealPhoto ? "PHOTO" : "AVATAR";
-        if (opts.sample || (idx + 1) % 25 === 0 || idx + 1 === total) {
+        if (opts.sample || isTargetedSingle || totalToRender <= 20 || (idx + 1) % 25 === 0 || idx + 1 === totalToRender) {
           console.log(
-            `[${idx + 1}/${total}] ✅ [${targetSubfolder}] (${photoTag}) -> ${filename} (${sizeKb} KB)`
+            `[${idx + 1}/${totalToRender}] ✅ [${dest.targetSubfolder}] (${photoTag}) -> ${dest.filename} (${sizeKb} KB)`
           );
         }
       } catch (err: any) {
         failCount++;
         const msg = err?.message || String(err);
-        const fallbackName = extractCandidateName(profile);
         errors.push({
-          profileId: profile.profileId,
-          name: fallbackName,
+          profileId: indexRow.profileId,
+          name: dest.candidateName,
           error: msg,
         });
         console.error(
-          `[${idx + 1}/${total}] ❌ Failed ${profile.profileId} (${fallbackName}): ${msg}`
+          `[${idx + 1}/${totalToRender}] ❌ Failed ${indexRow.profileId} (${dest.candidateName}): ${msg}`
         );
-        if (opts.sample && err?.stack) {
+        if ((opts.sample || isTargetedSingle) && err?.stack) {
           console.error(err.stack);
         }
       }
@@ -2778,7 +3054,7 @@ async function main() {
   }
 
   const workers = Array.from(
-    { length: Math.min(opts.concurrency, Math.max(1, total)) },
+    { length: Math.min(opts.concurrency, Math.max(1, totalToRender)) },
     () => worker()
   );
   await Promise.all(workers);
@@ -2787,17 +3063,21 @@ async function main() {
   console.log("\n================================================================================");
   console.log(`WHATSAPP BIODATA JPEG EXPORT COMPLETED IN ${elapsedSec}s`);
   console.log("================================================================================");
-  console.log(`Processed        : ${total}`);
-  console.log(`Exported (.jpg)  : ${successCount} (Photos: ${realPhotoCards}, Silhouettes: ${placeholderCards})`);
+  console.log(`Matched Profiles : ${totalMatched}`);
+  console.log(`Skipped Existing : ${skippedCount}`);
+  console.log(`Regenerated (.jpg): ${successCount} (Photos: ${realPhotoCards}, Silhouettes: ${placeholderCards})`);
   console.log(`Failed           : ${failCount}`);
-  console.log("\nCategory Breakdown:");
-  for (const [folder, count] of Object.entries(categoryStats)) {
-    console.log(`  📁 ${folder.padEnd(36)} : ${count} JPEGs`);
+
+  if (Object.keys(categoryStats).length > 0) {
+    console.log("\nRegenerated Category Breakdown:");
+    for (const [folder, count] of Object.entries(categoryStats)) {
+      console.log(`  📁 ${folder.padEnd(36)} : ${count} JPEGs`);
+    }
   }
 
-  if (opts.sample && sampleOutputs.length > 0) {
-    console.log("\nSample Files Written:");
-    for (const f of sampleOutputs) {
+  if ((opts.sample || isTargetedSingle || totalToRender <= 15) && writtenOutputs.length > 0) {
+    console.log("\nFiles Written:");
+    for (const f of writtenOutputs) {
       console.log(`  -> ${f}`);
     }
   }

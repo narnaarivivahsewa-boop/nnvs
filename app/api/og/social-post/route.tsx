@@ -11,7 +11,7 @@ import { OgHindiText } from "@/lib/og-hindi-text";
 export const runtime = "nodejs";
 
 const OG_CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
+  "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400",
 };
 
 function CornerFiligree({
@@ -1690,6 +1690,9 @@ export async function GET(req: NextRequest) {
     );
   } catch (err: any) {
     console.error("OG Image generation failed:", err);
-    return new Response(`OG Image error: ${err.message}`, { status: 500 });
+    return new Response(`OG Image error: ${err.message}`, {
+      status: 500,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 }
