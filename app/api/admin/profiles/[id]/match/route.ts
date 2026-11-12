@@ -69,13 +69,21 @@ export async function GET(
   try {
     const { id } = await context.params;
 
+    const safeMatchUserSelect = {
+      id: true,
+      fullName: true,
+      gender: true,
+      mobile: true,
+      email: true,
+    };
+
     // 1. Lookup Target Profile
     const targetProfile = await prisma.profile.findFirst({
       where: {
         OR: [{ id }, { profileId: id }, { legacyProfileId: id }],
       },
       include: {
-        user: true,
+        user: { select: safeMatchUserSelect },
         photos: { orderBy: { isPrimary: "desc" } },
         family: true,
         education: true,
@@ -99,7 +107,7 @@ export async function GET(
           OR: [{ id: compareWithId }, { profileId: compareWithId }, { legacyProfileId: compareWithId }],
         },
         include: {
-          user: true,
+          user: { select: safeMatchUserSelect },
           photos: { orderBy: { isPrimary: "desc" } },
           family: true,
           education: true,
@@ -148,8 +156,12 @@ export async function GET(
     const excludeSameGotra = searchParams.get("excludeSameGotra") === "true";
     const manglikFilter = searchParams.get("manglik")?.trim() || "ALL";
     const maritalStatusFilter = searchParams.get("maritalStatus")?.trim() || "ALL";
-    const minAgeFilter = searchParams.get("minAge") ? parseInt(searchParams.get("minAge")!, 10) : null;
-    const maxAgeFilter = searchParams.get("maxAge") ? parseInt(searchParams.get("maxAge")!, 10) : null;
+    const rawMinAge = searchParams.get("minAge");
+    const rawMaxAge = searchParams.get("maxAge");
+    const parsedMinAge = rawMinAge ? parseInt(rawMinAge, 10) : NaN;
+    const parsedMaxAge = rawMaxAge ? parseInt(rawMaxAge, 10) : NaN;
+    const minAgeFilter = !isNaN(parsedMinAge) ? parsedMinAge : null;
+    const maxAgeFilter = !isNaN(parsedMaxAge) ? parsedMaxAge : null;
     const minHeightInches = searchParams.get("minHeight") ? parseHeightToInches(searchParams.get("minHeight")) : null;
     const maxHeightInches = searchParams.get("maxHeight") ? parseHeightToInches(searchParams.get("maxHeight")) : null;
     const searchKeyword = searchParams.get("search")?.trim().toLowerCase() || "";
@@ -157,7 +169,7 @@ export async function GET(
 
     const targetGotra = extractGotra(targetProfile.notes);
 
-    // 3. Fetch all opposite-gender candidate profiles
+    // 3. Fetch opposite-gender candidate profiles (bounded for Neon bandwidth protection)
     const candidates = await prisma.profile.findMany({
       where: {
         id: { not: targetProfile.id },
@@ -165,6 +177,9 @@ export async function GET(
           gender: oppositeGender as any,
           status: "ACTIVE",
         },
+        ...(maritalStatusFilter && maritalStatusFilter !== "ALL"
+          ? { maritalStatus: { equals: maritalStatusFilter, mode: "insensitive" as const } }
+          : {}),
       },
       include: {
         user: {
@@ -187,6 +202,7 @@ export async function GET(
         phoneNumbers: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 300,
     });
 
     // 4. Apply in-memory filtering & Kundali scoring
@@ -368,10 +384,10 @@ export async function GET(
       totalMatches: matchedList.length,
       matches: matchedList,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN PROFILE MATCH API ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Internal Server Error" },
+      { success: false, message: "Failed to run compatibility match." },
       { status: 500 }
     );
   }
@@ -387,21 +403,36 @@ export async function POST(
 
   try {
     const { id } = await context.params;
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const candidate2Id = body.candidateId || body.profile2Id;
 
     if (!candidate2Id) {
       return NextResponse.json({ success: false, message: "candidateId is required for Kundali Milan" }, { status: 400 });
     }
 
+    const postUserSelect = {
+      id: true,
+      fullName: true,
+      gender: true,
+    };
+
     const [p1, p2] = await Promise.all([
       prisma.profile.findFirst({
         where: { OR: [{ id }, { profileId: id }, { legacyProfileId: id }] },
-        include: { user: true, family: true, education: true, occupation: true, photos: true },
+        include: { user: { select: postUserSelect } },
       }),
       prisma.profile.findFirst({
         where: { OR: [{ id: candidate2Id }, { profileId: candidate2Id }, { legacyProfileId: candidate2Id }] },
-        include: { user: true, family: true, education: true, occupation: true, photos: true },
+        include: { user: { select: postUserSelect } },
       }),
     ]);
 
@@ -448,10 +479,10 @@ export async function POST(
         ? "Caution: Both candidates share the same Gotra. Traditional Hindu Kula rules advise special elder consultation."
         : "Favorable: Both candidates have different Gotras.",
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("ADMIN KUNDALI MATCH ERROR =>", err);
     return NextResponse.json(
-      { success: false, message: err?.message || "Internal server error" },
+      { success: false, message: "Failed to run Kundali match." },
       { status: 500 }
     );
   }

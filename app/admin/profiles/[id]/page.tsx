@@ -24,9 +24,10 @@ import {
   Trash2,
   RefreshCw,
   Sparkles,
-  HeartHandshake,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import ErrorToast from "@/components/ui/ErrorToast";
+import { getAuthSession } from "@/lib/auth/session-storage";
 import { formatBirthTime, formatDOB } from "@/lib/utils";
 import { getRegistrationPricingDetails } from "@/lib/pricing";
 import CandidateMatcher from "./components/CandidateMatcher";
@@ -57,27 +58,45 @@ export default function AdminProfileViewPage({
   const [modalSuccess, setModalSuccess] = useState("");
   const [modalError, setModalError] = useState("");
 
-  // Delete State
+  // Delete & Action Feedback State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [pendingModeration, setPendingModeration] = useState<"APPROVE" | "REJECT" | null>(null);
 
   const handleDeleteProfile = async () => {
-    if (!profile) return;
+    if (!profile || deleting) return;
     try {
       setDeleting(true);
+      setDeleteError(null);
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`/api/admin/profiles/${profile.id}`, {
         method: "DELETE",
+        credentials: "include",
+        headers,
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || "Failed to delete profile.");
+        const msg = data.message || "Failed to delete profile.";
+        setDeleteError(msg);
+        setToastError(msg);
         return;
       }
-      alert(data.message || "Profile deleted successfully.");
-      router.push("/admin/profiles");
+      setDeleteModalOpen(false);
+      setActionSuccess(data.message || "Profile deleted successfully. Redirecting...");
+      setTimeout(() => {
+        router.push("/admin/profiles");
+      }, 600);
     } catch (err: any) {
       console.error("Delete error:", err);
-      alert(err?.message || "Failed to delete profile.");
+      const msg = err?.message || "Failed to delete profile.";
+      setDeleteError(msg);
+      setToastError(msg);
     } finally {
       setDeleting(false);
     }
@@ -86,7 +105,14 @@ export default function AdminProfileViewPage({
   const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/profiles/${id}`);
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(`/api/admin/profiles/${id}`, {
+        credentials: "include",
+        headers,
+      });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -108,7 +134,14 @@ export default function AdminProfileViewPage({
     let ignore = false;
     async function init() {
       try {
-        const res = await fetch(`/api/admin/profiles/${id}`);
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(`/api/admin/profiles/${id}`, {
+          credentials: "include",
+          headers,
+        });
         const data = await res.json();
         if (!ignore && data.success && data.profile) {
           setProfile(data.profile);
@@ -130,81 +163,85 @@ export default function AdminProfileViewPage({
 
   // Actions
   const handleToggleVisibility = async () => {
-    if (!profile) return;
+    if (!profile || actionLoading) return;
     try {
       setActionLoading(true);
+      setToastError(null);
+      const nextVisible = !profile.isVisible;
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/admin/profiles/toggle-visibility", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId: profile.id,
-          isVisible: !profile.isVisible,
+          isVisible: nextVisible,
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        setProfile((prev: any) => ({ ...prev, isVisible: !prev.isVisible }));
+      if (res.ok && data.success) {
+        setProfile((prev: any) => ({ ...prev, isVisible: nextVisible }));
+        setActionSuccess(
+          data.message || `Profile marked ${nextVisible ? "Live" : "Hidden"} successfully.`
+        );
       } else {
-        alert(data.message || "Failed to update visibility");
+        setToastError(data.message || "Failed to update visibility.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error updating visibility");
+      setToastError("Error updating visibility.");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleApprove = async () => {
-    if (!profile || !confirm("Are you sure you want to approve this profile?")) return;
-    try {
-      setActionLoading(true);
-      const res = await fetch("/api/admin/profiles/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: profile.id }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setProfile((prev: any) => ({
-          ...prev,
-          approvalStatus: "APPROVED",
-          isVisible: true,
-          approvedAt: new Date().toISOString(),
-        }));
-      } else {
-        alert(data.message || "Failed to approve profile");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error approving profile");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const executeModeration = async () => {
+    if (!profile || !pendingModeration || actionLoading) return;
+    const action = pendingModeration;
+    const endpoint =
+      action === "APPROVE" ? "/api/admin/profiles/approve" : "/api/admin/profiles/reject";
 
-  const handleReject = async () => {
-    if (!profile || !confirm("Are you sure you want to reject this profile?")) return;
     try {
       setActionLoading(true);
-      const res = await fetch("/api/admin/profiles/reject", {
+      setToastError(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({ profileId: profile.id }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setProfile((prev: any) => ({
           ...prev,
-          approvalStatus: "REJECTED",
-          isVisible: false,
+          approvalStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
+          isVisible: action === "APPROVE",
+          ...(action === "APPROVE" ? { approvedAt: new Date().toISOString() } : {}),
         }));
+        setActionSuccess(
+          data.message ||
+            `Profile ${action === "APPROVE" ? "approved and made live" : "rejected and hidden"}.`
+        );
+        setPendingModeration(null);
       } else {
-        alert(data.message || "Failed to reject profile");
+        setToastError(data.message || `Failed to ${action.toLowerCase()} profile.`);
       }
     } catch (err) {
       console.error(err);
-      alert("Error rejecting profile");
+      setToastError(`Error ${action === "APPROVE" ? "approving" : "rejecting"} profile.`);
     } finally {
       setActionLoading(false);
     }
@@ -225,16 +262,23 @@ export default function AdminProfileViewPage({
 
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile || confirmingPayment) return;
 
     try {
       setConfirmingPayment(true);
       setModalError("");
       setModalSuccess("");
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/admin/payments/confirm", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId: profile.id,
           grossAmount: Number(grossAmount),
@@ -308,6 +352,26 @@ export default function AdminProfileViewPage({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
+      <ErrorToast
+        message={toastError}
+        onDismiss={() => setToastError(null)}
+        title="Profile Admin Action"
+      />
+      {actionSuccess && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs sm:text-sm font-semibold text-emerald-800 shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="text-emerald-700 hover:text-emerald-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* Top Navigation & Status Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -454,18 +518,20 @@ export default function AdminProfileViewPage({
           {/* 4. Approve / Reject */}
           {profile.approvalStatus !== "APPROVED" ? (
             <button
-              onClick={handleApprove}
+              type="button"
+              onClick={() => setPendingModeration("APPROVE")}
               disabled={actionLoading}
-              className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-sm transition"
+              className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-sm transition disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Approve Profile</span>
             </button>
           ) : (
             <button
-              onClick={handleReject}
+              type="button"
+              onClick={() => setPendingModeration("REJECT")}
               disabled={actionLoading}
-              className="flex items-center justify-center gap-2 bg-red-50 text-red-700 border border-red-200 py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-red-100 transition"
+              className="flex items-center justify-center gap-2 bg-red-50 text-red-700 border border-red-200 py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-red-100 transition disabled:opacity-50"
             >
               <XCircle className="h-4 w-4" />
               <span>Reject Profile</span>
@@ -1099,10 +1165,19 @@ export default function AdminProfileViewPage({
               Are you sure you want to permanently delete profile <strong>{profile.profileId}</strong>? All photos, biodata details, preferences, and matches will be permanently erased from the system.
             </p>
 
+            {deleteError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                {deleteError}
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setDeleteModalOpen(false)}
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteModalOpen(false);
+                }}
                 disabled={deleting}
                 className="rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50"
               >
@@ -1125,6 +1200,66 @@ export default function AdminProfileViewPage({
                     <span>Yes, Permanently Delete</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve / Reject Confirmation Modal */}
+      {pendingModeration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  pendingModeration === "APPROVE"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {pendingModeration === "APPROVE" ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif-luxury">
+                  {pendingModeration === "APPROVE" ? "Approve Profile?" : "Reject Profile?"}
+                </h3>
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to{" "}
+                  <strong>{pendingModeration === "APPROVE" ? "approve" : "reject"}</strong> profile{" "}
+                  <span className="font-mono font-bold text-gray-900">{profile.profileId}</span> ({candidateName})?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingModeration(null)}
+                disabled={actionLoading}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeModeration}
+                disabled={actionLoading}
+                className={`rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 ${
+                  pendingModeration === "APPROVE"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {actionLoading
+                  ? "Updating..."
+                  : pendingModeration === "APPROVE"
+                  ? "Confirm Approval"
+                  : "Confirm Rejection"}
               </button>
             </div>
           </div>

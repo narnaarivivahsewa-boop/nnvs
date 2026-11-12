@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
+
     const {
       profileId: requestedProfileId,
       lookingFor,
@@ -20,46 +29,58 @@ export async function POST(req: NextRequest) {
       expectations,
     } = body;
 
-    // 1. Resolve Profile to attach and save questionnaire responses to
+    const parsedMinAge = Number.isFinite(Number(minAge)) ? Number(minAge) : 21;
+    const parsedMaxAge = Number.isFinite(Number(maxAge)) ? Number(maxAge) : 35;
+
+    const { session } = await verifyRequestSession(req);
+
+    // 1. Resolve Profile to attach and save questionnaire responses to (only save if authenticated owner/ADMIN)
     let targetProfileId: string | null = null;
+    let targetProfileUserId: string | null = null;
 
     if (requestedProfileId) {
       const p = await prisma.profile.findFirst({
         where: {
           OR: [{ id: String(requestedProfileId) }, { profileId: String(requestedProfileId) }],
         },
-        select: { id: true },
+        select: { id: true, userId: true },
       });
-      if (p) targetProfileId = p.id;
-    }
-
-    if (!targetProfileId) {
-      // Check auth cookie
-      const token = req.cookies.get("nnvs_token")?.value;
-      if (token) {
-        try {
-          const session = await verifyToken(token);
-          const p = await prisma.profile.findFirst({
-            where: { userId: session.userId },
-            select: { id: true },
-          });
-          if (p) targetProfileId = p.id;
-        } catch {
-          // Token invalid or expired, continue as guest
-        }
+      if (p) {
+        targetProfileId = p.id;
+        targetProfileUserId = p.userId;
       }
     }
 
-    // 2. Persist questionnaire responses to PartnerPreference and Profile if profile exists
-    if (targetProfileId) {
+    if (!targetProfileId && session?.userId) {
+      const p = await prisma.profile.findFirst({
+        where: {
+          userId: session.userId,
+          ...(session.activeProfileId ? { id: session.activeProfileId } : {}),
+        },
+        select: { id: true, userId: true },
+      });
+      if (p) {
+        targetProfileId = p.id;
+        targetProfileUserId = p.userId;
+      }
+    }
+
+    const canPersistProfilePreferences = Boolean(
+      targetProfileId &&
+        session &&
+        (session.role === "ADMIN" || targetProfileUserId === session.userId)
+    );
+
+    // 2. Persist questionnaire responses to PartnerPreference and Profile ONLY for verified owner / admin
+    if (targetProfileId && canPersistProfilePreferences) {
       try {
         await prisma.$transaction([
           prisma.partnerPreference.upsert({
             where: { profileId: targetProfileId },
             create: {
               profileId: targetProfileId,
-              minAge: Number(minAge) || undefined,
-              maxAge: Number(maxAge) || undefined,
+              minAge: parsedMinAge,
+              maxAge: parsedMaxAge,
               preferredReligion: religionPreference && religionPreference !== "Open to All" ? religionPreference : undefined,
               preferredCaste: communityPreference && communityPreference !== "Open to All" ? communityPreference : undefined,
               dietPreference: diet || undefined,
@@ -71,8 +92,8 @@ export async function POST(req: NextRequest) {
               interests: hobbies || undefined,
             },
             update: {
-              minAge: Number(minAge) || undefined,
-              maxAge: Number(maxAge) || undefined,
+              minAge: parsedMinAge,
+              maxAge: parsedMaxAge,
               preferredReligion: religionPreference && religionPreference !== "Open to All" ? religionPreference : undefined,
               preferredCaste: communityPreference && communityPreference !== "Open to All" ? communityPreference : undefined,
               dietPreference: diet || undefined,
@@ -169,10 +190,10 @@ export async function POST(req: NextRequest) {
 
       // Factor 1: Age Compatibility
       if (age !== null) {
-        if (age >= Number(minAge) && age <= Number(maxAge)) {
+        if (age >= parsedMinAge && age <= parsedMaxAge) {
           score += 8;
           matchReasons.push(`Ideal age range match (${age} yrs)`);
-        } else if (Math.abs(age - Number(minAge)) <= 2 || Math.abs(age - Number(maxAge)) <= 2) {
+        } else if (Math.abs(age - parsedMinAge) <= 2 || Math.abs(age - parsedMaxAge) <= 2) {
           score += 4;
         }
       }

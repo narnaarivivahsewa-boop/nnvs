@@ -11,6 +11,14 @@ function checkIpRateLimit(ip: string): { allowed: boolean; remainingSec: number 
   const windowMs = 10 * 60 * 1000; // 10 minutes
   const maxRequests = 10;
 
+  if (ipRequestTimestamps.size > 2000) {
+    for (const [key, times] of ipRequestTimestamps.entries()) {
+      const valid = times.filter((t) => now - t < windowMs);
+      if (valid.length === 0) ipRequestTimestamps.delete(key);
+      else ipRequestTimestamps.set(key, valid);
+    }
+  }
+
   const timestamps = (ipRequestTimestamps.get(ip) || []).filter((t) => now - t < windowMs);
   if (timestamps.length >= maxRequests) {
     const oldest = timestamps[0];
@@ -42,7 +50,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const rawMobile = String(
       body.mobile ?? body.phoneNumber ?? body.phone ?? ""

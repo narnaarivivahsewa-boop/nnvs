@@ -12,9 +12,25 @@ import {
   REG_VERIFICATION_MAX_AGE,
 } from "@/lib/jwt";
 
+function parseSafeInt(value: unknown, fallback: number | null): number | null {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return fallback;
+  }
+  const parsed = parseInt(String(value).trim(), 10);
+  return isNaN(parsed) ? fallback : parsed;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const {
       fullName,
@@ -69,6 +85,26 @@ export async function POST(req: NextRequest) {
         ? "FEMALE"
         : "MALE";
 
+    if (cleanFullName.length < 2) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Full name is required (at least 2 characters).",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (typeof password !== "string" || password.length < 6) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Password must be at least 6 characters long.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
       return NextResponse.json(
         {
@@ -103,7 +139,13 @@ export async function POST(req: NextRequest) {
     // ===========================
     // Mandatory Photo Validation (Min 1, Max 3)
     // ===========================
-    if (!Array.isArray(photos) || photos.length < 1) {
+    const sanitizedPhotos = Array.isArray(photos)
+      ? photos
+          .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+          .map((url) => url.trim())
+      : [];
+
+    if (sanitizedPhotos.length < 1) {
       return NextResponse.json(
         {
           success: false,
@@ -113,7 +155,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (photos.length > 3) {
+    if (sanitizedPhotos.length > 3) {
       return NextResponse.json(
         {
           success: false,
@@ -216,205 +258,121 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // ===========================
-    // Transaction
+    // Batch Atomic Write (Clears OTP + Creates User & Nested Profile Records)
     // ===========================
+    const draftProfileId = `DRAFT-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Clear verified OTP after registration
-      await tx.oTP.deleteMany({
+    const [, createdUser] = await prisma.$transaction([
+      prisma.oTP.deleteMany({
         where: {
           mobile: cleanMobile,
         },
-      });
-
-      // -------------------------
-      // User
-      // -------------------------
-
-      const user = await tx.user.create({
+      }),
+      prisma.user.create({
         data: {
           fullName: cleanFullName,
           mobile: cleanMobile,
           email: cleanEmail,
-
           password: hashedPassword,
-
           gender: normalizedGender,
-
           role: "MEMBER",
-
           status: "ACTIVE",
-
           mobileVerified: true,
+          profiles: {
+            create: {
+              profileId: draftProfileId,
+              firstName: cleanFullName,
+              dateOfBirth: parsedDateOfBirth,
+              birthPlace: cleanLocation || null,
+              height: height && height !== "" ? String(height) : null,
+              maritalStatus,
+              religion,
+              caste,
+              motherTongue,
+              notes: about ? String(about).trim() : null,
+              paymentCompleted: false,
+              approvalStatus: "DRAFT",
+              isVisible: false,
+              isDuplicateFlagged: duplicateCheck.flagForAdminReview || false,
+              duplicateMatchedProfileId: duplicateCheck.matchedProfileId || null,
+              duplicateNotes: duplicateCheck.flagForAdminReview
+                ? `Potential duplicate name match with profile ID: ${duplicateCheck.matchedProfileId}`
+                : null,
+              family: {
+                create: {
+                  fatherName,
+                  motherName,
+                  brothers: parseSafeInt(brothers, 0) ?? 0,
+                  sisters: parseSafeInt(sisters, 0) ?? 0,
+                  familyType,
+                  familyStatus,
+                },
+              },
+              education: {
+                create: {
+                  highestQualification,
+                  college,
+                  occupationField,
+                },
+              },
+              occupation: {
+                create: {
+                  profession,
+                  company,
+                  annualIncome,
+                },
+              },
+              partnerPreference: {
+                create: {
+                  minAge: parseSafeInt(minAge, null),
+                  maxAge: parseSafeInt(maxAge, null),
+                  minHeight: minHeight && minHeight !== "" ? String(minHeight) : null,
+                  maxHeight: maxHeight && maxHeight !== "" ? String(maxHeight) : null,
+                  preferredReligion,
+                  preferredCaste,
+                },
+              },
+              photos: {
+                create: sanitizedPhotos.map((imageUrl: string, index: number) => ({
+                  imageUrl,
+                  isPrimary: index === 0,
+                })),
+              },
+            },
+          },
         },
-      });
-
-      // -------------------------
-      // Profile
-      // -------------------------
-
-      const profile = await tx.profile.create({
-        data: {
-          userId: user.id,
-
-          profileId: `DRAFT-${Date.now()}`,
-
-          firstName: cleanFullName,
-
-          dateOfBirth: parsedDateOfBirth,
-
-          birthPlace: cleanLocation || null,
-
-          height:
-            height && height !== ""
-              ? String(height)
-              : null,
-
-          maritalStatus,
-          religion,
-          caste,
-          motherTongue,
-          notes: about ? String(about).trim() : null,
-
-          paymentCompleted: false,
-          approvalStatus: "DRAFT",
-
-          isVisible: false,
-
-          isDuplicateFlagged: duplicateCheck.flagForAdminReview || false,
-          duplicateMatchedProfileId: duplicateCheck.matchedProfileId || null,
-          duplicateNotes: duplicateCheck.flagForAdminReview
-            ? `Potential duplicate name match with profile ID: ${duplicateCheck.matchedProfileId}`
-            : null,
+        select: {
+          id: true,
+          mobile: true,
+          role: true,
+          profiles: {
+            select: {
+              id: true,
+              profileId: true,
+            },
+          },
         },
-      });
-            // -------------------------
-      // Family
-      // -------------------------
+      }),
+    ]);
 
-      await tx.family.create({
-        data: {
-          profileId: profile.id,
+    const createdProfile = createdUser.profiles[0];
 
-          fatherName,
-          motherName,
-
-          brothers:
-            brothers && brothers !== ""
-              ? parseInt(brothers)
-              : 0,
-
-          sisters:
-            sisters && sisters !== ""
-              ? parseInt(sisters)
-              : 0,
-
-          familyType,
-          familyStatus,
-        },
-      });
-
-      // -------------------------
-      // Education
-      // -------------------------
-
-      await tx.education.create({
-        data: {
-          profileId: profile.id,
-
-          highestQualification,
-          college,
-          occupationField,
-        },
-      });
-
-      // -------------------------
-      // Occupation
-      // -------------------------
-
-      await tx.occupation.create({
-        data: {
-          profileId: profile.id,
-
-          profession,
-          company,
-          annualIncome,
-        },
-      });
-
-      // -------------------------
-      // Partner Preference
-      // -------------------------
-
-      await tx.partnerPreference.create({
-        data: {
-          profileId: profile.id,
-
-          minAge:
-            minAge && minAge !== ""
-              ? parseInt(minAge)
-              : null,
-
-          maxAge:
-            maxAge && maxAge !== ""
-              ? parseInt(maxAge)
-              : null,
-
-          minHeight:
-  minHeight && minHeight !== ""
-    ? String(minHeight)
-    : null,
-
-          maxHeight:
-  maxHeight && maxHeight !== ""
-    ? String(maxHeight)
-    : null,
-
-          preferredReligion,
-          preferredCaste,
-        },
-      });
-
-      // -------------------------
-      // Profile Photos
-      // -------------------------
-
-      if (photos.length > 0) {
-        await tx.profilePhoto.createMany({
-          data: photos.map(
-            (
-              imageUrl: string,
-              index: number
-            ) => ({
-              profileId: profile.id,
-              imageUrl,
-              isPrimary: index === 0,
-            })
-          ),
-        });
-      }
-
-      return {
-        user,
-        profile,
-      };
-    });
-        // ===========================
+    // ===========================
     // Success Response + Auto Sign-In Session
     // ===========================
     const sessionToken = await generateToken(
-      result.user.id,
-      result.user.mobile,
-      result.user.role,
-      result.profile.id
+      createdUser.id,
+      createdUser.mobile,
+      createdUser.role,
+      createdProfile.id
     );
 
     const successResponse = NextResponse.json({
       success: true,
       message: "Registration Successful",
-      userId: result.user.id,
-      profileId: result.profile.profileId,
-      activeProfileId: result.profile.id,
+      userId: createdUser.id,
+      profileId: createdProfile.profileId,
+      activeProfileId: createdProfile.id,
       token: sessionToken,
     });
 
@@ -433,7 +391,7 @@ export async function POST(req: NextRequest) {
       maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
-    successResponse.cookies.set("activeProfileId", result.profile.id, {
+    successResponse.cookies.set("activeProfileId", createdProfile.id, {
       httpOnly: false,
       secure: secureCookie,
       sameSite: "lax",
@@ -442,26 +400,13 @@ export async function POST(req: NextRequest) {
     });
 
     return successResponse;
-
-  } catch (error: any) {
+  } catch (error) {
     console.error("REGISTER ERROR =>", error);
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Internal Server Error",
-
-        error:
-          process.env.NODE_ENV === "development"
-            ? String(error)
-            : undefined,
-
-        stack:
-          process.env.NODE_ENV === "development"
-            ? error?.stack
-            : undefined,
+        message: "Registration failed due to a server error. Please try again.",
       },
       {
         status: 500,

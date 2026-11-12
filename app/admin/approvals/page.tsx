@@ -10,25 +10,46 @@ import {
   Search,
   RefreshCw,
   X,
+  AlertTriangle,
 } from "lucide-react";
+import { getAuthSession } from "@/lib/auth/session-storage";
+import ErrorToast from "@/components/ui/ErrorToast";
 
 export default function ApprovalsPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    profileId: string;
+    profileCode?: string;
+    candidateName?: string;
+    action: "APPROVE" | "REJECT";
+  } | null>(null);
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadApprovals = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/approvals");
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch("/api/admin/approvals", {
+        credentials: "include",
+        headers,
+      });
       const data = await res.json();
 
       if (data.success && Array.isArray(data.profiles)) {
         setProfiles(data.profiles);
+      } else if (!res.ok) {
+        setToastError(data.message || "Failed to load pending approvals.");
       }
     } catch (error) {
       console.error("Error loading approvals:", error);
+      setToastError("Network error while loading pending approvals.");
     } finally {
       setLoading(false);
     }
@@ -38,7 +59,14 @@ export default function ApprovalsPage() {
     let ignore = false;
     async function init() {
       try {
-        const res = await fetch("/api/admin/approvals");
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch("/api/admin/approvals", {
+          credentials: "include",
+          headers,
+        });
         const data = await res.json();
         if (!ignore && data.success && Array.isArray(data.profiles)) {
           setProfiles(data.profiles);
@@ -55,29 +83,45 @@ export default function ApprovalsPage() {
     };
   }, []);
 
-  const handleAction = async (profileId: string, action: "APPROVE" | "REJECT") => {
-    if (!confirm(`Are you sure you want to ${action.toLowerCase()} this profile?`)) {
-      return;
-    }
+  const executeAction = async () => {
+    if (!pendingAction || processingId) return;
+    const { profileId, action, candidateName } = pendingAction;
 
     try {
       setProcessingId(profileId);
+      setToastError(null);
+      setSuccessMessage(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`/api/admin/approvals/${profileId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({ action }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || `Failed to ${action.toLowerCase()} profile`);
+        setToastError(data.message || `Failed to ${action.toLowerCase()} profile`);
         return;
       }
 
+      setSuccessMessage(
+        data.message ||
+          `Profile ${candidateName ? `(${candidateName}) ` : ""}${
+            action === "APPROVE" ? "approved" : "rejected"
+          } successfully.`
+      );
+      setPendingAction(null);
       loadApprovals();
     } catch (error) {
       console.error(error);
-      alert("Something went wrong");
+      setToastError("Something went wrong while updating the profile status.");
     } finally {
       setProcessingId(null);
     }
@@ -96,6 +140,11 @@ export default function ApprovalsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      <ErrorToast
+        message={toastError}
+        onDismiss={() => setToastError(null)}
+        title="Approval Action Notice"
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -118,6 +167,22 @@ export default function ApprovalsPage() {
           <span>Refresh</span>
         </button>
       </div>
+
+      {successMessage && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="bg-white p-4 rounded-2xl border border-[#EBE3D5] shadow-sm">
@@ -233,18 +298,34 @@ export default function ApprovalsPage() {
                     )}
 
                     <button
-                      onClick={() => handleAction(p.id, "REJECT")}
+                      type="button"
+                      onClick={() =>
+                        setPendingAction({
+                          profileId: p.id,
+                          profileCode: p.profileId,
+                          candidateName: p.user?.fullName,
+                          action: "REJECT",
+                        })
+                      }
                       disabled={isProcessing}
-                      className="inline-flex items-center justify-center gap-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-xl text-xs font-bold hover:bg-red-100 transition"
+                      className="inline-flex items-center justify-center gap-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-xl text-xs font-bold hover:bg-red-100 transition disabled:opacity-50"
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       <span>Reject</span>
                     </button>
 
                     <button
-                      onClick={() => handleAction(p.id, "APPROVE")}
+                      type="button"
+                      onClick={() =>
+                        setPendingAction({
+                          profileId: p.id,
+                          profileCode: p.profileId,
+                          candidateName: p.user?.fullName,
+                          action: "APPROVE",
+                        })
+                      }
                       disabled={isProcessing}
-                      className="inline-flex items-center justify-center gap-1 bg-[#4A121A] text-white py-2 rounded-xl text-xs font-bold hover:bg-[#350d13] transition shadow-sm"
+                      className="inline-flex items-center justify-center gap-1 bg-[#4A121A] text-white py-2 rounded-xl text-xs font-bold hover:bg-[#350d13] transition shadow-sm disabled:opacity-50"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 text-[#C5A059]" />
                       <span>Approve</span>
@@ -323,18 +404,34 @@ export default function ApprovalsPage() {
                           )}
 
                           <button
-                            onClick={() => handleAction(p.id, "REJECT")}
+                            type="button"
+                            onClick={() =>
+                              setPendingAction({
+                                profileId: p.id,
+                                profileCode: p.profileId,
+                                candidateName: p.user?.fullName,
+                                action: "REJECT",
+                              })
+                            }
                             disabled={isProcessing}
-                            className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition"
+                            className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition disabled:opacity-50"
                           >
                             <XCircle className="h-3.5 w-3.5" />
                             <span>Reject</span>
                           </button>
 
                           <button
-                            onClick={() => handleAction(p.id, "APPROVE")}
+                            type="button"
+                            onClick={() =>
+                              setPendingAction({
+                                profileId: p.id,
+                                profileCode: p.profileId,
+                                candidateName: p.user?.fullName,
+                                action: "APPROVE",
+                              })
+                            }
                             disabled={isProcessing}
-                            className="inline-flex items-center gap-1 bg-[#4A121A] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#350d13] transition shadow-sm"
+                            className="inline-flex items-center gap-1 bg-[#4A121A] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#350d13] transition shadow-sm disabled:opacity-50"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 text-[#C5A059]" />
                             <span>Approve</span>
@@ -346,6 +443,68 @@ export default function ApprovalsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {pendingAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  pendingAction.action === "APPROVE"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {pendingAction.action === "APPROVE" ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif">
+                  {pendingAction.action === "APPROVE" ? "Approve Profile?" : "Reject Profile?"}
+                </h3>
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to{" "}
+                  <strong>{pendingAction.action.toLowerCase()}</strong>{" "}
+                  <span className="font-semibold text-gray-900">
+                    {pendingAction.candidateName || pendingAction.profileCode || "this profile"}
+                  </span>
+                  {pendingAction.profileCode ? ` (${pendingAction.profileCode})` : ""}?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                disabled={processingId !== null}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeAction}
+                disabled={processingId !== null}
+                className={`rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 ${
+                  pendingAction.action === "APPROVE"
+                    ? "bg-[#4A121A] hover:bg-[#350d13]"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {processingId
+                  ? "Processing..."
+                  : pendingAction.action === "APPROVE"
+                  ? "Confirm Approval"
+                  : "Confirm Rejection"}
+              </button>
+            </div>
           </div>
         </div>
       )}

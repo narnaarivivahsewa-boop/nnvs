@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -17,12 +17,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const payload = await verifyToken(token);
-
     const { searchParams } = new URL(req.url);
     const shortlistedProfileId = searchParams.get(
       "shortlistedProfileId"
-    );
+    )?.trim();
 
     if (!shortlistedProfileId) {
       return NextResponse.json(
@@ -76,9 +74,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -88,11 +86,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload = await verifyToken(token);
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid request payload.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const { shortlistedProfileId } = await req.json();
+    const rawShortlistedId =
+      typeof body?.shortlistedProfileId === "string"
+        ? body.shortlistedProfileId.trim()
+        : "";
 
-    if (!shortlistedProfileId) {
+    if (!rawShortlistedId) {
       return NextResponse.json(
         {
           success: false,
@@ -118,20 +130,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (myProfile.id === shortlistedProfileId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "You cannot shortlist yourself.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const targetProfile = await prisma.profile.findUnique({
+    const targetProfile = await prisma.profile.findFirst({
       where: {
-        id: shortlistedProfileId,
+        OR: [{ id: rawShortlistedId }, { profileId: rawShortlistedId }],
       },
+      select: { id: true },
     });
 
     if (!targetProfile) {
@@ -141,6 +144,18 @@ export async function POST(req: NextRequest) {
           message: "Profile not found.",
         },
         { status: 404 }
+      );
+    }
+
+    const shortlistedProfileId = targetProfile.id;
+
+    if (myProfile.id === shortlistedProfileId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You cannot shortlist yourself.",
+        },
+        { status: 400 }
       );
     }
 
@@ -186,9 +201,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -198,11 +213,25 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const payload = await verifyToken(token);
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid request payload.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const { shortlistedProfileId } = await req.json();
+    const rawShortlistedId =
+      typeof body?.shortlistedProfileId === "string"
+        ? body.shortlistedProfileId.trim()
+        : "";
 
-    if (!shortlistedProfileId) {
+    if (!rawShortlistedId) {
       return NextResponse.json(
         {
           success: false,
@@ -227,6 +256,15 @@ export async function DELETE(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    const targetProfile = await prisma.profile.findFirst({
+      where: {
+        OR: [{ id: rawShortlistedId }, { profileId: rawShortlistedId }],
+      },
+      select: { id: true },
+    });
+
+    const shortlistedProfileId = targetProfile?.id || rawShortlistedId;
 
     await prisma.shortlist.deleteMany({
       where: {

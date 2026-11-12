@@ -5,14 +5,22 @@ import VendorTable from "./VendorTable";
 async function getVendors() {
   try {
     const vendors = await prisma.vendor.findMany({
-      include: {
-        user: true,
-        galleries: true,
-        reviews: true,
+      select: {
+        id: true,
+        businessName: true,
+        category: true,
+        phone: true,
+        city: true,
+        status: true,
+        isVerified: true,
+        reviews: {
+          select: { id: true },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
+      take: 500,
     });
 
     return vendors;

@@ -52,7 +52,13 @@ export async function checkDuplicateRegistration(
   // 1. Check Exact Registered Mobile
   const existingByMobile = await prisma.user.findUnique({
     where: { mobile },
-    include: { profiles: true },
+    select: {
+      id: true,
+      profiles: {
+        select: { profileId: true },
+        take: 1,
+      },
+    },
   });
 
   if (existingByMobile) {
@@ -71,7 +77,14 @@ export async function checkDuplicateRegistration(
   if (email && email.trim() !== "") {
     const existingByEmail = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
-      include: { profiles: true },
+      select: {
+        id: true,
+        mobile: true,
+        profiles: {
+          select: { profileId: true },
+          take: 1,
+        },
+      },
     });
 
     if (existingByEmail) {
@@ -106,9 +119,22 @@ export async function checkDuplicateRegistration(
         { user: { fullName: { contains: fullName.split(" ")[0], mode: "insensitive" } } },
       ],
     },
-    include: {
-      user: true,
-      family: true,
+    select: {
+      profileId: true,
+      firstName: true,
+      dateOfBirth: true,
+      user: {
+        select: {
+          fullName: true,
+          mobile: true,
+        },
+      },
+      family: {
+        select: {
+          fatherName: true,
+          motherName: true,
+        },
+      },
     },
     take: 20,
   });

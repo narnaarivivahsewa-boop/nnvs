@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Search, Sparkles, ArrowRight, UserCheck, Heart, RotateCcw, Lock, LogIn, UserPlus } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 type Profile = {
   id: string;
@@ -93,7 +94,14 @@ function ProfilesContent() {
         // Try authenticated endpoint first
         let authSuccess = false;
         try {
-          const authRes = await fetch("/api/profiles");
+          const { token } = await getAuthSession();
+          const authHeaders: Record<string, string> = {};
+          if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+          const authRes = await fetch("/api/profiles?limit=1", {
+            credentials: "include",
+            headers: authHeaders,
+          });
           if (authRes.ok) {
             const authData = await authRes.json();
             if (authData.authenticated && authData.success && Array.isArray(authData.profiles)) {

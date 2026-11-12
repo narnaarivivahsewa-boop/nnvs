@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Internal Server Error",
+        message: "Failed to load featured profiles.",
       },
       { status: 500 }
     );

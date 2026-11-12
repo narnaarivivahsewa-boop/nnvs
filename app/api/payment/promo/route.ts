@@ -4,16 +4,24 @@ import { getRegistrationPricingDetails, isLaunchOfferActive } from "@/lib/pricin
 
 const GST_RATE = 0.18;
 
-const ALLOWED_DISCOUNTS = [20, 50, 100];
-
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid JSON request body.",
+        },
+        { status: 400 }
+      );
+    }
 
     const {
       code,
       profileId,
-      baseFee,
       gender: clientGender,
     } = body;
 
@@ -134,8 +142,7 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedProfileId &&
-      profile &&
-      promoCode.assignedProfileId !== profile.id
+      (!profile || promoCode.assignedProfileId !== profile.id)
     ) {
       return NextResponse.json(
         {
@@ -153,9 +160,9 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedEmail &&
-      profile?.user?.email &&
-      promoCode.assignedEmail.toLowerCase() !==
-        profile.user.email.toLowerCase()
+      (!profile?.user?.email ||
+        promoCode.assignedEmail.toLowerCase() !==
+          profile.user.email.toLowerCase())
     ) {
       return NextResponse.json(
         {
@@ -173,8 +180,8 @@ export async function POST(req: NextRequest) {
 
     if (
       promoCode.assignedMobile &&
-      profile?.user?.mobile &&
-      promoCode.assignedMobile !== profile.user.mobile
+      (!profile?.user?.mobile ||
+        promoCode.assignedMobile !== profile.user.mobile)
     ) {
       return NextResponse.json(
         {

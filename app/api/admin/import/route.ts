@@ -1,4 +1,3 @@
-console.log("ðŸš€ NEW IMPORT ROUTE LOADED");
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
@@ -46,313 +45,162 @@ export async function POST(req: NextRequest) {
       type: "buffer",
     });
 
-    const sheetName =
-      workbook.SheetNames[0];
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = sheetName ? workbook.Sheets[sheetName] : undefined;
 
-    const worksheet =
-      workbook.Sheets[sheetName];
-
-    const rows: any[] =
-      XLSX.utils.sheet_to_json(
-        worksheet,
+    if (!worksheet) {
+      return NextResponse.json(
         {
-          defval: "",
-        }
-      );
-
-    console.log(
-      "TOTAL ROWS:",
-      rows.length
-    );
-
-    if (rows.length > 0) {
-      console.log(
-        "FIRST ROW:",
-        rows[0]
+          success: false,
+          message: "Uploaded Excel file contains no valid worksheet.",
+        },
+        { status: 400 }
       );
     }
 
+    const rows: any[] = XLSX.utils.sheet_to_json(worksheet, {
+      defval: "",
+    });
+
     // =====================================
-    // Counters
+    // Counters & Pre-computed Hash
     // =====================================
 
     let imported = 0;
-
     let skipped = 0;
-
     const skippedRows: string[] = [];
+    const initialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
 
     // =====================================
     // Import Loop
     // =====================================
 
     for (const row of rows) {
-
-      const profileId = String(
-        row["Profile ID"] || ""
-      ).trim();
-
-      const fullName = String(
-        row["Name"] || ""
-      ).trim();
-
-      const mobile = String(
-  row["Contact No. "] || ""
-)
-  .replace(/\.0$/, "")
-  .replace(/\D/g, "")
-  .trim();
-        console.log("PROFILE:", profileId);
-console.log("MOBILE:", mobile);
+      const profileId = String(row["Profile ID"] || "").trim();
+      const fullName = String(row["Name"] || "").trim();
+      const mobile = String(row["Contact No. "] || row["Contact No."] || "")
+        .replace(/\.0$/, "")
+        .replace(/\D/g, "")
+        .trim();
 
       if (!profileId || !mobile) {
         skipped++;
-        skippedRows.push(
-          profileId ||
-            mobile ||
-            "Invalid Row"
-        );
+        skippedRows.push(profileId || mobile || "Invalid Row");
         continue;
       }
-
-      console.log(
-        "IMPORTING:",
-        profileId,
-        mobile
-      );
 
       // =====================================
       // Duplicate Profile
       // =====================================
 
-      const existingProfile =
-  await prisma.profile.findUnique({
-    where: {
-      profileId,
-    },
-  });
-  console.log("existingProfile:", existingProfile);
+      const existingProfile = await prisma.profile.findUnique({
+        where: { profileId },
+        select: { id: true },
+      });
 
-console.log(
-  profileId,
-  "existingProfile =",
-  existingProfile
-);
-
-if (existingProfile) {
-  console.log("PROFILE EXISTS");
-  skipped++;
-  skippedRows.push(profileId);
-  continue;
-}
-
-// =====================================
-// User Lookup or Creation
-// =====================================
-
-const existingUser =
-  await prisma.user.findUnique({
-    where: {
-      mobile,
-    },
-  });
+      if (existingProfile) {
+        skipped++;
+        skippedRows.push(profileId);
+        continue;
+      }
 
       // =====================================
-      // Transaction Starts
+      // User Lookup or Nested Creation (Single Atomic Write)
       // =====================================
+
+      const existingUser = await prisma.user.findUnique({
+        where: { mobile },
+        select: { id: true },
+      });
+
+      const nestedProfileData = {
+        profileId,
+        oldNnvsId: profileId,
+        firstName: fullName.split(" ")[0] || fullName,
+        lastName: fullName.split(" ").slice(1).join(" ") || null,
+        dateOfBirth: parseExcelDate(row["Date of Birth"]),
+        height: convertHeight(String(row["Height"] || "")),
+        maritalStatus: row["Marital Status"] ? String(row["Marital Status"]) : null,
+        religion: null,
+        caste: extractCaste(fullName),
+        motherTongue: null,
+        isVisible: false,
+        paymentCompleted: true,
+        isPaymentExempted: true,
+        paymentExemptionReason: "Excel Admin Import",
+        approvalStatus: "PENDING_APPROVAL" as const,
+        family: {
+          create: {
+            fatherName: row["Father's Name"] ? String(row["Father's Name"]) : null,
+            motherName: row["Mother's Name"] ? String(row["Mother's Name"]) : null,
+            brothers: extractBrothers(String(row["Siblings Details"] || "")),
+            sisters: extractSisters(String(row["Siblings Details"] || "")),
+            familyType: row["Family Type"] != null ? String(row["Family Type"]) : null,
+            familyStatus: row["House Status"] != null ? String(row["House Status"]) : null,
+          },
+        },
+        education: {
+          create: {
+            highestQualification: row["Qualification"] ? String(row["Qualification"]) : null,
+            college: null,
+            occupationField: row["Occupation"] != null ? String(row["Occupation"]) : null,
+          },
+        },
+        occupation: {
+          create: {
+            profession: row["Occupation"] != null ? String(row["Occupation"]) : null,
+            company: null,
+            annualIncome: String(row["Income (self)"] || ""),
+          },
+        },
+        partnerPreference: {
+          create: {
+            preferredReligion: null,
+            preferredCaste: null,
+          },
+        },
+      };
 
       try {
-        await prisma.$transaction(async (tx) => {
-          let user = existingUser;
-          if (!user) {
-            const initialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
-            user = await tx.user.create({
-              data: {
-                fullName,
-                mobile,
-                email: null,
-                password: initialPasswordHash,
-                mustChangePassword: true,
-                gender:
-                  String(row["Gender"])
-                    .toLowerCase()
-                    .trim() === "female"
-                    ? "FEMALE"
-                    : "MALE",
-                role: "MEMBER",
-                status: "ACTIVE",
-                mobileVerified: true,
-                emailVerified: false,
-                createdAt: parseExcelDate(row["Timestamp"]) || new Date(),
+        if (existingUser) {
+          await prisma.profile.create({
+            data: {
+              ...nestedProfileData,
+              userId: existingUser.id,
+            },
+            select: { id: true },
+          });
+        } else {
+          await prisma.user.create({
+            data: {
+              fullName,
+              mobile,
+              email: null,
+              password: initialPasswordHash,
+              mustChangePassword: true,
+              gender:
+                String(row["Gender"]).toLowerCase().trim() === "female"
+                  ? "FEMALE"
+                  : "MALE",
+              role: "MEMBER",
+              status: "ACTIVE",
+              mobileVerified: true,
+              emailVerified: false,
+              createdAt: parseExcelDate(row["Timestamp"]) || new Date(),
+              profiles: {
+                create: nestedProfileData,
               },
-            });
-          }
-
-          // =====================================
-          // Create Profile
-          // =====================================
-
-          const profile =
-            await tx.profile.create({
-              data: {
-                userId: user.id,
-                profileId,
-                oldNnvsId: profileId,
-                firstName:
-                  fullName.split(" ")[0] ||
-                  fullName,
-                lastName:
-                  fullName
-                    .split(" ")
-                    .slice(1)
-                    .join(" ") || null,
-                dateOfBirth:
-                  parseExcelDate(
-                    row["Date of Birth"]
-                  ),
-                height: convertHeight(
-                  String(
-                    row["Height"] || ""
-                  )
-                ),
-                maritalStatus:
-                  row["Marital Status"] ||
-                  null,
-                religion: null,
-                caste:
-                  extractCaste(fullName),
-                motherTongue: null,
-                isVisible: false,
-                paymentCompleted: true,
-                isPaymentExempted: true,
-                paymentExemptionReason: "Excel Admin Import",
-                approvalStatus:
-                  "PENDING_APPROVAL",
-              },
-            });
-
-          // =====================================
-          // Family
-          // =====================================
-
-          await tx.family.create({
-            data: {
-              profileId: profile.id,
-
-              fatherName:
-                row["Father's Name"] ||
-                null,
-
-              motherName:
-                row["Mother's Name"] ||
-                null,
-
-              brothers:
-                extractBrothers(
-                  String(
-                    row[
-                      "Siblings Details"
-                    ] || ""
-                  )
-                ),
-
-              sisters:
-                extractSisters(
-                  String(
-                    row[
-                      "Siblings Details"
-                    ] || ""
-                  )
-                ),
-
-              familyType:
-  row["Family Type"] != null
-    ? String(row["Family Type"])
-    : null,
-
-familyStatus:
-  row["House Status"] != null
-    ? String(row["House Status"])
-    : null,
             },
+            select: { id: true },
           });
+        }
 
-          // =====================================
-          // Education
-          // =====================================
-
-          await tx.education.create({
-            data: {
-              profileId: profile.id,
-
-              highestQualification:
-  row["Qualification"]
-    ? String(row["Qualification"])
-    : null,
-
-              college: null,
-
-              occupationField:
-  row["Occupation"] != null
-    ? String(row["Occupation"])
-    : null,
-            },
-          });
-
-          // =====================================
-          // Occupation
-          // =====================================
-
-          await tx.occupation.create({
-            data: {
-              profileId: profile.id,
-
-              profession:
-  row["Occupation"] != null
-    ? String(row["Occupation"])
-    : null,
-
-              company: null,
-
-              annualIncome: String(
-                row["Income (self)"] ||
-                  ""
-              ),
-            },
-          });
-
-          // =====================================
-          // Partner Preference
-          // =====================================
-
-          await tx.partnerPreference.create({
-            data: {
-              profileId: profile.id,
-
-              preferredReligion:
-                null,
-
-              preferredCaste: null,
-            },
-          });
-
-          imported++;
-
-});
-
-} catch (err) {
-
-  console.error(
-    "FAILED PROFILE:",
-    profileId,
-    err
-  );
-
-  skipped++;
-  skippedRows.push(profileId);
-
-}
-
+        imported++;
+      } catch (err) {
+        console.error("FAILED PROFILE IMPORT:", profileId, err);
+        skipped++;
+        skippedRows.push(profileId);
+      }
     } // for loop end
 
     // =====================================
@@ -361,30 +209,23 @@ familyStatus:
 
     return NextResponse.json({
       success: true,
-
       imported,
-
       skipped,
-
       skippedRows,
-
       total: rows.length,
     });
-
-  } catch (error: any) {
-
+  } catch (error) {
     console.error("IMPORT ERROR =>", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error.message || "Import failed.",
+        message: "Import failed. Please verify the Excel file format and try again.",
       },
       {
         status: 500,
       }
     );
-
   }
 }
 

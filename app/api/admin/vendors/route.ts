@@ -12,7 +12,15 @@ export async function GET(req: NextRequest) {
   try {
     const vendors = await prisma.vendor.findMany({
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            mobile: true,
+            email: true,
+            status: true,
+          },
+        },
         galleries: true,
         reviews: true,
       },
@@ -25,14 +33,13 @@ export async function GET(req: NextRequest) {
       success: true,
       vendors,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("VENDORS API ERROR:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          error.message || "Failed to fetch vendors.",
+        message: "Failed to fetch vendors.",
       },
       {
         status: 500,

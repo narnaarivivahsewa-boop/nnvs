@@ -10,9 +10,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { profileId } = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
-    if (!profileId) {
+    const targetId = body.profileId || body.id;
+
+    if (!targetId) {
       return NextResponse.json(
         {
           success: false,
@@ -24,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const profile = await prisma.profile.findFirst({
       where: {
-        OR: [{ id: profileId }, { profileId: profileId }],
+        OR: [{ id: String(targetId) }, { profileId: String(targetId) }],
       },
     });
 
@@ -73,12 +83,12 @@ export async function POST(req: NextRequest) {
       message: "Profile approved successfully. Biodata PDF auto-generated.",
       profile: updated,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("APPROVE PROFILE ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Internal Server Error",
+        message: "Failed to approve profile.",
       },
       { status: 500 }
     );

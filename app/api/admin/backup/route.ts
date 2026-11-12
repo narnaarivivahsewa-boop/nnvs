@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 import fs from "fs";
 import path from "path";
+
+const safeUserBackupSelect = {
+  id: true,
+  fullName: true,
+  mobile: true,
+  email: true,
+  gender: true,
+  role: true,
+  status: true,
+  mobileVerified: true,
+  emailVerified: true,
+  mustChangePassword: true,
+  lastLoginAt: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 // Helper to escape CSV values
 function escapeCsv(val: any) {
@@ -11,21 +28,34 @@ function escapeCsv(val: any) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "stats"; // 'stats' | 'profiles-csv' | 'invoices-csv' | 'payments-csv' | 'json' | 'create-disk-backup'
+    const type = searchParams.get("type") || "stats"; // 'stats' | 'profiles-csv' | 'invoices-csv' | 'json' | 'create-disk-backup'
 
     if (type === "stats") {
-      const totalProfiles = await prisma.profile.count();
-      const totalPayments = await prisma.payment.count();
-      const totalInvoices = await prisma.payment.count({ where: { invoiceNumber: { not: null } } });
-      const totalUsers = await prisma.user.count();
+      const [totalProfiles, totalPayments, totalInvoices, totalUsers] = await Promise.all([
+        prisma.profile.count(),
+        prisma.payment.count(),
+        prisma.payment.count({ where: { invoiceNumber: { not: null } } }),
+        prisma.user.count(),
+      ]);
 
-      // Check existing backups on disk
-      const backupsDir = path.join(process.cwd(), "backups");
+      // Check existing backups on disk cleanly
+      const backupsDir = path.join(/* turbopackIgnore: true */ process.cwd(), "backups");
       let diskBackups: string[] = [];
-      if (fs.existsSync(backupsDir)) {
-        diskBackups = fs.readdirSync(backupsDir).filter((f) => fs.statSync(path.join(backupsDir, f)).isDirectory());
+      try {
+        if (fs.existsSync(backupsDir)) {
+          diskBackups = fs
+            .readdirSync(backupsDir)
+            .filter((f) => fs.statSync(path.join(backupsDir, f)).isDirectory());
+        }
+      } catch {
+        diskBackups = [];
       }
 
       return NextResponse.json({
@@ -43,24 +73,31 @@ export async function GET(req: NextRequest) {
 
     if (type === "create-disk-backup") {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const backupDir = path.join(process.cwd(), "backups", `backup-${timestamp}`);
-      
-      if (!fs.existsSync(backupDir)) {
-        fs.mkdirSync(backupDir, { recursive: true });
-      }
+      const backupDir = path.join(/* turbopackIgnore: true */ process.cwd(), "backups", `backup-${timestamp}`);
 
-      const profiles = await prisma.profile.findMany({
-        include: { user: true, photos: true, family: true, education: true, occupation: true, partnerPreference: true, phoneNumbers: true },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const payments = await prisma.payment.findMany({
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } });
-      const settings = await prisma.adminSetting.findFirst();
+      const [profiles, payments, users, settings] = await Promise.all([
+        prisma.profile.findMany({
+          include: {
+            user: { select: safeUserBackupSelect },
+            photos: true,
+            family: true,
+            education: true,
+            occupation: true,
+            partnerPreference: true,
+            phoneNumbers: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.payment.findMany({
+          include: { user: { select: safeUserBackupSelect } },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.user.findMany({
+          select: safeUserBackupSelect,
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.adminSetting.findFirst(),
+      ]);
 
       const fullSnapshot = {
         backupDate: new Date().toISOString(),
@@ -76,7 +113,25 @@ export async function GET(req: NextRequest) {
         settings,
       };
 
-      fs.writeFileSync(path.join(backupDir, "full-database-snapshot.json"), JSON.stringify(fullSnapshot, null, 2), "utf-8");
+      try {
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        fs.writeFileSync(
+          path.join(backupDir, "full-database-snapshot.json"),
+          JSON.stringify(fullSnapshot, null, 2),
+          "utf-8"
+        );
+      } catch (fsError) {
+        console.error("Disk backup filesystem write error:", fsError);
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Server filesystem is read-only. Please use JSON or CSV download instead.",
+          },
+          { status: 400 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -88,7 +143,12 @@ export async function GET(req: NextRequest) {
 
     if (type === "profiles-csv") {
       const profiles = await prisma.profile.findMany({
-        include: { user: true, photos: true, family: true, education: true, occupation: true },
+        include: {
+          user: { select: { fullName: true, gender: true, mobile: true } },
+          family: { select: { fatherName: true, motherName: true } },
+          education: { select: { highestQualification: true } },
+          occupation: { select: { profession: true, company: true, annualIncome: true } },
+        },
         orderBy: { createdAt: "desc" },
       });
 
@@ -138,7 +198,7 @@ export async function GET(req: NextRequest) {
     if (type === "invoices-csv") {
       const invoices = await prisma.payment.findMany({
         where: { invoiceNumber: { not: null } },
-        include: { user: true },
+        include: { user: { select: { fullName: true, mobile: true } } },
         orderBy: { createdAt: "desc" },
       });
 
@@ -172,18 +232,28 @@ export async function GET(req: NextRequest) {
     }
 
     if (type === "json") {
-      const profiles = await prisma.profile.findMany({
-        include: { user: true, photos: true, family: true, education: true, occupation: true, phoneNumbers: true },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const payments = await prisma.payment.findMany({
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } });
-      const settings = await prisma.adminSetting.findFirst();
+      const [profiles, payments, users, settings] = await Promise.all([
+        prisma.profile.findMany({
+          include: {
+            user: { select: safeUserBackupSelect },
+            photos: true,
+            family: true,
+            education: true,
+            occupation: true,
+            phoneNumbers: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.payment.findMany({
+          include: { user: { select: safeUserBackupSelect } },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.user.findMany({
+          select: safeUserBackupSelect,
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.adminSetting.findFirst(),
+      ]);
 
       const snapshot = {
         exportedAt: new Date().toISOString(),
@@ -205,8 +275,8 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ success: false, message: "Invalid backup type" }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Backup API Error:", error);
-    return NextResponse.json({ success: false, message: error.message || "Backup failed" }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Backup operation failed." }, { status: 500 });
   }
 }

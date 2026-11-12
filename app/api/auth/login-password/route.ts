@@ -13,7 +13,15 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
     const username = String(body.username || body.mobile || "").trim();
     const password = String(body.password || "").trim();
 
@@ -242,10 +250,10 @@ export async function POST(req: NextRequest) {
     }
 
     return response;
-  } catch (error: any) {
+  } catch (error) {
     console.error("Password Login Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "An unexpected error occurred during login." },
+      { success: false, message: "An unexpected error occurred during login." },
       { status: 500 }
     );
   }

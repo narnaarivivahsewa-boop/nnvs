@@ -131,15 +131,15 @@ let italicFontBuffer: Buffer | null = null;
 function getFontBuffers() {
   try {
     if (!regularFontBuffer) {
-      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Regular.ttf");
+      const p = path.join(process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Regular.ttf");
       if (fs.existsSync(p)) regularFontBuffer = fs.readFileSync(p);
     }
     if (!boldFontBuffer) {
-      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Bold.ttf");
+      const p = path.join(process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Bold.ttf");
       if (fs.existsSync(p)) boldFontBuffer = fs.readFileSync(p);
     }
     if (!italicFontBuffer) {
-      const p = path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Italic.ttf");
+      const p = path.join(process.cwd(), "lib", "pdf", "fonts", "LiberationSans-Italic.ttf");
       if (fs.existsSync(p)) italicFontBuffer = fs.readFileSync(p);
     }
   } catch (err) {
@@ -691,7 +691,7 @@ export function getBiodataStructuredPath(profile: BiodataProfileInput): {
     .replace(/[<>:"/\\|?*]/g, "_");
   const fileName = `${code ? `${code}_` : ""}${candidateName}.pdf`;
 
-  const relativeDir = path.join(genderFolder, maritalStatusFolder, casteFolder);
+  const relativeDir = [genderFolder, maritalStatusFolder, casteFolder].join(path.sep);
 
   return { genderFolder, maritalStatusFolder, casteFolder, fileName, relativeDir };
 }
@@ -715,12 +715,12 @@ export async function saveBiodataPdfLocally(
   }
   try {
     const defaultDDir = "D:\\NNVS\\Website Bio PDF";
-    const baseDir =
-      process.env.PDF_STORAGE_DIR && process.env.PDF_STORAGE_DIR.trim()
-        ? process.env.PDF_STORAGE_DIR.trim()
-        : fs.existsSync("D:\\")
-        ? defaultDDir
-        : path.join(process.cwd(), "storage", "biodatas");
+    const configuredDir = process.env.PDF_STORAGE_DIR?.trim();
+    const baseDir = configuredDir
+      ? configuredDir
+      : fs.existsSync("D:\\")
+      ? defaultDDir
+      : path.join(/* turbopackIgnore: true */ process.cwd(), "storage", "biodatas");
 
     const targetDir = path.join(baseDir, category);
 
@@ -765,7 +765,14 @@ export async function autoGenerateAndSaveBiodataPdf(profileId: string): Promise<
         OR: [{ id: profileId }, { profileId }],
       },
       include: {
-        user: true,
+        user: {
+          select: {
+            fullName: true,
+            gender: true,
+            mobile: true,
+            email: true,
+          },
+        },
         photos: {
           orderBy: { isPrimary: "desc" },
         },

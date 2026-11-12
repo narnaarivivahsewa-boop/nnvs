@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       profiles,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error(
       "APPROVAL API ERROR:",
       error
@@ -50,9 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error.message ||
-          "Failed to fetch profiles.",
+        message: "Failed to fetch profiles.",
       },
       {
         status: 500,

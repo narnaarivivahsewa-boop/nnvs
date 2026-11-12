@@ -9,9 +9,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { profileId, isVisible } = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
-    if (!profileId) {
+    const { profileId, id, isVisible } = body;
+    const targetId = profileId || id;
+
+    if (!targetId) {
       return NextResponse.json(
         { success: false, message: "Profile ID is required" },
         { status: 400 }
@@ -20,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const profile = await prisma.profile.findFirst({
       where: {
-        OR: [{ id: profileId }, { profileId: profileId }],
+        OR: [{ id: String(targetId) }, { profileId: String(targetId) }],
       },
     });
 
@@ -43,10 +54,10 @@ export async function POST(req: NextRequest) {
       message: `Profile is now ${updated.isVisible ? "LIVE (Visible)" : "HIDDEN"}.`,
       isVisible: updated.isVisible,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("TOGGLE VISIBILITY ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to update profile visibility" },
+      { success: false, message: "Failed to update profile visibility" },
       { status: 500 }
     );
   }

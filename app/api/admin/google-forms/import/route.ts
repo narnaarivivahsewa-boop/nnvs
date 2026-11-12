@@ -9,7 +9,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const integrationKey =
       (process.env.GOOGLE_FORM_INTEGRATION_KEY || "").replace(/["']/g, "").trim() ||
       "9377018194b7c3361ccd1c929de0d9d267c821544c05ff12ea64e5cabfdea20c";
@@ -25,10 +34,10 @@ export async function POST(req: NextRequest) {
     });
 
     return await googleFormIntegrationHandler(internalReq);
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN GOOGLE FORMS IMPORT ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to process Google Form import." },
+      { success: false, message: "Failed to process Google Form import." },
       { status: 500 }
     );
   }

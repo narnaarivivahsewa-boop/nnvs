@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { calculateGstFromGross } from "@/lib/gst";
@@ -12,7 +13,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const {
       profileId,
       userId,
@@ -33,19 +43,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lookup profile
+    // Lookup profile (select only required user metadata, omit password)
+    const userSelect = {
+      id: true,
+      fullName: true,
+      gender: true,
+    };
+
     let profile = null;
     if (profileId) {
       profile = await prisma.profile.findFirst({
         where: {
           OR: [{ id: profileId }, { profileId: profileId }],
         },
-        include: { user: true },
+        include: { user: { select: userSelect } },
       });
     } else if (userId) {
       profile = await prisma.profile.findFirst({
         where: { userId },
-        include: { user: true },
+        include: { user: { select: userSelect } },
       });
     }
 
@@ -69,7 +85,27 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date();
-    const paymentDateObj = paymentDate ? new Date(paymentDate) : now;
+    let paymentDateObj = now;
+    if (paymentDate) {
+      const parsedDate = new Date(paymentDate);
+      if (isNaN(parsedDate.getTime())) {
+        return NextResponse.json(
+          { success: false, message: "Invalid payment date provided." },
+          { status: 400 }
+        );
+      }
+      paymentDateObj = parsedDate;
+    }
+
+    // Helper: assign Official Profile ID once fee is cleared/exempted before batch transaction
+    let officialProfileId = profile.profileId;
+    if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+      let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      while (await prisma.profile.findUnique({ where: { profileId: candidateId }, select: { id: true } })) {
+        candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+      officialProfileId = candidateId;
+    }
 
     // ==========================================
     // OPTION 1: PAYMENT EXEMPT (₹0, No GST Invoice)
@@ -83,10 +119,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const result = await prisma.$transaction(async (tx) => {
+      const paymentId = crypto.randomUUID();
+
+      const [payment] = await prisma.$transaction([
         // 1. Create Payment record marked as PAYMENT_EXEMPT with 0 GST and no invoice
-        const payment = await tx.payment.create({
+        prisma.payment.create({
           data: {
+            id: paymentId,
             userId: profile.userId,
             profileId: profile.id,
             amount: 0,
@@ -106,20 +145,9 @@ export async function POST(req: NextRequest) {
             invoiceDate: null,
             invoiceUrl: null,
           },
-        });
-
-        // Rule 2: Official Profile ID is assigned upon fee clearance / exemption
-        let officialProfileId = profile.profileId;
-        if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
-          let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
-            candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          }
-          officialProfileId = candidateId;
-        }
-
+        }),
         // 2. Make Profile Live & Approved
-        await tx.profile.update({
+        prisma.profile.update({
           where: { id: profile.id },
           data: {
             profileId: officialProfileId,
@@ -130,16 +158,15 @@ export async function POST(req: NextRequest) {
             approvalStatus: "APPROVED",
             approvedAt: now,
           },
-        });
-
+        }),
         // 3. Create AuditLog entry
-        await tx.auditLog.create({
+        prisma.auditLog.create({
           data: {
             userId: validAdminUserId,
             action: "PAYMENT_EXEMPT_MARKED",
             module: "PAYMENT",
             details: JSON.stringify({
-              paymentId: payment.id,
+              paymentId,
               profileId: officialProfileId,
               candidateName: profile.user?.fullName || "Candidate",
               grossAmount: 0,
@@ -150,10 +177,8 @@ export async function POST(req: NextRequest) {
             }),
             ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
           },
-        });
-
-        return payment;
-      });
+        }),
+      ]);
 
       // Automated PDF Generation for paid/exempt profile
       autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
@@ -163,7 +188,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         message: `Profile marked as Payment-Exempt successfully (₹0). Profile is now LIVE and Approved. No GST Invoice was generated.`,
-        paymentId: result.id,
+        paymentId: payment.id,
         isPaymentExempt: true,
       });
     }
@@ -194,11 +219,14 @@ export async function POST(req: NextRequest) {
     const financialYear = `${year}-${(year + 1).toString().slice(-2)}`;
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const invoiceNumber = `TT/${financialYear}/INV-${Date.now().toString().slice(-4)}${randomSuffix}`;
+    const paymentId = crypto.randomUUID();
+    const invoiceUrl = `/invoice/${paymentId}`;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const [payment] = await prisma.$transaction([
       // 1. Create Payment record
-      const payment = await tx.payment.create({
+      prisma.payment.create({
         data: {
+          id: paymentId,
           userId: profile.userId,
           profileId: profile.id,
           amount: grossAmountNum,
@@ -216,52 +244,39 @@ export async function POST(req: NextRequest) {
           confirmedAt: now,
           invoiceNumber,
           invoiceDate: now,
-          invoiceUrl: `/invoice/${profile.profileId}`,
+          invoiceUrl,
         },
-      });
+      }),
+      // 2. Make Profile Live
+      prisma.profile.update({
+        where: { id: profile.id },
+        data: {
+          profileId: officialProfileId,
+          paymentCompleted: true,
+          isVisible: true,
+          approvalStatus: "APPROVED",
+          approvedAt: now,
+        },
+      }),
+    ]);
 
-        // Rule 2: Official Profile ID is assigned upon confirmed payment
-        let officialProfileId = profile.profileId;
-        if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
-          let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
-            candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          }
-          officialProfileId = candidateId;
-        }
-
-        // 2. Make Profile Live
-        await tx.profile.update({
-          where: { id: profile.id },
-          data: {
-            profileId: officialProfileId,
-            paymentCompleted: true,
-            isVisible: true,
-            approvalStatus: "APPROVED",
-            approvedAt: now,
-          },
-        });
-
-        return payment;
-      });
-
-      // Automated PDF Generation for paid profile
-      autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
-        console.error("[Auto PDF generation error in admin payment confirm]:", err);
-      });
+    // Automated PDF Generation for paid profile
+    autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
+      console.error("[Auto PDF generation error in admin payment confirm]:", err);
+    });
 
     return NextResponse.json({
       success: true,
       message: `Payment of ₹${grossAmountNum.toFixed(2)} confirmed successfully. Profile is now LIVE and GST Invoice #${invoiceNumber} has been generated.`,
-      paymentId: result.id,
-      invoiceNumber: result.invoiceNumber,
-      invoiceUrl: `/invoice/${result.id}`,
+      paymentId: payment.id,
+      invoiceNumber: payment.invoiceNumber,
+      invoiceUrl,
       gstBreakdown,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN CONFIRM PAYMENT ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to confirm payment." },
+      { success: false, message: "Failed to confirm payment." },
       { status: 500 }
     );
   }

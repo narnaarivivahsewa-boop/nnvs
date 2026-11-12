@@ -10,7 +10,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const { profileId, mobile, candidateName, channel, action } = body;
 
     if (!mobile && !profileId) {
@@ -22,15 +31,26 @@ export async function POST(req: NextRequest) {
 
     const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
 
+    // Ensure admin userId exists in User table before referencing AuditLog FK
+    let validAdminUserId: string | null = null;
+    if (auth.user?.userId) {
+      const adminRow = await prisma.user.findUnique({
+        where: { id: auth.user.userId },
+        select: { id: true },
+      });
+      validAdminUserId = adminRow?.id || null;
+    }
+
     // If action is to reset password to temporary default
     if (action === "RESET_DEFAULT_PASSWORD") {
       const user = await prisma.user.findFirst({
         where: {
           OR: [
-            { mobile: cleanMobile },
-            { profiles: { some: { profileId } } },
+            ...(cleanMobile ? [{ mobile: cleanMobile }] : []),
+            ...(profileId ? [{ profiles: { some: { profileId } } }] : []),
           ],
         },
+        select: { id: true, fullName: true },
       });
 
       if (!user) {
@@ -41,22 +61,23 @@ export async function POST(req: NextRequest) {
       }
 
       const tempPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password: tempPasswordHash,
-          mustChangePassword: true,
-        },
-      });
-
-      await prisma.auditLog.create({
-        data: {
-          userId: auth.user.userId,
-          action: "RESET_MEMBER_PASSWORD",
-          module: "USER_ADOPTION",
-          details: `Reset password for member ${candidateName || user.fullName} (${cleanMobile}) to temporary default NNVS@RC2026 with mustChangePassword flag.`,
-        },
-      });
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            password: tempPasswordHash,
+            mustChangePassword: true,
+          },
+        }),
+        prisma.auditLog.create({
+          data: {
+            userId: validAdminUserId,
+            action: "RESET_MEMBER_PASSWORD",
+            module: "USER_ADOPTION",
+            details: `Reset password for member ${candidateName || user.fullName} (${cleanMobile}) to temporary default NNVS@RC2026 with mustChangePassword flag.`,
+          },
+        }),
+      ]);
 
       return NextResponse.json({
         success: true,
@@ -67,7 +88,7 @@ export async function POST(req: NextRequest) {
     // Record Reminder in AuditLog
     await prisma.auditLog.create({
       data: {
-        userId: auth.user.userId,
+        userId: validAdminUserId,
         action: channel === "WHATSAPP" ? "SEND_WHATSAPP_REMINDER" : "SEND_SMS_REMINDER",
         module: "USER_ADOPTION",
         details: `Sent ${channel || "WhatsApp"} adoption reminder to candidate ${candidateName || "Member"} (${cleanMobile}) for Profile ${profileId || "N/A"}.`,
@@ -78,10 +99,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Follow-up ${channel || "reminder"} logged successfully.`,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Reminder Action Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to process reminder action" },
+      { success: false, message: "Failed to process reminder action" },
       { status: 500 }
     );
   }

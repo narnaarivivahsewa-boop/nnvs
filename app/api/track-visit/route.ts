@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Traffic tracker error:", error);
     return NextResponse.json(
-      { success: false, error: error?.message || "Failed to record visit" },
+      { success: false, error: "Failed to record visit" },
       { status: 500 }
     );
   }

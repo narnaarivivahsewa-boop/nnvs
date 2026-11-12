@@ -203,13 +203,13 @@ export async function GET(req: NextRequest) {
         },
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN DASHBOARD API ERROR =>", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Internal Server Error",
+        message: "Failed to load dashboard data.",
       },
       {
         status: 500,

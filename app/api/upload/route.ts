@@ -18,6 +18,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (file.type && !file.type.startsWith("image/")) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Only valid image files are allowed.",
+        },
+        { status: 400 }
+      );
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
@@ -26,6 +36,16 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           message: "The uploaded file is empty.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Photo file size must be 10 MB or less.",
         },
         { status: 400 }
       );
@@ -75,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Fallback Storage Option A: Save to public uploads directory
     try {
-      const uploadsDir = path.join(process.cwd(), "public", "uploads", "profiles");
+      const uploadsDir = path.join(/* turbopackIgnore: true */ process.cwd(), "public", "uploads", "profiles");
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }

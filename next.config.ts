@@ -2,6 +2,22 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfkit"],
+  outputFileTracingExcludes: {
+    "/api/**": [
+      "./android/**",
+      "./ios/**",
+      "./scripts/**",
+      "./storage/**",
+      "./backups/**",
+      "./docs/**",
+      "./public/images/wedding/**",
+      "./public/uploads/**",
+      "./*.xlsx",
+      "./*.md",
+      "./*.csv",
+      "./capacitor.config.*",
+    ],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 2678400, // 31 days

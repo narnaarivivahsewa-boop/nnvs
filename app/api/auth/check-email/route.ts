@@ -3,7 +3,15 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const email = String(body.email ?? "").trim().toLowerCase();
 
@@ -22,6 +30,9 @@ export async function POST(req: NextRequest) {
     const existingUser = await prisma.user.findUnique({
       where: {
         email,
+      },
+      select: {
+        id: true,
       },
     });
 

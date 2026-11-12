@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { requireAdmin } from "@/lib/admin-auth";
 
 function generatePromoCode(discount: number) {
   const randomPart = crypto
@@ -13,51 +13,26 @@ function generatePromoCode(discount: number) {
   return `NNVS-${discount}-${randomPart}`;
 }
 
-async function verifyAdmin(req: NextRequest) {
-  const token = req.cookies.get("nnvs_token")?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    const payload = await verifyToken(token);
-
-    if (payload.role !== "ADMIN") {
-      return null;
-    }
-
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
-    // ==========================
-    // ADMIN AUTHENTICATION
-    // ==========================
-
-    const admin = await verifyAdmin(req);
-
-    if (!admin) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Unauthorized",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
     // ==========================
     // REQUEST BODY
     // ==========================
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const {
       customCode,
@@ -67,6 +42,18 @@ export async function POST(req: NextRequest) {
       mobile,
       expiresAt,
     } = body;
+
+    let parsedExpiresAt: Date | null = null;
+    if (expiresAt) {
+      const d = new Date(expiresAt);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json(
+          { success: false, message: "Invalid expiration date." },
+          { status: 400 }
+        );
+      }
+      parsedExpiresAt = d;
+    }
 
     // ==========================
     // VALIDATE DISCOUNT
@@ -170,7 +157,7 @@ export async function POST(req: NextRequest) {
         assignedProfileId,
         assignedEmail: email ? String(email).trim().toLowerCase() : null,
         assignedMobile: mobile ? String(mobile).trim() : null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        expiresAt: parsedExpiresAt,
         status: "ACTIVE",
       },
     });
@@ -206,15 +193,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const admin = await verifyAdmin(req);
-    if (!admin) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
 
+  try {
     const promoCodes = await prisma.promoCode.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -243,15 +227,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const admin = await verifyAdmin(req);
-    if (!admin) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+  const auth = await requireAdmin(req);
+  if (!auth.authorized) {
+    return auth.response;
+  }
 
+  try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
@@ -259,6 +240,18 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         { success: false, message: "Promo code ID is required" },
         { status: 400 }
+      );
+    }
+
+    const existing = await prisma.promoCode.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, message: "Promo code not found." },
+        { status: 404 }
       );
     }
 
@@ -270,12 +263,12 @@ export async function DELETE(req: NextRequest) {
       success: true,
       message: "Promo code deleted successfully.",
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN PROMO CODE DELETE ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Failed to delete promo code.",
+        message: "Failed to delete promo code.",
       },
       { status: 500 }
     );

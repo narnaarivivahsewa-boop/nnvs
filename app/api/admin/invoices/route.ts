@@ -82,10 +82,10 @@ export async function GET(req: NextRequest) {
       totalCount: formattedInvoices.length,
       businessInfo: BUSINESS_INFO,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN INVOICES API ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch invoices." },
+      { success: false, message: "Failed to fetch invoices." },
       { status: 500 }
     );
   }

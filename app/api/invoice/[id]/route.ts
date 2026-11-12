@@ -16,15 +16,24 @@ export async function GET(
       );
     }
 
-    // 1. Try finding by Payment ID or invoiceNumber
-    let payment = await prisma.payment.findFirst({
+    // 1. Try finding by Payment ID or invoiceNumber (never select password)
+    let payment: any = await prisma.payment.findFirst({
       where: {
         OR: [{ id }, { invoiceNumber: id }, { transactionId: id }],
       },
       include: {
         user: {
-          include: {
-            profiles: true,
+          select: {
+            id: true,
+            fullName: true,
+            mobile: true,
+            email: true,
+            profiles: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
           },
         },
       },
@@ -34,28 +43,39 @@ export async function GET(
     if (!payment) {
       const profile = await prisma.profile.findUnique({
         where: { profileId: id },
-        include: {
+        select: {
+          id: true,
+          profileId: true,
           user: {
-            include: {
+            select: {
+              id: true,
+              fullName: true,
+              mobile: true,
+              email: true,
               payments: {
                 where: { status: "SUCCESS" },
                 orderBy: { createdAt: "desc" },
                 take: 1,
               },
-              profiles: true,
+              profiles: {
+                select: {
+                  id: true,
+                  profileId: true,
+                },
+              },
             },
           },
         },
       });
 
-      if (profile && profile.user.payments.length > 0) {
+      if (profile && profile.user?.payments && profile.user.payments.length > 0) {
         payment = {
           ...profile.user.payments[0],
           user: {
             ...profile.user,
             profile,
           },
-        } as any;
+        };
       }
     }
 
@@ -166,7 +186,7 @@ export async function GET(
   } catch (error: any) {
     console.error("GET INVOICE ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to load invoice." },
+      { success: false, message: "Failed to load invoice." },
       { status: 500 }
     );
   }

@@ -582,12 +582,12 @@ async function handlePublish(req: NextRequest) {
       },
       { status: isSuccess ? 200 : 400 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Social Publish Exception]:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Internal server error occurred while publishing to social channels",
+        error: "Internal server error occurred while publishing to social channels",
       },
       { status: 500 }
     );

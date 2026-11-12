@@ -117,7 +117,16 @@ export async function PUT(req: NextRequest) {
         { status: 401 }
       );
     }
-    const body = await req.json();
+
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const {
       profileId: targetProfileId,
@@ -176,8 +185,23 @@ export async function PUT(req: NextRequest) {
     } = body;
 
     // Enforce 1-3 mandatory photos on profile update
+    let sanitizedPhotos: string[] | undefined = undefined;
     if (photos !== undefined) {
-      if (!Array.isArray(photos) || photos.length < 1) {
+      if (!Array.isArray(photos)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Photos must be a valid array.",
+          },
+          { status: 400 }
+        );
+      }
+
+      sanitizedPhotos = photos
+        .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+        .map((url) => url.trim());
+
+      if (sanitizedPhotos.length < 1) {
         return NextResponse.json(
           {
             success: false,
@@ -187,7 +211,7 @@ export async function PUT(req: NextRequest) {
         );
       }
 
-      if (photos.length > 3) {
+      if (sanitizedPhotos.length > 3) {
         return NextResponse.json(
           {
             success: false,
@@ -226,9 +250,27 @@ export async function PUT(req: NextRequest) {
     // Members CANNOT edit legal name or gender once submitted. Admin has full rights.
     const isMember = payload.role !== "ADMIN";
 
+    let normalizedAdminGender: "MALE" | "FEMALE" | undefined = undefined;
+    if (!isMember && gender !== undefined && String(gender).trim() !== "") {
+      const upperGender = String(gender).trim().toUpperCase();
+      if (upperGender !== "MALE" && upperGender !== "FEMALE") {
+        return NextResponse.json(
+          { success: false, message: "Invalid gender value." },
+          { status: 400 }
+        );
+      }
+      normalizedAdminGender = upperGender;
+    }
+
     // Handle Gotra safely: Gotra is not an explicit column on Profile in Prisma,
     // so store it structured in notes to prevent Prisma schema mismatch errors.
-    let finalNotes = safeStr(notes || about) ?? profile.notes ?? "";
+    const shouldUpdateNotes =
+      notes !== undefined || about !== undefined || gotra !== undefined;
+    let finalNotes =
+      notes !== undefined || about !== undefined
+        ? (safeStr(notes !== undefined ? notes : about) ?? "")
+        : (profile.notes ?? "");
+
     if (gotra !== undefined) {
       const cleanGotra = String(gotra || "").trim();
       if (cleanGotra) {
@@ -240,168 +282,228 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Update User (Only Admin can modify legal full name and gender)
-      if (!isMember && (fullName || gender)) {
-        await tx.user.update({
+    const txOps: any[] = [];
+
+    // 1. Update User (Only Admin can modify legal full name and gender)
+    if (!isMember && (fullName || normalizedAdminGender)) {
+      txOps.push(
+        prisma.user.update({
           where: { id: profile.userId },
           data: {
-            ...(fullName ? { fullName: String(fullName).trim() } : {}),
-            ...(gender ? { gender: String(gender).toUpperCase() as any } : {}),
+            ...(fullName && String(fullName).trim() ? { fullName: String(fullName).trim() } : {}),
+            ...(normalizedAdminGender ? { gender: normalizedAdminGender } : {}),
           },
-        });
-      }
+        })
+      );
+    }
 
-      // 2. Update Profile
-      const profileUpdateData: any = {
-        ...(!isMember && fullName
-          ? {
-              firstName: String(fullName).trim().split(" ")[0] || String(fullName).trim(),
-              lastName: String(fullName).trim().split(" ").slice(1).join(" ") || null,
-            }
-          : {}),
-      };
+    // 2. Update Profile
+    const cleanAdminFullName = fullName ? String(fullName).trim() : "";
+    const profileUpdateData: any = {
+      ...(!isMember && cleanAdminFullName
+        ? {
+            firstName: cleanAdminFullName.split(" ")[0] || cleanAdminFullName,
+            lastName: cleanAdminFullName.split(" ").slice(1).join(" ") || null,
+          }
+        : {}),
+    };
 
-      if (dateOfBirth !== undefined) {
-        profileUpdateData.dateOfBirth = safeDate(dateOfBirth);
-      }
-      if (height !== undefined) {
-        profileUpdateData.height = safeStr(height);
-      }
-      if (maritalStatus !== undefined) {
-        profileUpdateData.maritalStatus = safeStr(maritalStatus);
-      }
-      if (religion !== undefined) {
-        profileUpdateData.religion = safeStr(religion);
-      }
-      if (caste !== undefined) {
-        profileUpdateData.caste = safeStr(caste);
-      }
-      if (motherTongue !== undefined) {
-        profileUpdateData.motherTongue = safeStr(motherTongue);
-      }
-      if (birthPlace !== undefined || city !== undefined) {
-        profileUpdateData.birthPlace = safeStr(birthPlace || city);
-      }
-      if (birthTime !== undefined) {
-        profileUpdateData.birthTime = safeStr(birthTime);
-      }
-      if (manglik !== undefined) {
-        profileUpdateData.manglik = safeStr(manglik);
-      }
-      if (diet !== undefined) {
-        profileUpdateData.diet = safeStr(diet);
-      }
-      if (finalNotes !== undefined) {
-        profileUpdateData.notes = finalNotes || null;
-      }
+    if (dateOfBirth !== undefined) {
+      profileUpdateData.dateOfBirth = safeDate(dateOfBirth);
+    }
+    if (height !== undefined) {
+      profileUpdateData.height = safeStr(height);
+    }
+    if (maritalStatus !== undefined) {
+      profileUpdateData.maritalStatus = safeStr(maritalStatus);
+    }
+    if (religion !== undefined) {
+      profileUpdateData.religion = safeStr(religion);
+    }
+    if (caste !== undefined) {
+      profileUpdateData.caste = safeStr(caste);
+    }
+    if (motherTongue !== undefined) {
+      profileUpdateData.motherTongue = safeStr(motherTongue);
+    }
+    if (birthPlace !== undefined || city !== undefined) {
+      profileUpdateData.birthPlace = safeStr(birthPlace !== undefined ? birthPlace : city);
+    }
+    if (birthTime !== undefined) {
+      profileUpdateData.birthTime = safeStr(birthTime);
+    }
+    if (manglik !== undefined) {
+      profileUpdateData.manglik = safeStr(manglik);
+    }
+    if (diet !== undefined) {
+      profileUpdateData.diet = safeStr(diet);
+    }
+    if (shouldUpdateNotes) {
+      profileUpdateData.notes = finalNotes.trim() ? finalNotes : null;
+    }
 
-      await tx.profile.update({
-        where: { id: profile.id },
-        data: profileUpdateData,
-      });
+    if (Object.keys(profileUpdateData).length > 0) {
+      txOps.push(
+        prisma.profile.update({
+          where: { id: profile.id },
+          data: profileUpdateData,
+        })
+      );
+    }
 
-      // 3. Family
-      await tx.family.upsert({
-        where: { profileId: profile.id },
-        update: {
-          fatherName: safeStr(fatherName),
-          fatherOccupation: safeStr(fatherOccupation),
-          motherName: safeStr(motherName),
-          motherOccupation: safeStr(motherOccupation),
-          brothers: safeIntDefault(brothers, 0),
-          sisters: safeIntDefault(sisters, 0),
-          familyType: safeStr(familyType),
-          familyStatus: safeStr(familyStatus),
-        },
-        create: {
-          profileId: profile.id,
-          fatherName: safeStr(fatherName),
-          fatherOccupation: safeStr(fatherOccupation),
-          motherName: safeStr(motherName),
-          motherOccupation: safeStr(motherOccupation),
-          brothers: safeIntDefault(brothers, 0),
-          sisters: safeIntDefault(sisters, 0),
-          familyType: safeStr(familyType),
-          familyStatus: safeStr(familyStatus),
-        },
-      });
+    // 3. Family
+    const hasFamilyUpdates =
+      fatherName !== undefined ||
+      fatherOccupation !== undefined ||
+      motherName !== undefined ||
+      motherOccupation !== undefined ||
+      brothers !== undefined ||
+      sisters !== undefined ||
+      familyType !== undefined ||
+      familyStatus !== undefined;
 
-      // 4. Education
-      await tx.education.upsert({
-        where: { profileId: profile.id },
-        update: {
-          highestQualification: safeStr(highestQualification),
-          college: safeStr(college),
-          occupationField: safeStr(occupationField),
-        },
-        create: {
-          profileId: profile.id,
-          highestQualification: safeStr(highestQualification),
-          college: safeStr(college),
-          occupationField: safeStr(occupationField),
-        },
-      });
+    if (hasFamilyUpdates) {
+      txOps.push(
+        prisma.family.upsert({
+          where: { profileId: profile.id },
+          update: {
+            ...(fatherName !== undefined ? { fatherName: safeStr(fatherName) } : {}),
+            ...(fatherOccupation !== undefined ? { fatherOccupation: safeStr(fatherOccupation) } : {}),
+            ...(motherName !== undefined ? { motherName: safeStr(motherName) } : {}),
+            ...(motherOccupation !== undefined ? { motherOccupation: safeStr(motherOccupation) } : {}),
+            ...(brothers !== undefined ? { brothers: safeIntDefault(brothers, 0) } : {}),
+            ...(sisters !== undefined ? { sisters: safeIntDefault(sisters, 0) } : {}),
+            ...(familyType !== undefined ? { familyType: safeStr(familyType) } : {}),
+            ...(familyStatus !== undefined ? { familyStatus: safeStr(familyStatus) } : {}),
+          },
+          create: {
+            profileId: profile.id,
+            fatherName: safeStr(fatherName) ?? null,
+            fatherOccupation: safeStr(fatherOccupation) ?? null,
+            motherName: safeStr(motherName) ?? null,
+            motherOccupation: safeStr(motherOccupation) ?? null,
+            brothers: safeIntDefault(brothers, 0),
+            sisters: safeIntDefault(sisters, 0),
+            familyType: safeStr(familyType) ?? null,
+            familyStatus: safeStr(familyStatus) ?? null,
+          },
+        })
+      );
+    }
 
-      // 5. Occupation
-      await tx.occupation.upsert({
-        where: { profileId: profile.id },
-        update: {
-          profession: safeStr(profession),
-          company: safeStr(company),
-          annualIncome: safeStr(annualIncome),
-        },
-        create: {
-          profileId: profile.id,
-          profession: safeStr(profession),
-          company: safeStr(company),
-          annualIncome: safeStr(annualIncome),
-        },
-      });
+    // 4. Education
+    const hasEducationUpdates =
+      highestQualification !== undefined ||
+      college !== undefined ||
+      occupationField !== undefined;
 
-      // 6. Partner Preference
-      await tx.partnerPreference.upsert({
-        where: { profileId: profile.id },
-        update: {
-          minAge: safeInt(minAge),
-          maxAge: safeInt(maxAge),
-          minHeight: safeStr(minHeight),
-          maxHeight: safeStr(maxHeight),
-          preferredReligion: safeStr(preferredReligion),
-          preferredCaste: safeStr(preferredCaste),
-          dietPreference: safeStr(dietPreference),
-        },
-        create: {
-          profileId: profile.id,
-          minAge: safeInt(minAge),
-          maxAge: safeInt(maxAge),
-          minHeight: safeStr(minHeight),
-          maxHeight: safeStr(maxHeight),
-          preferredReligion: safeStr(preferredReligion),
-          preferredCaste: safeStr(preferredCaste),
-          dietPreference: safeStr(dietPreference),
-        },
-      });
+    if (hasEducationUpdates) {
+      txOps.push(
+        prisma.education.upsert({
+          where: { profileId: profile.id },
+          update: {
+            ...(highestQualification !== undefined ? { highestQualification: safeStr(highestQualification) } : {}),
+            ...(college !== undefined ? { college: safeStr(college) } : {}),
+            ...(occupationField !== undefined ? { occupationField: safeStr(occupationField) } : {}),
+          },
+          create: {
+            profileId: profile.id,
+            highestQualification: safeStr(highestQualification) ?? null,
+            college: safeStr(college) ?? null,
+            occupationField: safeStr(occupationField) ?? null,
+          },
+        })
+      );
+    }
 
-      // 7. Profile Photos Update
-      if (Array.isArray(photos)) {
-        await tx.profilePhoto.deleteMany({
+    // 5. Occupation
+    const hasOccupationUpdates =
+      profession !== undefined ||
+      company !== undefined ||
+      annualIncome !== undefined;
+
+    if (hasOccupationUpdates) {
+      txOps.push(
+        prisma.occupation.upsert({
+          where: { profileId: profile.id },
+          update: {
+            ...(profession !== undefined ? { profession: safeStr(profession) } : {}),
+            ...(company !== undefined ? { company: safeStr(company) } : {}),
+            ...(annualIncome !== undefined ? { annualIncome: safeStr(annualIncome) } : {}),
+          },
+          create: {
+            profileId: profile.id,
+            profession: safeStr(profession) ?? null,
+            company: safeStr(company) ?? null,
+            annualIncome: safeStr(annualIncome) ?? null,
+          },
+        })
+      );
+    }
+
+    // 6. Partner Preference
+    const hasPrefUpdates =
+      minAge !== undefined ||
+      maxAge !== undefined ||
+      minHeight !== undefined ||
+      maxHeight !== undefined ||
+      preferredReligion !== undefined ||
+      preferredCaste !== undefined ||
+      dietPreference !== undefined;
+
+    if (hasPrefUpdates) {
+      txOps.push(
+        prisma.partnerPreference.upsert({
+          where: { profileId: profile.id },
+          update: {
+            ...(minAge !== undefined ? { minAge: safeInt(minAge) } : {}),
+            ...(maxAge !== undefined ? { maxAge: safeInt(maxAge) } : {}),
+            ...(minHeight !== undefined ? { minHeight: safeStr(minHeight) } : {}),
+            ...(maxHeight !== undefined ? { maxHeight: safeStr(maxHeight) } : {}),
+            ...(preferredReligion !== undefined ? { preferredReligion: safeStr(preferredReligion) } : {}),
+            ...(preferredCaste !== undefined ? { preferredCaste: safeStr(preferredCaste) } : {}),
+            ...(dietPreference !== undefined ? { dietPreference: safeStr(dietPreference) } : {}),
+          },
+          create: {
+            profileId: profile.id,
+            minAge: safeInt(minAge) ?? null,
+            maxAge: safeInt(maxAge) ?? null,
+            minHeight: safeStr(minHeight) ?? null,
+            maxHeight: safeStr(maxHeight) ?? null,
+            preferredReligion: safeStr(preferredReligion) ?? null,
+            preferredCaste: safeStr(preferredCaste) ?? null,
+            dietPreference: safeStr(dietPreference) ?? null,
+          },
+        })
+      );
+    }
+
+    // 7. Profile Photos Update
+    if (Array.isArray(sanitizedPhotos)) {
+      txOps.push(
+        prisma.profilePhoto.deleteMany({
           where: {
             profileId: profile.id,
           },
-        });
+        })
+      );
 
-        if (photos.length > 0) {
-          await tx.profilePhoto.createMany({
-            data: photos.slice(0, 3).map((photoUrl: string, idx: number) => ({
+      if (sanitizedPhotos.length > 0) {
+        txOps.push(
+          prisma.profilePhoto.createMany({
+            data: sanitizedPhotos.slice(0, 3).map((photoUrl: string, idx: number) => ({
               profileId: profile.id,
               imageUrl: photoUrl,
               isPrimary: idx === 0,
             })),
-          });
-        }
+          })
+        );
       }
-    });
+    }
+
+    if (txOps.length > 0) {
+      await prisma.$transaction(txOps);
+    }
 
     // Event Hook 2: Auto-regenerate and replace the PDF upon profile update
     autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
@@ -414,12 +516,12 @@ export async function PUT(req: NextRequest) {
         ? "Profile updated successfully! Note: Name and Gender cannot be changed by members."
         : "Profile updated successfully with admin authorization.",
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("PROFILE API PUT ERROR =>", error);
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Internal Server Error",
+        message: "Failed to update profile. Please try again.",
       },
       { status: 500 }
     );

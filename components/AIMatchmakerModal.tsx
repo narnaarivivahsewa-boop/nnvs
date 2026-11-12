@@ -11,9 +11,10 @@ import {
   CheckCircle2,
   User,
   RotateCcw,
-  Heart,
+  AlertCircle,
 } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 type MatchResult = {
   id: string;
@@ -87,6 +88,7 @@ export default function AIMatchmakerModal({
   // Results & Loading State
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<MatchResult[] | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -113,17 +115,30 @@ export default function AIMatchmakerModal({
   };
 
   const executeScrutiny = async () => {
+    if (loading) return;
     setLoading(true);
+    setErrorMessage(null);
     setResults(null);
     try {
+      const safeMinAge = Number.isFinite(minAge) && minAge >= 18 ? minAge : 21;
+      const safeMaxAge =
+        Number.isFinite(maxAge) && maxAge >= safeMinAge ? maxAge : Math.max(safeMinAge + 5, 35);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/ai/matchmaker", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId: profileId || undefined,
           lookingFor,
-          minAge,
-          maxAge,
+          minAge: safeMinAge,
+          maxAge: safeMaxAge,
           diet,
           lifestyle,
           dressing,
@@ -136,14 +151,17 @@ export default function AIMatchmakerModal({
       });
 
       const data = await res.json();
-      if (data.success) {
-        setResults(data.recommendations);
+      if (res.ok && data.success) {
+        setResults(data.recommendations || []);
         if (onComplete) {
           onComplete();
         }
+      } else {
+        setErrorMessage(data.message || "Unable to save preferences and find matches right now.");
       }
     } catch (err) {
       console.error("AI Matchmaker scrutiny failed:", err);
+      setErrorMessage("Network error while analyzing compatibility. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -152,6 +170,7 @@ export default function AIMatchmakerModal({
   const resetBot = () => {
     setStep(1);
     setResults(null);
+    setErrorMessage(null);
     setLoading(false);
   };
 
@@ -268,7 +287,10 @@ export default function AIMatchmakerModal({
                           min={18}
                           max={60}
                           value={minAge}
-                          onChange={(e) => setMinAge(Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = Number.parseInt(e.target.value, 10);
+                            setMinAge(Number.isFinite(val) ? val : 18);
+                          }}
                           className="w-full mt-1 rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs font-semibold text-[#2D221E]"
                         />
                       </div>
@@ -279,7 +301,10 @@ export default function AIMatchmakerModal({
                           min={18}
                           max={70}
                           value={maxAge}
-                          onChange={(e) => setMaxAge(Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = Number.parseInt(e.target.value, 10);
+                            setMaxAge(Number.isFinite(val) ? val : 35);
+                          }}
                           className="w-full mt-1 rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs font-semibold text-[#2D221E]"
                         />
                       </div>
@@ -484,6 +509,13 @@ export default function AIMatchmakerModal({
                       className="w-full rounded-xl border border-[#DACBB4] bg-white p-3 text-xs text-[#2D221E] outline-none focus:border-[#C5A059]"
                     />
                   </div>
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="mt-5 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{errorMessage}</span>
                 </div>
               )}
 

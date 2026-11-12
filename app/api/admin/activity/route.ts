@@ -13,8 +13,10 @@ export async function GET(req: NextRequest) {
     const filter = (searchParams.get("filter") || "ALL").toUpperCase(); // "ALL" | "ACTIVE" | "PENDING"
     const search = (searchParams.get("search") || "").trim();
     const isExport = searchParams.get("export") === "true";
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = isExport ? 5000 : Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "25", 10)));
+    const parsedPage = parseInt(searchParams.get("page") || "1", 10);
+    const parsedLimit = parseInt(searchParams.get("limit") || "25", 10);
+    const page = Math.max(1, isNaN(parsedPage) ? 1 : parsedPage);
+    const limit = isExport ? 5000 : Math.max(1, Math.min(100, isNaN(parsedLimit) ? 25 : parsedLimit));
     const skip = isExport ? 0 : (page - 1) * limit;
 
     // Build Prisma query condition
@@ -246,10 +248,10 @@ export async function GET(req: NextRequest) {
       },
       profiles: formattedProfiles,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("User Activity API Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch user activity" },
+      { success: false, message: "Failed to fetch user activity." },
       { status: 500 }
     );
   }

@@ -22,12 +22,12 @@ export async function generateMissingPaidPdfs(): Promise<BatchGenerationResult> 
   console.log("================================================================================");
 
   const defaultDDir = "D:\\NNVS\\Website Bio PDF";
-  const baseDir =
-    process.env.PDF_STORAGE_DIR && process.env.PDF_STORAGE_DIR.trim()
-      ? process.env.PDF_STORAGE_DIR.trim()
-      : fs.existsSync("D:\\")
-      ? defaultDDir
-      : path.join(process.cwd(), "storage", "biodatas");
+  const configuredDir = process.env.PDF_STORAGE_DIR?.trim();
+  const baseDir = configuredDir
+    ? configuredDir
+    : fs.existsSync("D:\\")
+    ? defaultDDir
+    : path.join(/* turbopackIgnore: true */ process.cwd(), "storage", "biodatas");
 
   console.log(`Target Storage Root: ${baseDir}`);
 
@@ -37,7 +37,14 @@ export async function generateMissingPaidPdfs(): Promise<BatchGenerationResult> 
       OR: [{ paymentCompleted: true }, { isPaymentExempted: true }],
     },
     include: {
-      user: true,
+      user: {
+        select: {
+          fullName: true,
+          gender: true,
+          mobile: true,
+          email: true,
+        },
+      },
       photos: {
         orderBy: { isPrimary: "desc" },
       },

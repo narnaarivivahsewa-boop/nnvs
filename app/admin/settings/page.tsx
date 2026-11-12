@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Save, ShieldCheck, CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { BUSINESS_INFO } from "@/lib/gst";
+import { getAuthSession } from "@/lib/auth/session-storage";
+import ErrorToast from "@/components/ui/ErrorToast";
 
 interface AdminSettingsForm {
   registrationFee: string;
@@ -18,6 +20,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState<AdminSettingsForm>({
     registrationFee: "1100",
@@ -33,7 +36,14 @@ export default function SettingsPage() {
     async function loadSettings() {
       try {
         setLoading(true);
-        const res = await fetch("/api/admin/settings");
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch("/api/admin/settings", {
+          credentials: "include",
+          headers,
+        });
         const data = await res.json();
         if (data.success && data.settings) {
           setForm({
@@ -45,9 +55,12 @@ export default function SettingsPage() {
             autoApproveProfiles: Boolean(data.settings.autoApproveProfiles),
             maintenanceMode: Boolean(data.settings.maintenanceMode),
           });
+        } else if (!res.ok) {
+          setErrorMessage(data.message || "Failed to load business settings.");
         }
       } catch (err) {
         console.error("Error loading settings:", err);
+        setErrorMessage("Network error while loading settings.");
       } finally {
         setLoading(false);
       }
@@ -57,24 +70,34 @@ export default function SettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     try {
       setSaving(true);
       setSuccessMessage("");
+      setErrorMessage(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/admin/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || "Failed to save settings");
+        setErrorMessage(data.message || "Failed to save settings.");
         return;
       }
       setSuccessMessage("Business & Payment settings saved successfully!");
       setTimeout(() => setSuccessMessage(""), 4000);
     } catch (err: any) {
       console.error("Save settings error:", err);
-      alert("Error saving settings");
+      setErrorMessage("Error saving settings. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -86,12 +109,29 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 sm:p-10 max-w-4xl">
+      <ErrorToast
+        message={errorMessage}
+        onDismiss={() => setErrorMessage(null)}
+        title="Settings Notice"
+      />
       <h1 className="text-3xl font-black text-gray-900 font-serif-luxury">
         Business & Payment Settings
       </h1>
       <p className="mt-1 text-sm text-gray-500">
         Configure registration fees, GST calculation rates, QR payment UPI details, and platform controls.
       </p>
+
+      {errorMessage && (
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 border border-red-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button type="button" onClick={() => setErrorMessage(null)} className="text-red-700 hover:text-red-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {successMessage && (
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800 border border-emerald-200">

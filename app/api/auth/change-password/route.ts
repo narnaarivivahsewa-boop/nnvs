@@ -13,7 +13,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const { newPassword, confirmPassword } = body;
 
     if (!newPassword || newPassword.length < 6) {
@@ -46,10 +55,10 @@ export async function POST(req: NextRequest) {
       message: "Password updated successfully! Welcome to your dashboard.",
       redirectTo: "/dashboard",
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Change Password Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to update password." },
+      { success: false, message: "Failed to update password." },
       { status: 500 }
     );
   }

@@ -22,13 +22,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify HMAC-SHA256 signature
+    // Verify HMAC-SHA256 signature with timing-safe comparison
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(rawBody)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    const providedBuf = Buffer.from(signature, "utf8");
+    if (
+      expectedBuf.length !== providedBuf.length ||
+      !crypto.timingSafeEqual(expectedBuf, providedBuf)
+    ) {
       console.error("Razorpay Webhook: Signature mismatch.");
       return NextResponse.json(
         { success: false, message: "Invalid webhook signature" },
@@ -36,7 +41,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const event = JSON.parse(rawBody);
+    let event: any;
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid webhook JSON payload" },
+        { status: 400 }
+      );
+    }
+
     console.log(`Razorpay Webhook received event: ${event.event}`);
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
@@ -56,6 +70,7 @@ export async function POST(req: NextRequest) {
       // Check if this payment is already recorded (Idempotency)
       const existingPayment = await prisma.payment.findFirst({
         where: { transactionId: razorpayPaymentId },
+        select: { id: true },
       });
 
       if (!existingPayment) {
@@ -65,7 +80,12 @@ export async function POST(req: NextRequest) {
             where: {
               OR: [{ id: profileId }, { profileId: profileId }],
             },
-            include: { user: true },
+            select: {
+              id: true,
+              profileId: true,
+              userId: true,
+              approvedAt: true,
+            },
           });
         }
 
@@ -73,14 +93,39 @@ export async function POST(req: NextRequest) {
 
         if (matchedProfile) {
           const paidNow = new Date();
+          const paymentId = crypto.randomUUID();
           const gstBreakdown =
             grossAmount > 0
               ? calculateGstFromGross(grossAmount, 18, false)
               : { taxableAmount: 0, gstRate: 18, totalTax: 0 };
 
-          await prisma.$transaction(async (tx) => {
-            const payment = await tx.payment.create({
+          // Resolve Official Profile ID before batch transaction
+          let officialProfileId = matchedProfile.profileId;
+          if (matchedProfile.profileId.startsWith("DRAFT-") || matchedProfile.profileId === "DRAFT") {
+            let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+            while (await prisma.profile.findUnique({ where: { profileId: candidateId }, select: { id: true } })) {
+              candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+            }
+            officialProfileId = candidateId;
+          }
+
+          const promoCodeFromNotes = notes.promoCode;
+          const cleanCode =
+            promoCodeFromNotes && promoCodeFromNotes !== "NONE"
+              ? String(promoCodeFromNotes).trim().toUpperCase()
+              : null;
+
+          const activePromo = cleanCode
+            ? await prisma.promoCode.findFirst({
+                where: { code: cleanCode, status: "ACTIVE" },
+                select: { id: true },
+              })
+            : null;
+
+          const txOps: any[] = [
+            prisma.payment.create({
               data: {
+                id: paymentId,
                 userId: matchedProfile.userId,
                 profileId: matchedProfile.id,
                 amount: grossAmount,
@@ -90,73 +135,61 @@ export async function POST(req: NextRequest) {
                 gstAmount: gstBreakdown.totalTax,
                 invoiceNumber,
                 invoiceDate: paidNow,
+                invoiceUrl: `/invoice/${paymentId}`,
                 status: "SUCCESS",
                 paymentGateway: "RAZORPAY",
                 transactionId: razorpayPaymentId,
                 adminNotes: `Webhook Auto-Capture (Order: ${razorpayOrderId}, Service: ${serviceType})`,
                 paymentDate: paidNow,
               },
-            });
-
-            // Rule 2: Official Profile ID is assigned only upon confirmed payment
-            let officialProfileId = matchedProfile.profileId;
-            if (matchedProfile.profileId.startsWith("DRAFT-") || matchedProfile.profileId === "DRAFT") {
-              let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-              while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
-                candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-              }
-              officialProfileId = candidateId;
-            }
-
-            // Direct Live Activation Rule:
-            // When payment is verified for OTP-registered user, make profile directly LIVE
-            await tx.profile.update({
+            }),
+            // Direct Live Activation Rule
+            prisma.profile.update({
               where: { id: matchedProfile.id },
               data: {
                 profileId: officialProfileId,
                 paymentCompleted: true,
                 approvalStatus: "APPROVED",
                 isVisible: true,
-                approvedAt: matchedProfile.approvedAt || new Date(),
+                approvedAt: matchedProfile.approvedAt || paidNow,
               },
-            });
+            }),
+          ];
 
-            // Burn promo code if present in notes
-            const promoCodeFromNotes = notes.promoCode;
-            if (promoCodeFromNotes && promoCodeFromNotes !== "NONE") {
-              const cleanCode = String(promoCodeFromNotes).trim().toUpperCase();
-              const promo = await tx.promoCode.findUnique({
+          if (activePromo) {
+            txOps.push(
+              prisma.promoCode.updateMany({
+                where: { id: activePromo.id, status: "ACTIVE" },
+                data: {
+                  status: "USED",
+                  usedAt: paidNow,
+                  usedPaymentId: paymentId,
+                  assignedProfileId: matchedProfile.id,
+                },
+              })
+            );
+          }
+
+          await prisma.$transaction(txOps);
+
+          // Update secondary Coupon table outside transaction to prevent 25P02 aborts
+          if (activePromo && cleanCode) {
+            try {
+              await prisma.coupon.updateMany({
                 where: { code: cleanCode },
+                data: { isActive: false },
               });
-              if (promo && promo.status === "ACTIVE") {
-                await tx.promoCode.update({
-                  where: { id: promo.id },
-                  data: {
-                    status: "USED",
-                    usedAt: new Date(),
-                    usedPaymentId: payment.id,
-                    assignedProfileId: matchedProfile.id,
-                  },
-                });
-
-                try {
-                  await tx.coupon.updateMany({
-                    where: { code: cleanCode },
-                    data: { isActive: false },
-                  });
-                } catch {
-                  // Ignore secondary table
-                }
-              }
+            } catch {
+              // Ignore secondary table
             }
-          });
+          }
 
           // Automated PDF Generation for paid profile
           autoGenerateAndSaveBiodataPdf(matchedProfile.id).catch((err) => {
             console.error("[Auto PDF generation error in webhook]:", err);
           });
 
-          console.log(`✓ Webhook captured payment for Profile ${matchedProfile.profileId} (₹${grossAmount})`);
+          console.log(`✓ Webhook captured payment for Profile ${officialProfileId} (₹${grossAmount})`);
         }
       } else {
         // If already existing payment, ensure PDF exists
@@ -169,10 +202,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ status: "success", received: true }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Razorpay Webhook Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Webhook handling error" },
+      { success: false, message: "Webhook handling error" },
       { status: 500 }
     );
   }

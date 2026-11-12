@@ -35,9 +35,18 @@ export async function GET(req: NextRequest) {
     const profiles = await prisma.profile.findMany({
       where: whereClause,
       include: {
-        user: true,
-        occupation: true,
-        education: true,
+        user: {
+          select: {
+            fullName: true,
+            mobile: true,
+            gender: true,
+          },
+        },
+        occupation: {
+          select: {
+            profession: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 1000,
@@ -83,10 +92,10 @@ export async function GET(req: NextRequest) {
         "Content-Disposition": `attachment; filename="NNVS_Profiles_Export_${Date.now()}.csv"`,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN PROFILES EXPORT ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Export failed." },
+      { success: false, message: "Export failed." },
       { status: 500 }
     );
   }

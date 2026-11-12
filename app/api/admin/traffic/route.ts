@@ -117,10 +117,10 @@ export async function GET(req: NextRequest) {
         recentSessions,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Traffic API Error:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to load traffic metrics" },
+      { success: false, message: "Failed to load traffic metrics" },
       { status: 500 }
     );
   }

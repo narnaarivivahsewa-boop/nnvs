@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CreditCard, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 declare global {
   interface Window {
@@ -78,11 +79,17 @@ export default function RazorpayCheckoutButton({
 
       // Convert rupees to paise (e.g. ₹470.82 -> 47082 paise)
       const amountInPaise = Math.round(amountInRupees * 100);
+      const { token } = await getAuthSession();
+      const authHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) authHeaders.Authorization = `Bearer ${token}`;
 
       // 2. Call backend /api/create-order
       const orderRes = await fetch("/api/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
+        credentials: "include",
         body: JSON.stringify({
           amount: amountInPaise,
           currency: "INR",
@@ -144,9 +151,16 @@ export default function RazorpayCheckoutButton({
             setLoading(true);
             setErrorMessage("");
             // 4. Send response to backend verification endpoint
+            const { token: latestToken } = await getAuthSession();
+            const verifyHeaders: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            if (latestToken) verifyHeaders.Authorization = `Bearer ${latestToken}`;
+
             const verifyRes = await fetch("/api/verify-payment", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: verifyHeaders,
+              credentials: "include",
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,

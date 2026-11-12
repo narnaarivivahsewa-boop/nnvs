@@ -6,14 +6,15 @@ import {
   Copy,
   Trash2,
   CheckCircle2,
-  Clock,
   Sparkles,
   AlertCircle,
   RefreshCw,
   Plus,
-  ShieldCheck,
   Search,
+  X,
 } from "lucide-react";
+import { getAuthSession } from "@/lib/auth/session-storage";
+import ErrorToast from "@/components/ui/ErrorToast";
 
 interface PromoCodeItem {
   id: string;
@@ -53,35 +54,86 @@ export default function PromoCodesPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [listSearch, setListSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; code: string } | null>(null);
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [nowMs] = useState(() => Date.now());
 
   const fetchPromoCodes = async () => {
     try {
       setLoadingList(true);
-      const res = await fetch("/api/admin/promo-codes");
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch("/api/admin/promo-codes", {
+        credentials: "include",
+        headers,
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         setPromoCodes(data.promoCodes || []);
+      } else if (!res.ok) {
+        setToastError(data.message || "Failed to load promo codes.");
       }
     } catch (e) {
       console.error("Error fetching promo codes:", e);
+      setToastError("Network error while fetching promo codes.");
     } finally {
       setLoadingList(false);
     }
   };
 
   useEffect(() => {
-    fetchPromoCodes();
+    let ignore = false;
+    async function init() {
+      try {
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch("/api/admin/promo-codes", {
+          credentials: "include",
+          headers,
+        });
+        const data = await res.json();
+        if (!ignore && res.ok && data.success) {
+          setPromoCodes(data.promoCodes || []);
+        } else if (!ignore && !res.ok) {
+          setToastError(data.message || "Failed to load promo codes.");
+        }
+      } catch (e) {
+        console.error("Error fetching promo codes:", e);
+        if (!ignore) setToastError("Network error while fetching promo codes.");
+      } finally {
+        if (!ignore) setLoadingList(false);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   async function handleCreatePromoCode(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     try {
       setLoading(true);
       setGeneratedCode("");
+      setToastError(null);
+      setActionNotice(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
 
       const res = await fetch("/api/admin/promo-codes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           customCode: customCode.trim() || undefined,
           discount: Number(discount),
@@ -95,7 +147,9 @@ export default function PromoCodesPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        alert(data.message || "Unable to generate promo code.");
+        const msg = data.message || "Unable to generate promo code.";
+        setToastError(msg);
+        setActionNotice({ text: msg, type: "error" });
         return;
       }
 
@@ -105,43 +159,64 @@ export default function PromoCodesPage() {
       setEmail("");
       setMobile("");
       setExpiresAt("");
+      setActionNotice({ text: `Coupon "${data.promoCode.code}" created successfully.`, type: "success" });
 
       // Refresh list
       fetchPromoCodes();
     } catch (error) {
       console.error(error);
-      alert("Unable to generate promo code.");
+      const msg = "Unable to generate promo code.";
+      setToastError(msg);
+      setActionNotice({ text: msg, type: "error" });
     } finally {
       setLoading(false);
     }
   }
 
-  const copyToClipboard = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(""), 2000);
+  const copyToClipboard = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(""), 2000);
+    } catch {
+      setToastError("Could not copy coupon code to clipboard.");
+    }
   };
 
-  const handleDeleteCode = async (id: string, code: string) => {
-    if (!confirm(`Are you sure you want to permanently delete coupon '${code}'?`)) {
-      return;
-    }
+  const executeDeleteCode = async () => {
+    if (!pendingDelete || deletingId) return;
+    const { id, code } = pendingDelete;
 
     try {
       setDeletingId(id);
+      setToastError(null);
+      setActionNotice(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`/api/admin/promo-codes?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
+        credentials: "include",
+        headers,
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || "Failed to delete promo code.");
+        const msg = data.message || "Failed to delete promo code.";
+        setToastError(msg);
+        setActionNotice({ text: msg, type: "error" });
         return;
       }
       setPromoCodes((prev) => prev.filter((p) => p.id !== id));
       if (generatedCode === code) setGeneratedCode("");
+      setActionNotice({ text: `Coupon "${code}" deleted permanently.`, type: "success" });
+      setPendingDelete(null);
     } catch (err: any) {
       console.error(err);
-      alert("Error deleting promo code.");
+      const msg = "Error deleting promo code.";
+      setToastError(msg);
+      setActionNotice({ text: msg, type: "error" });
     } finally {
       setDeletingId(null);
     }
@@ -160,6 +235,11 @@ export default function PromoCodesPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-10 space-y-8">
+      <ErrorToast
+        message={toastError}
+        onDismiss={() => setToastError(null)}
+        title="Coupon Action Notice"
+      />
       {/* Page Header */}
       <div>
         <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF5EB] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[#7A5835] mb-2 border border-[#E8DCC8]">
@@ -173,6 +253,33 @@ export default function PromoCodesPage() {
           Create, issue, and manage universal or candidate-specific discount coupons.
         </p>
       </div>
+
+      {actionNotice && (
+        <div
+          role="alert"
+          className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-xs font-semibold shadow-xs ${
+            actionNotice.type === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {actionNotice.type === "error" ? (
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            )}
+            <span>{actionNotice.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionNotice(null)}
+            className="opacity-70 hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Create Coupon Form */}
@@ -410,7 +517,7 @@ export default function PromoCodesPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredCodes.map((item) => {
-                      const isExpired = item.expiresAt && new Date(item.expiresAt).getTime() < Date.now();
+                      const isExpired = item.expiresAt && new Date(item.expiresAt).getTime() < nowMs;
                       const statusDisplay = item.status === "USED" ? "USED" : isExpired ? "EXPIRED" : item.status;
 
                       return (
@@ -485,7 +592,7 @@ export default function PromoCodesPage() {
                           <td className="py-3 text-right">
                             <button
                               type="button"
-                              onClick={() => handleDeleteCode(item.id, item.code)}
+                              onClick={() => setPendingDelete({ id: item.id, code: item.code })}
                               disabled={deletingId === item.id}
                               className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 transition disabled:opacity-50"
                               title="Delete Coupon"
@@ -503,6 +610,44 @@ export default function PromoCodesPage() {
           </div>
         </div>
       </div>
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif-luxury">Delete Promo Code?</h3>
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to permanently delete coupon{" "}
+                  <span className="font-mono font-bold text-gray-900">{pendingDelete.code}</span>? This cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                disabled={deletingId !== null}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteCode}
+                disabled={deletingId !== null}
+                className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {deletingId ? "Deleting..." : "Delete Coupon"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

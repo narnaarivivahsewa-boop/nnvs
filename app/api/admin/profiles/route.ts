@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const gender = (searchParams.get("gender") || "").trim().toUpperCase();
 
     const whereClause: any = {};
+    const andConditions: any[] = [];
 
     if (status) {
       whereClause.approvalStatus = status;
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
     if (source === "GOOGLE_FORM") {
       whereClause.source = "GOOGLE_FORM";
     } else if (source === "WEBSITE") {
-      whereClause.OR = [{ source: null }, { source: "DIRECT" }, { source: "WEBSITE" }];
+      andConditions.push({
+        OR: [{ source: null }, { source: "DIRECT" }, { source: "WEBSITE" }],
+      });
     }
 
     if (payment === "PAID") {
@@ -69,47 +72,53 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      whereClause.OR = [
-        {
-          profileId: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          legacyProfileId: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          firstName: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          lastName: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          user: {
-            mobile: {
-              contains: search,
-            },
-          },
-        },
-        {
-          user: {
-            fullName: {
+      andConditions.push({
+        OR: [
+          {
+            profileId: {
               contains: search,
               mode: "insensitive",
             },
           },
-        },
-      ];
+          {
+            legacyProfileId: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            firstName: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            lastName: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            user: {
+              mobile: {
+                contains: search,
+              },
+            },
+          },
+          {
+            user: {
+              fullName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     const profiles = await prisma.profile.findMany({
@@ -129,12 +138,29 @@ export async function GET(req: NextRequest) {
             payments: {
               orderBy: { createdAt: "desc" },
               take: 1,
+              select: {
+                id: true,
+                status: true,
+                grossAmount: true,
+                invoiceNumber: true,
+                paymentDate: true,
+                createdAt: true,
+              },
             },
           },
         },
-        occupation: true,
+        occupation: {
+          select: {
+            profession: true,
+            annualIncome: true,
+          },
+        },
         photos: {
           where: {
+            isPrimary: true,
+          },
+          select: {
+            imageUrl: true,
             isPrimary: true,
           },
           take: 1,
@@ -147,13 +173,13 @@ export async function GET(req: NextRequest) {
       count: profiles.length,
       profiles,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN PROFILES API ERROR =>", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Internal Server Error",
+        message: "Failed to load profiles.",
       },
       {
         status: 500,

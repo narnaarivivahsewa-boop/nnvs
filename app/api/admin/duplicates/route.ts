@@ -34,65 +34,83 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Enrich with matched profile information if available
-    const enriched = await Promise.all(
-      flaggedProfiles.map(async (p) => {
-        let matchedProfile: any = null;
-        if (p.duplicateMatchedProfileId) {
-          matchedProfile = await prisma.profile.findFirst({
-            where: {
-              OR: [
-                { id: p.duplicateMatchedProfileId },
-                { profileId: p.duplicateMatchedProfileId },
-              ],
-            },
-            include: {
-              user: {
-                select: {
-                  fullName: true,
-                  mobile: true,
-                },
+    // Batch-fetch matched profiles in a single query instead of N+1
+    const matchedIds = Array.from(
+      new Set(
+        flaggedProfiles
+          .map((p) => p.duplicateMatchedProfileId)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    const matchedProfilesList = matchedIds.length
+      ? await prisma.profile.findMany({
+          where: {
+            OR: [{ id: { in: matchedIds } }, { profileId: { in: matchedIds } }],
+          },
+          select: {
+            id: true,
+            profileId: true,
+            legacyProfileId: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+            user: {
+              select: {
+                fullName: true,
+                mobile: true,
               },
             },
-          });
-        }
+          },
+        })
+      : [];
 
-        return {
-          id: p.id,
-          profileId: p.profileId,
-          legacyProfileId: p.legacyProfileId,
-          name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.user?.fullName,
-          gender: p.user?.gender || "NOT_SPECIFIED",
-          mobile: p.user?.mobile,
-          maskedMobile: maskMobileNumber(p.user?.mobile || ""),
-          source: p.source,
-          approvalStatus: p.approvalStatus,
-          paymentCompleted: p.paymentCompleted,
-          isVisible: p.isVisible,
-          duplicateNotes: p.duplicateNotes || "Multi-signal identity similarity flagged for admin review",
-          createdAt: p.createdAt,
-          matchedProfile: matchedProfile
-            ? {
-                profileId: matchedProfile.profileId,
-                legacyProfileId: matchedProfile.legacyProfileId,
-                name: `${matchedProfile.firstName || ""} ${matchedProfile.lastName || ""}`.trim() || matchedProfile.user?.fullName,
-                maskedMobile: maskMobileNumber(matchedProfile.user?.mobile || ""),
-                createdAt: matchedProfile.createdAt,
-              }
-            : null,
-        };
-      })
-    );
+    const matchedLookup = new Map<string, (typeof matchedProfilesList)[number]>();
+    for (const mp of matchedProfilesList) {
+      matchedLookup.set(mp.id, mp);
+      matchedLookup.set(mp.profileId, mp);
+    }
+
+    const enriched = flaggedProfiles.map((p) => {
+      const matchedProfile = p.duplicateMatchedProfileId
+        ? matchedLookup.get(p.duplicateMatchedProfileId) || null
+        : null;
+
+      return {
+        id: p.id,
+        profileId: p.profileId,
+        legacyProfileId: p.legacyProfileId,
+        name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.user?.fullName,
+        gender: p.user?.gender || "NOT_SPECIFIED",
+        mobile: p.user?.mobile,
+        maskedMobile: maskMobileNumber(p.user?.mobile || ""),
+        source: p.source,
+        approvalStatus: p.approvalStatus,
+        paymentCompleted: p.paymentCompleted,
+        isVisible: p.isVisible,
+        duplicateNotes: p.duplicateNotes || "Multi-signal identity similarity flagged for admin review",
+        createdAt: p.createdAt,
+        matchedProfile: matchedProfile
+          ? {
+              profileId: matchedProfile.profileId,
+              legacyProfileId: matchedProfile.legacyProfileId,
+              name: `${matchedProfile.firstName || ""} ${matchedProfile.lastName || ""}`.trim() || matchedProfile.user?.fullName,
+              maskedMobile: maskMobileNumber(matchedProfile.user?.mobile || ""),
+              createdAt: matchedProfile.createdAt,
+            }
+          : null,
+      };
+    });
 
     return NextResponse.json({
       success: true,
       duplicates: enriched,
       totalCount: enriched.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN DUPLICATES GET ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch duplicate flags." },
+      { success: false, message: "Failed to fetch duplicate flags." },
       { status: 500 }
     );
   }
@@ -106,7 +124,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const { profileId } = body;
 
     if (!profileId) {
@@ -141,10 +168,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Duplicate flag on Profile ${profile.profileId} has been resolved successfully.`,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN RESOLVE DUPLICATE ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to resolve duplicate flag." },
+      { success: false, message: "Failed to resolve duplicate flag." },
       { status: 500 }
     );
   }

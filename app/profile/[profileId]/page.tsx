@@ -20,7 +20,6 @@ import {
   MessageCircle,
   Sparkles,
   Moon,
-  Sun,
   HelpCircle,
   Send,
   FileDown,
@@ -29,6 +28,7 @@ import {
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import ErrorToast from "@/components/ui/ErrorToast";
+import { getAuthSession } from "@/lib/auth/session-storage";
 import { formatBirthTime, formatDOB } from "@/lib/utils";
 import {
   DEFAULT_API_TIMEOUT_MS,
@@ -174,9 +174,16 @@ export default function ProfileDetailsPage() {
     setAskingAstro(true);
     setToastError(null);
     try {
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetchWithTimeout("/api/ai/astrology", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           type: "qa",
           candidateProfileId: profile.id,
@@ -212,7 +219,13 @@ export default function ProfileDetailsPage() {
   useEffect(() => {
     async function loadProfile() {
       try {
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
         const res = await fetchWithTimeout(`/api/profile/${profileId}`, {
+          credentials: "include",
+          headers,
           timeoutMs: DEFAULT_API_TIMEOUT_MS,
         });
         const data = await safeParseJson<{ success?: boolean; profile?: Profile }>(
@@ -233,7 +246,11 @@ export default function ProfileDetailsPage() {
 
         const shortlistRes = await fetchWithTimeout(
           `/api/shortlist?shortlistedProfileId=${data.profile.id}`,
-          { timeoutMs: DEFAULT_API_TIMEOUT_MS }
+          {
+            credentials: "include",
+            headers,
+            timeoutMs: DEFAULT_API_TIMEOUT_MS,
+          }
         );
         if (shortlistRes.ok) {
           const shortlistData = await safeParseJson<{ shortlisted?: boolean }>(
@@ -252,17 +269,22 @@ export default function ProfileDetailsPage() {
   }, [profileId]);
 
   const toggleShortlist = async () => {
-    if (!profile) return;
+    if (!profile || shortlisting) return;
 
     try {
       setShortlisting(true);
       setMessage(null);
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/shortlist", {
         method: isShortlisted ? "DELETE" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           shortlistedProfileId: profile.id,
         }),
@@ -285,17 +307,22 @@ export default function ProfileDetailsPage() {
   };
 
   const sendInterest = async () => {
-    if (!profile) return;
+    if (!profile || sending) return;
 
     try {
       setSending(true);
       setMessage(null);
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/interest/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           receiverProfileId: profile.id,
         }),
@@ -316,16 +343,30 @@ export default function ProfileDetailsPage() {
     }
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      const candidateTitle = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.user.fullName || "Candidate";
-      navigator.share({
-        title: `${candidateTitle} | RishteClub Matrimony Profile`,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert("Profile link copied to clipboard!");
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        const candidateTitle =
+          [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
+          profile?.user.fullName ||
+          "Candidate";
+        await navigator.share({
+          title: `${candidateTitle} | RishteClub Matrimony Profile`,
+          url: window.location.href,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(window.location.href);
+        setMessage({ text: "Profile link copied to clipboard!", type: "success" });
+      }
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
+        try {
+          await navigator.clipboard?.writeText(window.location.href);
+          setMessage({ text: "Profile link copied to clipboard!", type: "success" });
+        } catch {
+          setMessage({ text: "Unable to share profile link automatically.", type: "error" });
+        }
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
@@ -21,7 +21,15 @@ export async function PATCH(
   try {
     const { id } = await params;
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     const { action } = body;
 
@@ -87,7 +95,7 @@ export async function PATCH(
       profile: updatedProfile,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error(
       "APPROVAL UPDATE ERROR:",
       error
@@ -96,9 +104,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        message:
-          error.message ||
-          "Something went wrong.",
+        message: "Something went wrong.",
       },
       {
         status: 500,

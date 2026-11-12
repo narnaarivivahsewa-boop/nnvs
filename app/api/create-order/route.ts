@@ -30,12 +30,23 @@ export async function POST(req: NextRequest) {
     // ==========================================
     let profile = null;
     if (profileId) {
-      // Lookup profile and user to determine true gender
+      // Lookup profile and user to determine true gender (omit sensitive fields)
       profile = await prisma.profile.findFirst({
         where: {
-          OR: [{ id: profileId }, { profileId: profileId }],
+          OR: [{ id: String(profileId) }, { profileId: String(profileId) }],
         },
-        include: { user: true },
+        select: {
+          id: true,
+          profileId: true,
+          user: {
+            select: {
+              id: true,
+              gender: true,
+              email: true,
+              mobile: true,
+            },
+          },
+        },
       });
     }
 
@@ -113,13 +124,41 @@ export async function POST(req: NextRequest) {
       // Check profile/mobile/email assignment if restricted
       if (
         promoRecord.assignedProfileId &&
-        profile &&
-        promoRecord.assignedProfileId !== profile.id
+        (!profile || promoRecord.assignedProfileId !== profile.id)
       ) {
         return NextResponse.json(
           {
             success: false,
             message: "This coupon code is not assigned to this profile.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (
+        promoRecord.assignedEmail &&
+        (!profile?.user?.email ||
+          promoRecord.assignedEmail.toLowerCase() !==
+            profile.user.email.toLowerCase())
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "This coupon code is not assigned to this email address.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (
+        promoRecord.assignedMobile &&
+        (!profile?.user?.mobile ||
+          promoRecord.assignedMobile !== profile.user.mobile)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "This coupon code is not assigned to this mobile number.",
           },
           { status: 403 }
         );
@@ -171,16 +210,27 @@ export async function POST(req: NextRequest) {
 
     const amountInPaise = Math.round(grossAmountRupees * 100);
 
-    let credentials;
-    try {
-      credentials = getRazorpayCredentials();
-    } catch (authError: any) {
+    if (!Number.isFinite(amountInPaise) || amountInPaise < 100) {
       return NextResponse.json(
         {
           success: false,
-          message: authError?.message || "Razorpay credentials unauthorized.",
+          message:
+            "Order payable amount must be at least ₹1.00. For 100% discount codes, please use free membership activation.",
         },
-        { status: 401 }
+        { status: 400 }
+      );
+    }
+
+    let credentials;
+    try {
+      credentials = getRazorpayCredentials();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Payment gateway configuration is temporarily unavailable.",
+        },
+        { status: 500 }
       );
     }
 
@@ -223,13 +273,18 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     console.error("RAZORPAY ORDER CREATION ERROR:", error);
+    const status =
+      typeof error?.statusCode === "number" &&
+      error.statusCode >= 400 &&
+      error.statusCode < 600
+        ? error.statusCode
+        : 500;
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || error?.error?.description || "Failed to create Razorpay order.",
-        error: error?.error || undefined,
+        message: "Failed to create Razorpay order. Please try again.",
       },
-      { status: error?.statusCode || 500 }
+      { status }
     );
   }
 }

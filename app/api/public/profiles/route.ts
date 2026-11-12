@@ -117,9 +117,12 @@ export async function GET(req: NextRequest) {
     };
 
     // DYNAMIC & FEMALE-FIRST FEATURED ROTATION:
-    // When featured=true or sort=female-first, prioritize female (Bride) profiles at the top
+    // When featured=true or sort=female-first (and no explicit gender filter was passed), prioritize female (Bride) profiles at the top
     // with dynamic rotation from recently approved/registered candidates.
-    if (isFeatured || sort === "female-first") {
+    const hasExplicitGenderFilter = Boolean(
+      gender && (gender.toUpperCase() === "MALE" || gender.toUpperCase() === "FEMALE")
+    );
+    if (!hasExplicitGenderFilter && (isFeatured || sort === "female-first")) {
       const poolTake = Math.max(limit * 3, 24);
 
       const [total, femalePool, malePool] = await Promise.all([
@@ -219,10 +222,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Internal Server Error",
+        message: "Failed to load profiles.",
       },
       {
         status: 500,

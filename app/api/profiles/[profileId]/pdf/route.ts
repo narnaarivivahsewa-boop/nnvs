@@ -116,7 +116,7 @@ export async function GET(
   } catch (error: any) {
     console.error("Error generating biodata PDF:", error);
     return NextResponse.json(
-      { error: "Failed to generate biodata PDF", details: error?.message || String(error) },
+      { error: "Failed to generate biodata PDF." },
       { status: 500 }
     );
   }

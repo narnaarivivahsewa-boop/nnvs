@@ -16,14 +16,14 @@ import {
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
-  return handleAutoPost(req, "GET");
+  return handleAutoPost(req);
 }
 
 export async function POST(req: NextRequest) {
-  return handleAutoPost(req, "POST");
+  return handleAutoPost(req);
 }
 
-async function handleAutoPost(req: NextRequest, _method: "GET" | "POST") {
+async function handleAutoPost(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const config = getMetaConfig();
@@ -174,10 +174,10 @@ async function handleAutoPost(req: NextRequest, _method: "GET" | "POST") {
       dryRun: result.dryRun,
       error: result.error,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Cron Auto-Post Error]:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to execute auto-post" },
+      { success: false, message: "Failed to execute auto-post" },
       { status: 500 }
     );
   }

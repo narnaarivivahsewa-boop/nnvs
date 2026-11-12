@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import { getActiveProfileForUser } from "@/lib/auth/active-profile";
 
 export async function POST(req: NextRequest) {
@@ -9,9 +9,9 @@ export async function POST(req: NextRequest) {
     // Verify Login
     // ==========================
 
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session: payload } = await verifyRequestSession(req);
 
-    if (!token) {
+    if (!payload) {
       return NextResponse.json(
         {
           success: false,
@@ -23,15 +23,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload = await verifyToken(token);
-
     // ==========================
     // Body
     // ==========================
 
-    const { receiverProfileId } = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid request payload.",
+        },
+        { status: 400 }
+      );
+    }
 
-    if (!receiverProfileId) {
+    const rawReceiverId =
+      typeof body?.receiverProfileId === "string"
+        ? body.receiverProfileId.trim()
+        : "";
+
+    if (!rawReceiverId) {
       return NextResponse.json(
         {
           success: false,
@@ -64,6 +78,27 @@ export async function POST(req: NextRequest) {
         }
       );
     }
+
+    const targetProfile = await prisma.profile.findFirst({
+      where: {
+        OR: [{ id: rawReceiverId }, { profileId: rawReceiverId }],
+      },
+      select: { id: true },
+    });
+
+    if (!targetProfile) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Receiver profile not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    const receiverProfileId = targetProfile.id;
 
     // ==========================
     // Cannot send to self
@@ -134,4 +169,4 @@ export async function POST(req: NextRequest) {
       }
     );
   }
-}   
+}

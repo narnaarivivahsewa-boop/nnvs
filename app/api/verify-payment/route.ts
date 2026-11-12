@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { verifyRazorpaySignature } from "@/lib/razorpay";
+import { verifyRequestSession } from "@/lib/jwt";
 import { prisma } from "@/lib/prisma";
 import { autoGenerateAndSaveBiodataPdf } from "@/lib/pdf/biodata-generator";
 import { calculateGstFromGross } from "@/lib/gst";
@@ -46,12 +48,12 @@ export async function POST(req: NextRequest) {
         paymentId: razorpay_payment_id,
         signature: razorpay_signature,
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error("Signature verification error:", err);
       return NextResponse.json(
         {
           success: false,
-          message: err?.message || "Signature verification failed due to internal error.",
+          message: "Signature verification failed due to internal configuration error.",
         },
         { status: 500 }
       );
@@ -72,8 +74,9 @@ export async function POST(req: NextRequest) {
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
     // Check if already captured by webhook
-    let existingPayment = await prisma.payment.findFirst({
+    const existingPayment = await prisma.payment.findFirst({
       where: { transactionId: razorpay_payment_id },
+      select: { id: true },
     });
 
     let paymentRecordId = existingPayment?.id || null;
@@ -84,20 +87,45 @@ export async function POST(req: NextRequest) {
           where: {
             OR: [{ id: String(profileId) }, { profileId: String(profileId) }],
           },
-          include: { user: true },
+          select: {
+            id: true,
+            profileId: true,
+            userId: true,
+            approvedAt: true,
+          },
         });
 
         if (profile) {
           if (!existingPayment) {
             const paidGross = grossAmount > 0 ? grossAmount : 0;
+            const paymentId = crypto.randomUUID();
             const gstBreakdown =
               paidGross > 0
                 ? calculateGstFromGross(paidGross, 18, false)
                 : { taxableAmount: 0, gstRate: 18, totalTax: 0 };
 
-            const result = await prisma.$transaction(async (tx) => {
-              const payment = await tx.payment.create({
+            // Rule 2: Official Profile ID is assigned before batch transaction
+            let officialProfileId = profile.profileId;
+            if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
+              let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+              while (await prisma.profile.findUnique({ where: { profileId: candidateId }, select: { id: true } })) {
+                candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+              }
+              officialProfileId = candidateId;
+            }
+
+            const cleanPromoCode = promoCode ? String(promoCode).trim().toUpperCase() : null;
+            const activePromo = cleanPromoCode
+              ? await prisma.promoCode.findFirst({
+                  where: { code: cleanPromoCode, status: "ACTIVE" },
+                  select: { id: true },
+                })
+              : null;
+
+            const txOps: any[] = [
+              prisma.payment.create({
                 data: {
+                  id: paymentId,
                   userId: profile.userId,
                   profileId: profile.id,
                   amount: paidGross,
@@ -107,29 +135,16 @@ export async function POST(req: NextRequest) {
                   gstAmount: gstBreakdown.totalTax,
                   invoiceNumber,
                   invoiceDate: now,
+                  invoiceUrl: `/invoice/${paymentId}`,
                   status: "SUCCESS",
                   paymentGateway: "RAZORPAY",
                   transactionId: razorpay_payment_id,
                   adminNotes: `Razorpay Order ID: ${razorpay_order_id}`,
                   paymentDate: now,
                 },
-              });
-
-              // Direct Live Activation Rule:
-              // Profiles registering via website with OTP verification and completing payment
-              // become directly LIVE and APPROVED. No admin approval required.
-
-              // Rule 2: Official Profile ID is assigned only upon confirmed payment
-              let officialProfileId = profile.profileId;
-              if (profile.profileId.startsWith("DRAFT-") || profile.profileId === "DRAFT") {
-                let candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-                while (await tx.profile.findUnique({ where: { profileId: candidateId } })) {
-                  candidateId = `RC${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-                }
-                officialProfileId = candidateId;
-              }
-
-              await tx.profile.update({
+              }),
+              // Direct Live Activation Rule
+              prisma.profile.update({
                 where: { id: profile.id },
                 data: {
                   profileId: officialProfileId,
@@ -138,38 +153,38 @@ export async function POST(req: NextRequest) {
                   approvalStatus: "APPROVED",
                   approvedAt: profile.approvedAt || now,
                 },
-              });
+              }),
+            ];
 
-              if (promoCode) {
-                const cleanCode = String(promoCode).trim().toUpperCase();
-                const promo = await tx.promoCode.findUnique({
-                  where: { code: cleanCode },
+            if (activePromo) {
+              txOps.push(
+                prisma.promoCode.updateMany({
+                  where: { id: activePromo.id, status: "ACTIVE" },
+                  data: {
+                    status: "USED",
+                    usedAt: now,
+                    usedPaymentId: paymentId,
+                    assignedProfileId: profile.id,
+                  },
+                })
+              );
+            }
+
+            const [payment] = await prisma.$transaction(txOps);
+            paymentRecordId = payment.id;
+
+            // Update secondary Coupon table outside transaction to avoid 25P02 aborts
+            if (activePromo && cleanPromoCode) {
+              try {
+                await prisma.coupon.updateMany({
+                  where: { code: cleanPromoCode },
+                  data: { isActive: false },
                 });
-                if (promo && promo.status === "ACTIVE") {
-                  await tx.promoCode.update({
-                    where: { id: promo.id },
-                    data: {
-                      status: "USED",
-                      usedAt: new Date(),
-                      usedPaymentId: payment.id,
-                      assignedProfileId: profile.id,
-                    },
-                  });
-
-                  try {
-                    await tx.coupon.updateMany({
-                      where: { code: cleanCode },
-                      data: { isActive: false },
-                    });
-                  } catch {
-                    // Ignore secondary table update if not present
-                  }
-                }
+              } catch {
+                // Ignore secondary table update if not present
               }
+            }
 
-              return payment;
-            });
-            paymentRecordId = result.id;
             // Automated PDF Generation for paid profile
             autoGenerateAndSaveBiodataPdf(profile.id).catch((err) => {
               console.error("[Auto PDF generation error in verify-payment]:", err);
@@ -183,32 +198,64 @@ export async function POST(req: NextRequest) {
         }
       } catch (dbError) {
         console.error("Error updating database for verified payment:", dbError);
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Payment signature verified, but recording payment failed. Please contact support with your Payment ID.",
+            payment_id: razorpay_payment_id,
+            order_id: razorpay_order_id,
+          },
+          { status: 500 }
+        );
       }
     } else if (service === "ASTROLOGY" || body.type === "ASTROLOGY") {
       // Record standalone astrology payment
       try {
         if (!existingPayment) {
-          const systemUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
-          const astroGross = grossAmount > 0 ? grossAmount : 116.82;
-          const astroGst = calculateGstFromGross(astroGross, 18, false);
-          const payment = await prisma.payment.create({
-            data: {
-              userId: systemUser?.id || "astrology-guest",
-              amount: astroGross,
-              grossAmount: astroGross,
-              taxableAmount: astroGst.taxableAmount,
-              gstRate: 18,
-              gstAmount: astroGst.totalTax,
-              invoiceNumber,
-              invoiceDate: now,
-              status: "SUCCESS",
-              paymentGateway: "RAZORPAY",
-              transactionId: razorpay_payment_id,
-              adminNotes: `Astrology Lal Kitab Remedies (Order: ${razorpay_order_id})`,
-              paymentDate: now,
-            },
-          });
-          paymentRecordId = payment.id;
+          const { session } = await verifyRequestSession(req);
+          let resolvedUserId: string | null = null;
+          if (session?.userId) {
+            const sessionUser = await prisma.user.findUnique({
+              where: { id: session.userId },
+              select: { id: true },
+            });
+            resolvedUserId = sessionUser?.id || null;
+          }
+          if (!resolvedUserId) {
+            const systemUser = await prisma.user.findFirst({
+              where: { role: "ADMIN" },
+              select: { id: true },
+            });
+            resolvedUserId = systemUser?.id || null;
+          }
+
+          if (resolvedUserId) {
+            const astroGross = grossAmount > 0 ? grossAmount : 116.82;
+            const astroGst = calculateGstFromGross(astroGross, 18, false);
+            const paymentId = crypto.randomUUID();
+            const payment = await prisma.payment.create({
+              data: {
+                id: paymentId,
+                userId: resolvedUserId,
+                amount: astroGross,
+                grossAmount: astroGross,
+                taxableAmount: astroGst.taxableAmount,
+                gstRate: 18,
+                gstAmount: astroGst.totalTax,
+                invoiceNumber,
+                invoiceDate: now,
+                invoiceUrl: `/invoice/${paymentId}`,
+                status: "SUCCESS",
+                paymentGateway: "RAZORPAY",
+                transactionId: razorpay_payment_id,
+                adminNotes: `Astrology Lal Kitab Remedies (Order: ${razorpay_order_id})`,
+                paymentDate: now,
+              },
+            });
+            paymentRecordId = payment.id;
+          } else {
+            console.warn("Astrology payment verified but no DB user available for Payment.userId FK.");
+          }
         } else {
           paymentRecordId = existingPayment.id;
         }
@@ -229,12 +276,12 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("PAYMENT VERIFICATION ROUTE ERROR:", error);
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Internal server error while verifying payment.",
+        message: "Internal server error while verifying payment.",
       },
       { status: 500 }
     );

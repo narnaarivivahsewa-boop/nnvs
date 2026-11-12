@@ -1,10 +1,12 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { BUSINESS_INFO, calculateGstBreakdown } from "@/lib/gst";
 import { getRegistrationPricingDetails, OFFER_VALIDITY_LABEL } from "@/lib/pricing";
+import { getAuthSession } from "@/lib/auth/session-storage";
+import ErrorToast from "@/components/ui/ErrorToast";
 import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
 import {
   ShieldCheck,
@@ -18,6 +20,7 @@ import {
 } from "lucide-react";
 
 function PaymentContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const profileId = searchParams.get("profileId") || "";
   const nameParam = searchParams.get("name") || "";
@@ -49,23 +52,18 @@ function PaymentContent() {
   const [couponError, setCouponError] = useState("");
   const [couponSuccess, setCouponSuccess] = useState("");
 
-  const [settings, setSettings] = useState<{
-    registrationFee: number;
-    gstPercentage: number;
-    tradeName: string;
-    gstin: string;
-  }>({
-    registrationFee: applicableFee,
-    gstPercentage: 18,
-    tradeName: BUSINESS_INFO.tradeName,
-    gstin: BUSINESS_INFO.gstin,
-  });
-
   useEffect(() => {
     async function loadProfileAndSettings() {
       if (profileId) {
         try {
-          const pRes = await fetch(`/api/profile?profileId=${encodeURIComponent(profileId)}`);
+          const { token } = await getAuthSession();
+          const headers: Record<string, string> = {};
+          if (token) headers.Authorization = `Bearer ${token}`;
+
+          const pRes = await fetch(`/api/profile?profileId=${encodeURIComponent(profileId)}`, {
+            credentials: "include",
+            headers,
+          });
           if (pRes.ok) {
             const pData = await pRes.json();
             const pGender = (pData?.profile?.user?.gender || pData?.profile?.gender || "").toUpperCase();
@@ -80,13 +78,6 @@ function PaymentContent() {
     }
     loadProfileAndSettings();
   }, [profileId]);
-
-  useEffect(() => {
-    setSettings((prev) => ({
-      ...prev,
-      registrationFee: pricing.baseFee,
-    }));
-  }, [pricing.baseFee]);
 
   const handleApplyCoupon = async (codeToApply?: string) => {
     const rawCode = (codeToApply !== undefined ? codeToApply : couponInput).trim();
@@ -141,14 +132,26 @@ function PaymentContent() {
   };
 
   const [activatingFree, setActivatingFree] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationSuccess, setActivationSuccess] = useState<string | null>(null);
 
   const handleFreeActivation = async () => {
-    if (!appliedCoupon) return;
+    if (!appliedCoupon || activatingFree) return;
     try {
       setActivatingFree(true);
+      setActivationError(null);
+      setActivationSuccess(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/payment/complete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId,
           promoCode: appliedCoupon.code,
@@ -158,15 +161,17 @@ function PaymentContent() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || "Failed to activate free membership.");
+        setActivationError(data.message || "Failed to activate free membership.");
         return;
       }
 
-      alert("🎉 100% Discount Applied! Your membership has been activated successfully.");
-      window.location.href = `/dashboard?payment=success&profileId=${encodeURIComponent(profileId)}`;
+      setActivationSuccess("100% Discount Applied! Your membership has been activated. Redirecting to dashboard...");
+      setTimeout(() => {
+        router.push(`/dashboard?payment=success&profileId=${encodeURIComponent(profileId)}`);
+      }, 900);
     } catch (err: any) {
       console.error("Free activation error:", err);
-      alert("Failed to activate free membership. Please try again.");
+      setActivationError("Failed to activate free membership. Please try again.");
     } finally {
       setActivatingFree(false);
     }
@@ -174,11 +179,47 @@ function PaymentContent() {
 
   // Auto-apply coupon from query param if available
   useEffect(() => {
-    if (initialCoupon && !appliedCoupon) {
-      handleApplyCoupon(initialCoupon);
+    if (!initialCoupon) return;
+    let active = true;
+
+    async function autoApplyCoupon() {
+      try {
+        const res = await fetch("/api/payment/promo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: initialCoupon.trim(),
+            profileId,
+            baseFee: pricing.baseFee,
+            gender,
+          }),
+        });
+        const data = await res.json();
+        if (!active) return;
+
+        if (!res.ok || !data.success) {
+          setCouponError(data.message || "Invalid coupon code.");
+          setAppliedCoupon(null);
+          return;
+        }
+
+        setAppliedCoupon({
+          code: data.promoCode.code,
+          message: data.message,
+          calculation: data.calculation,
+        });
+        setCouponSuccess(data.message || "Coupon applied successfully!");
+        setCouponError("");
+      } catch (err) {
+        console.error("Coupon auto-apply error:", err);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCoupon, gender]);
+
+    autoApplyCoupon();
+    return () => {
+      active = false;
+    };
+  }, [initialCoupon, profileId, pricing.baseFee, gender]);
 
   const defaultTaxes = calculateGstBreakdown(applicableFee);
   const totalAmount = appliedCoupon
@@ -186,7 +227,7 @@ function PaymentContent() {
     : defaultTaxes.totalAmount;
   const displayBaseFee = appliedCoupon
     ? appliedCoupon.calculation.baseFee
-    : settings.registrationFee;
+    : applicableFee;
   const displayCgst = appliedCoupon
     ? appliedCoupon.calculation.cgstAmount
     : defaultTaxes.cgstAmount;
@@ -196,6 +237,11 @@ function PaymentContent() {
 
   return (
     <div className="mx-auto max-w-xl">
+      <ErrorToast
+        message={activationError}
+        onDismiss={() => setActivationError(null)}
+        title="Membership Activation Notice"
+      />
       <div className="rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-[#DACBB4]">
         {/* Brand Header */}
         <div className="mb-6 text-center">
@@ -391,6 +437,16 @@ function PaymentContent() {
               <div className="rounded-xl bg-emerald-100/80 border border-emerald-300 p-3 text-xs text-emerald-900 font-semibold text-center">
                 🎉 100% Discount Applied! Your registration is completely free.
               </div>
+              {activationError && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-800 text-left">
+                  {activationError}
+                </div>
+              )}
+              {activationSuccess && (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 text-xs font-bold text-emerald-800 text-center">
+                  ✓ {activationSuccess}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleFreeActivation}
@@ -473,7 +529,7 @@ function PaymentContent() {
             <span>GST Compliance & Official Billing</span>
           </div>
           <p>
-            Official GST Tax Invoice will be issued under trade name <strong>{settings.tradeName}</strong> (GSTIN: <span className="font-mono">{settings.gstin}</span>) upon successful payment.
+            Official GST Tax Invoice will be issued under trade name <strong>{BUSINESS_INFO.tradeName}</strong> (GSTIN: <span className="font-mono">{BUSINESS_INFO.gstin}</span>) upon successful payment.
           </p>
         </div>
       </div>

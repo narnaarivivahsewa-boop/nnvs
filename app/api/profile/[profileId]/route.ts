@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 
 export async function GET(
   req: NextRequest,
@@ -11,22 +11,9 @@ export async function GET(
   try {
     const { profileId } = await context.params;
 
-    // Check optional authentication token
-    let isAuthenticated = false;
-    let userPayload: any = null;
-    const token = req.cookies.get("nnvs_token")?.value;
-
-    if (token) {
-      try {
-        const payload = await verifyToken(token);
-        if (payload?.userId) {
-          isAuthenticated = true;
-          userPayload = payload;
-        }
-      } catch {
-        isAuthenticated = false;
-      }
-    }
+    // Check optional authentication session (cookie or Bearer/x-nnvs-token)
+    const { session: userPayload } = await verifyRequestSession(req);
+    const isAuthenticated = Boolean(userPayload?.userId);
 
     const profile = await prisma.profile.findFirst({
       where: {

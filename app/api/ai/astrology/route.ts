@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/jwt";
+import { verifyRequestSession } from "@/lib/jwt";
 import { getActiveProfileId } from "@/lib/auth/active-profile";
 import {
   calculateAuthenticGunaMilan,
@@ -9,48 +9,48 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("nnvs_token")?.value;
+    const { session } = await verifyRequestSession(req);
     let currentUser: any = null;
     let currentProfile: any = null;
-    let sessionProfileId: string | undefined = undefined;
+    const sessionProfileId: string | undefined = session?.activeProfileId;
 
-    if (token) {
-      try {
-        const session = await verifyToken(token);
-        sessionProfileId = session?.activeProfileId;
-        if (session?.userId) {
-          currentUser = await prisma.user.findUnique({
-            where: { id: session.userId },
+    if (session?.userId) {
+      currentUser = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          fullName: true,
+          gender: true,
+          role: true,
+          profiles: {
             select: {
               id: true,
-              fullName: true,
-              gender: true,
-              role: true,
-              profiles: {
-                select: {
-                  id: true,
-                  profileId: true,
-                  firstName: true,
-                  lastName: true,
-                  dateOfBirth: true,
-                  birthPlace: true,
-                  birthTime: true,
-                  manglik: true,
-                  user: {
-                    select: { gender: true },
-                  },
-                },
-                orderBy: { createdAt: "desc" },
+              profileId: true,
+              firstName: true,
+              lastName: true,
+              dateOfBirth: true,
+              birthPlace: true,
+              birthTime: true,
+              manglik: true,
+              user: {
+                select: { gender: true },
               },
             },
-          });
-        }
-      } catch {
-        // Token expired or invalid
-      }
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      });
     }
 
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
     const {
       type = "match", // 'match' | 'qa' | 'profiles-list'
       userDob,
@@ -189,16 +189,27 @@ export async function POST(req: NextRequest) {
 
       const candidate = await prisma.profile.findFirst({
         where: {
-          OR: [{ id: candidateProfileId }, { profileId: candidateProfileId }],
+          OR: [{ id: String(candidateProfileId) }, { profileId: String(candidateProfileId) }],
         },
         include: {
-          user: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              gender: true,
+            },
+          },
         },
       });
 
       if (!candidate) {
         return NextResponse.json({ success: false, message: "Candidate profile not found." }, { status: 404 });
       }
+
+      const candidateName =
+        [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim() ||
+        candidate.user?.fullName ||
+        "Candidate";
 
       const effectiveUserGender = (currentProfile?.user?.gender || currentUser?.gender || clientUserGender || "MALE").toUpperCase();
       const isUserFemale = effectiveUserGender === "FEMALE" || candidate?.user?.gender === "MALE";
@@ -232,24 +243,24 @@ export async function POST(req: NextRequest) {
 
       // Generate context-aware astrological and Lal Kitab remedies answer
       let answer = "";
-      const qLower = (question || "").toLowerCase();
+      const qLower = String(question || "").toLowerCase();
 
       if (qLower.includes("upaye") || qLower.includes("upay") || qLower.includes("dosh") || qLower.includes("lal kitab")) {
         const primaryRemedy = gunaData.lalKitabData.doshas[0]?.remedies?.join("; ") || gunaData.lalKitabData.universalRemedies.join("; ");
         answer = `Lal Kitab ke anusar is milan me: ${gunaData.manglikVerdict}. Pramukh Upaye: ${primaryRemedy}. Shivling par kacha doodh arpit karna aur chandi ka tukda paas rakhna atyant shubh rahega.`;
       } else if (qLower.includes("manglik") || qLower.includes("dosha")) {
-        answer = `Vedic aur Lal Kitab ganana ke anusar, ${candidate.user.fullName} "${candidate.manglik || 'Non-Manglik'}" recorded hain. ${gunaData.manglikVerdict} Agar samanya Mangal prabhav ho to Neem ke ped me jal arpit karna aur Mangalwar ko gur daan karna uttam upaye hai.`;
+        answer = `Vedic aur Lal Kitab ganana ke anusar, ${candidateName} "${candidate.manglik || 'Non-Manglik'}" recorded hain. ${gunaData.manglikVerdict} Agar samanya Mangal prabhav ho to Neem ke ped me jal arpit karna aur Mangalwar ko gur daan karna uttam upaye hai.`;
       } else if (qLower.includes("gun") || qLower.includes("guna") || qLower.includes("milan") || qLower.includes("match")) {
         answer = `Ashtakoota 36 Guna Milan me kul score ${gunaData.totalGuna}/36 hai (${gunaData.totalGuna >= 18 ? "18 se adhik hone ke karan shubh hai" : "Lal Kitab upaye aavashyak hain"}). Graha Maitri (${gunaData.breakdown.grahaMaitri.scored}/5), Gana (${gunaData.breakdown.gana.scored}/6), aur Bhakoot (${gunaData.breakdown.bhakoot.scored}/7) aapsi samajh aur parivarik vikas ke liye vishesh mahatva rakhte hain.`;
       } else if (qLower.includes("birth") || qLower.includes("time") || qLower.includes("place") || qLower.includes("kundli")) {
-        answer = `Biodata Record for ${candidate.user.fullName}: Janm Tithi: ${candidate.dateOfBirth ? new Date(candidate.dateOfBirth).toLocaleDateString("en-IN") : 'Recorded'}, Janm Samay: ${candidate.birthTime || 'Kundli Chart uplabdh'}, Janm Sthan: ${candidate.birthPlace || 'Recorded'}, Manglik: ${candidate.manglik || 'Non-Manglik'}.`;
+        answer = `Biodata Record for ${candidateName}: Janm Tithi: ${candidate.dateOfBirth ? new Date(candidate.dateOfBirth).toLocaleDateString("en-IN") : 'Recorded'}, Janm Samay: ${candidate.birthTime || 'Kundli Chart uplabdh'}, Janm Sthan: ${candidate.birthPlace || 'Recorded'}, Manglik: ${candidate.manglik || 'Non-Manglik'}.`;
       } else {
         answer = `Vedic & Lal Kitab AI analysis ke anusar ${userAstro.nakshatra} aur ${candidateAstro.nakshatra} ka kundli milan ${gunaData.totalGuna}/36 Guna ke sath sampanna hai. ${gunaData.manglikCompatibility}. Lal Kitab Upaye: Dono pariwar Shivji aur Mata Lakshmi ka pujan karein, vaivahik jeevan mangalmay rahega.`;
       }
 
       return NextResponse.json({
         success: true,
-        candidateName: candidate.user.fullName,
+        candidateName,
         candidateProfileId: candidate.profileId,
         question,
         answer,
@@ -257,7 +268,7 @@ export async function POST(req: NextRequest) {
         lalKitabData: gunaData.lalKitabData,
         astroDetails: {
           candidate: {
-            name: candidate.user.fullName,
+            name: candidateName,
             rashi: candidateAstro.rashi,
             nakshatra: candidateAstro.nakshatra,
             manglik: candidate.manglik || "Non-Manglik",
@@ -278,10 +289,16 @@ export async function POST(req: NextRequest) {
     if (candidateProfileId) {
       candidate = await prisma.profile.findFirst({
         where: {
-          OR: [{ id: candidateProfileId }, { profileId: candidateProfileId }],
+          OR: [{ id: String(candidateProfileId) }, { profileId: String(candidateProfileId) }],
         },
         include: {
-          user: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              gender: true,
+            },
+          },
           photos: { where: { isPrimary: true }, take: 1 },
           education: true,
           occupation: true,
@@ -336,8 +353,11 @@ export async function POST(req: NextRequest) {
         ? {
             id: candidate.id,
             profileId: candidate.profileId,
-            fullName: candidate.user.fullName,
-            gender: candidate.user.gender,
+            fullName:
+              [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim() ||
+              candidate.user?.fullName ||
+              "Candidate",
+            gender: candidate.user?.gender || null,
             dateOfBirth: candidate.dateOfBirth,
             birthPlace: candidate.birthPlace,
             birthTime: candidate.birthTime,
@@ -352,7 +372,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Astrology AI API Error:", error);
     return NextResponse.json(
-      { success: false, message: error.message || "Failed to compute astrological match." },
+      { success: false, message: "Failed to compute astrological match." },
       { status: 500 }
     );
   }

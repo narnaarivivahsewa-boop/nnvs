@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const genderParam = searchParams.get("gender")?.toUpperCase();
     const q = (searchParams.get("q") || "").trim();
-    const limit = Math.min(parseInt(searchParams.get("limit") || "30", 10), 60);
+    const parsedLimit = parseInt(searchParams.get("limit") || "30", 10);
+    const limit = Math.max(1, Math.min(isNaN(parsedLimit) ? 30 : parsedLimit, 60));
 
     const where: any = {};
 
@@ -26,7 +27,6 @@ export async function GET(req: NextRequest) {
 
     // Keyword search across Name, Mobile, Registration ID, Legacy ID
     if (q) {
-      const isDigitsOnly = /^\d+$/.test(q);
       const searchConditions: any[] = [
         { profileId: { contains: q, mode: "insensitive" } },
         { legacyProfileId: { contains: q, mode: "insensitive" } },
@@ -150,10 +150,10 @@ export async function GET(req: NextRequest) {
       count: results.length,
       profiles: results,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Admin Kundali Search Error]:", error);
     return NextResponse.json(
-      { success: false, message: error.message || "Failed to search profiles" },
+      { success: false, message: "Failed to search profiles" },
       { status: 500 }
     );
   }

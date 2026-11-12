@@ -395,7 +395,15 @@ async function completeOtpVerificationResponse(params: {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
 
     const rawMobile = String(
       body.mobile ?? body.phoneNumber ?? body.phone ?? ""

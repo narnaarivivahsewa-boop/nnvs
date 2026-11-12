@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -21,6 +21,7 @@ import {
   KeyRound,
   Filter,
 } from "lucide-react";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 interface ProfileActivity {
   id: string;
@@ -57,7 +58,9 @@ export default function UserActivityDashboard() {
 
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "ACTIVE">("ALL");
   const [search, setSearch] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -65,55 +68,68 @@ export default function UserActivityDashboard() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [, startTransition] = useTransition();
-
-  // Load data
-  const loadData = async (
-    targetFilter = filter,
-    targetSearch = search,
-    targetPage = page
-  ) => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        filter: targetFilter,
-        search: targetSearch,
-        page: targetPage.toString(),
-        limit: "25",
-      });
-
-      const res = await fetch(`/api/admin/activity?${params.toString()}`);
-      const data = await res.json();
-
-      if (data.success) {
-        setProfiles(data.profiles || []);
-        setMetrics(data.metrics || {
-          totalRegisteredProfiles: 0,
-          totalActiveProfiles: 0,
-          totalPendingProfiles: 0,
-          adoptionRatePercent: 0,
-        });
-        setTotalPages(data.pagination?.totalPages || 1);
-        setTotalCount(data.pagination?.totalCount || 0);
-      } else {
-        setActionError(data.message || "Failed to load activity data");
-      }
-    } catch (err: any) {
-      console.error("Activity load error:", err);
-      setActionError(err.message || "Network error loading data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [pendingResetProfile, setPendingResetProfile] = useState<ProfileActivity | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [smsModalProfile, setSmsModalProfile] = useState<ProfileActivity | null>(null);
+  const [copiedSmsText, setCopiedSmsText] = useState(false);
 
   useEffect(() => {
-    loadData(filter, search, page);
-  }, [filter, page]);
+    let active = true;
+
+    async function fetchActivity() {
+      try {
+        setLoading(true);
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const params = new URLSearchParams({
+          filter,
+          search: submittedSearch,
+          page: page.toString(),
+          limit: "25",
+        });
+
+        const res = await fetch(`/api/admin/activity?${params.toString()}`, {
+          credentials: "include",
+          headers,
+        });
+        const data = await res.json();
+        if (!active) return;
+
+        if (data.success) {
+          setProfiles(data.profiles || []);
+          setMetrics(data.metrics || {
+            totalRegisteredProfiles: 0,
+            totalActiveProfiles: 0,
+            totalPendingProfiles: 0,
+            adoptionRatePercent: 0,
+          });
+          setTotalPages(data.pagination?.totalPages || 1);
+          setTotalCount(data.pagination?.totalCount || 0);
+        } else {
+          setActionError(data.message || "Failed to load activity data");
+        }
+      } catch (err: any) {
+        if (!active) return;
+        console.error("Activity load error:", err);
+        setActionError(err.message || "Network error loading data");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    fetchActivity();
+    return () => {
+      active = false;
+    };
+  }, [filter, submittedSearch, page, refreshTick]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    loadData(filter, search, 1);
+    setSubmittedSearch(search);
+    setRefreshTick((t) => t + 1);
   };
 
   const handleFilterChange = (newFilter: "ALL" | "PENDING" | "ACTIVE") => {
@@ -139,9 +155,16 @@ export default function UserActivityDashboard() {
   // Log reminder click
   const logReminder = async (p: ProfileActivity, channel: "WHATSAPP" | "SMS") => {
     try {
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       await fetch("/api/admin/activity/reminder", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId: p.profileId,
           mobile: p.mobile,
@@ -157,19 +180,25 @@ export default function UserActivityDashboard() {
   };
 
   // Reset password to default
-  const handleResetPassword = async (p: ProfileActivity) => {
-    if (
-      !confirm(
-        `Reset password for ${p.candidateName} (${p.mobile}) to default temporary password 'NNVS@RC2026'?\n\nThey will be required to set a new password on their next login.`
-      )
-    ) {
-      return;
-    }
+  const executeResetPassword = async () => {
+    if (!pendingResetProfile || resettingPassword) return;
+    const p = pendingResetProfile;
 
     try {
+      setResettingPassword(true);
+      setActionError(null);
+      setActionSuccess(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/admin/activity/reminder", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           profileId: p.profileId,
           mobile: p.mobile,
@@ -180,12 +209,17 @@ export default function UserActivityDashboard() {
       const data = await res.json();
       if (data.success) {
         setActionSuccess(data.message);
-        loadData(filter, search, page);
+        setPendingResetProfile(null);
+        setRefreshTick((t) => t + 1);
       } else {
         setActionError(data.message || "Failed to reset password");
+        setPendingResetProfile(null);
       }
     } catch (err: any) {
       setActionError(err.message || "Network error");
+      setPendingResetProfile(null);
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -203,7 +237,7 @@ export default function UserActivityDashboard() {
 
       setActionSuccess(`Export initiated for ${exportFilter} users list.`);
       setTimeout(() => setActionSuccess(null), 3000);
-    } catch (err: any) {
+    } catch {
       setActionError("Failed to trigger export download.");
     } finally {
       setIsExporting(false);
@@ -238,7 +272,7 @@ export default function UserActivityDashboard() {
 
           <button
             type="button"
-            onClick={() => loadData(filter, search, page)}
+            onClick={() => setRefreshTick((t) => t + 1)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2.5 text-xs font-bold text-gray-700 border border-gray-200 shadow-xs hover:bg-gray-50 transition"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -396,7 +430,9 @@ export default function UserActivityDashboard() {
                 type="button"
                 onClick={() => {
                   setSearch("");
-                  loadData(filter, "", 1);
+                  setSubmittedSearch("");
+                  setPage(1);
+                  setRefreshTick((t) => t + 1);
                 }}
                 className="text-xs text-gray-500 hover:text-gray-800 font-semibold underline"
               >
@@ -594,9 +630,8 @@ export default function UserActivityDashboard() {
                             onClick={() => {
                               handleCopyMobile(p.mobile);
                               logReminder(p, "SMS");
-                              alert(
-                                `Mobile number ${p.mobile} copied!\n\nUse Fast2SMS or your SMS broadcast tool to send:\n"Namaste ${p.candidateName}, login to RishteClub at https://www.rishteclub.com/login with your mobile number to view matches and set your password."`
-                              );
+                              setCopiedSmsText(false);
+                              setSmsModalProfile(p);
                             }}
                             className="inline-flex items-center gap-1 rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition"
                             title="Copy number & log SMS reminder"
@@ -608,7 +643,7 @@ export default function UserActivityDashboard() {
                           {/* Reset Password to Default */}
                           <button
                             type="button"
-                            onClick={() => handleResetPassword(p)}
+                            onClick={() => setPendingResetProfile(p)}
                             className="inline-flex items-center gap-1 rounded-lg bg-gray-100 border border-gray-200 px-2 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-200 transition"
                             title="Reset password to default temporary NNVS@RC2026"
                           >
@@ -677,6 +712,116 @@ export default function UserActivityDashboard() {
           into WhatsApp Business Broadcast lists.
         </p>
       </div>
+
+      {/* Password Reset Confirmation Modal */}
+      {pendingResetProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif-luxury">
+                  Reset Temporary Password?
+                </h3>
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  Reset password for{" "}
+                  <strong>{pendingResetProfile.candidateName}</strong> (
+                  <span className="font-mono">{pendingResetProfile.mobile}</span>) to default temporary password{" "}
+                  <span className="font-mono font-bold text-[#4A121A]">NNVS@RC2026</span>? They will be prompted to set
+                  a new password on their next login.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingResetProfile(null)}
+                disabled={resettingPassword}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeResetPassword}
+                disabled={resettingPassword}
+                className="rounded-xl bg-[#4A121A] px-4 py-2 text-xs font-bold text-white hover:bg-[#350d13] transition disabled:opacity-50"
+              >
+                {resettingPassword ? "Resetting..." : "Confirm Reset"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fast2SMS Template Helper Modal */}
+      {smsModalProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-blue-600" />
+                <h3 className="text-base font-bold text-gray-900 font-serif-luxury">
+                  SMS Reminder Template Copied
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSmsModalProfile(null)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <p className="text-gray-700">
+                Mobile number{" "}
+                <strong className="font-mono text-gray-900">{smsModalProfile.mobile}</strong> has been copied to your
+                clipboard and the SMS reminder was logged.
+              </p>
+              <label className="block font-bold text-gray-600 uppercase tracking-wide pt-1">
+                Fast2SMS Message Content
+              </label>
+              <textarea
+                readOnly
+                rows={3}
+                value={`Namaste ${smsModalProfile.candidateName}, login to RishteClub at https://www.rishteclub.com/login with your mobile number to view matches and set your password.`}
+                className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-xs text-gray-800 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  const text = `Namaste ${smsModalProfile.candidateName}, login to RishteClub at https://www.rishteclub.com/login with your mobile number to view matches and set your password.`;
+                  try {
+                    await navigator.clipboard?.writeText(text);
+                    setCopiedSmsText(true);
+                  } catch {
+                    setActionError("Unable to copy SMS template text automatically.");
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                <span>{copiedSmsText ? "Template Copied!" : "Copy SMS Text"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSmsModalProfile(null)}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

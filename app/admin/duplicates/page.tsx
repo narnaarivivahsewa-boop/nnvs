@@ -12,26 +12,38 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 export default function DuplicatesPage() {
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [pendingResolve, setPendingResolve] = useState<{ profileId: string; name?: string } | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadDuplicates = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/duplicates");
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch("/api/admin/duplicates", {
+        credentials: "include",
+        headers,
+      });
       const data = await res.json();
 
       if (data.success) {
         setDuplicates(data.duplicates || []);
+      } else if (!res.ok) {
+        setErrorMessage(data.message || "Failed to load duplicate records.");
       }
     } catch (err) {
       console.error("Error loading duplicates:", err);
+      setErrorMessage("Network error while loading duplicate records.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -42,7 +54,14 @@ export default function DuplicatesPage() {
     let ignore = false;
     async function init() {
       try {
-        const res = await fetch("/api/admin/duplicates");
+        const { token } = await getAuthSession();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch("/api/admin/duplicates", {
+          credentials: "include",
+          headers,
+        });
         const data = await res.json();
         if (!ignore && data.success) {
           setDuplicates(data.duplicates || []);
@@ -59,19 +78,25 @@ export default function DuplicatesPage() {
     };
   }, []);
 
-  const handleResolve = async (profileId: string) => {
-    if (!confirm(`Are you sure you want to resolve and clear the duplicate flag for profile ${profileId}?`)) {
-      return;
-    }
+  const executeResolve = async () => {
+    if (!pendingResolve || resolvingId) return;
+    const { profileId } = pendingResolve;
 
     try {
       setResolvingId(profileId);
       setErrorMessage("");
       setSuccessMessage("");
 
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch("/api/admin/duplicates", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({ profileId, action: "RESOLVE" }),
       });
 
@@ -79,13 +104,16 @@ export default function DuplicatesPage() {
 
       if (data.success) {
         setSuccessMessage(data.message);
+        setPendingResolve(null);
         loadDuplicates();
         setTimeout(() => setSuccessMessage(""), 4000);
       } else {
         setErrorMessage(data.message || "Failed to resolve duplicate flag.");
+        setPendingResolve(null);
       }
     } catch (err: any) {
       setErrorMessage(err.message || "An unexpected error occurred.");
+      setPendingResolve(null);
     } finally {
       setResolvingId(null);
     }
@@ -241,7 +269,8 @@ export default function DuplicatesPage() {
                   )}
 
                   <button
-                    onClick={() => handleResolve(dup.profileId)}
+                    type="button"
+                    onClick={() => setPendingResolve({ profileId: dup.profileId, name: dup.name })}
                     disabled={resolvingId === dup.profileId}
                     className="inline-flex items-center justify-center gap-1 bg-[#4A121A] text-white py-2 px-2 rounded-xl text-xs font-bold hover:bg-[#350d13] transition disabled:opacity-50"
                   >
@@ -258,6 +287,45 @@ export default function DuplicatesPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {pendingResolve && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 font-serif">Resolve Duplicate Flag?</h3>
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to clear the duplicate flag for{" "}
+                  <strong>{pendingResolve.name || pendingResolve.profileId}</strong>{" "}
+                  (<span className="font-mono">{pendingResolve.profileId}</span>)?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingResolve(null)}
+                disabled={resolvingId !== null}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeResolve}
+                disabled={resolvingId !== null}
+                className="rounded-xl bg-[#4A121A] px-4 py-2 text-xs font-bold text-white hover:bg-[#350d13] transition disabled:opacity-50"
+              >
+                {resolvingId ? "Resolving..." : "Confirm Resolve"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

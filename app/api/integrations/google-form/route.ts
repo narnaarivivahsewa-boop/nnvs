@@ -4,7 +4,6 @@ import cloudinary from "@/lib/cloudinary";
 import bcrypt from "bcryptjs";
 import {
   extractIndianMobiles,
-  extractDriveFileId,
   formatGoogleDrivePhotoUrl,
   normalizeCandidateName,
   extractProfileNormalizedPhones,
@@ -205,7 +204,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: auth.error }, { status });
     }
 
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
 
     // Check for Dedicated Photo Repair Mode
     if (body.action === "repair_photos" || body.mode === "repair_photos" || body.repairPhotos === true) {
@@ -232,11 +239,12 @@ export async function POST(req: NextRequest) {
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
-    let missingMobileCount = 0;
+    const missingMobileCount = 0;
     let photoFailureCount = 0;
     let duplicateFlaggedCount = 0;
 
     const rowResults: any[] = [];
+    let cachedInitialPasswordHash: string | null = null;
 
     // Process each row
     for (let i = 0; i < rows.length; i++) {
@@ -331,7 +339,23 @@ export async function POST(req: NextRequest) {
               { profileId: { in: variations, mode: "insensitive" } },
             ],
           },
-          include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                mobile: true,
+                email: true,
+                gender: true,
+              },
+            },
+            family: true,
+            education: true,
+            occupation: true,
+            partnerPreference: true,
+            photos: true,
+            phoneNumbers: true,
+          },
         });
       }
 
@@ -341,7 +365,23 @@ export async function POST(req: NextRequest) {
           where: {
             OR: [{ sourceId }, { oldNnvsId: sourceId }],
           },
-          include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                mobile: true,
+                email: true,
+                gender: true,
+              },
+            },
+            family: true,
+            education: true,
+            occupation: true,
+            partnerPreference: true,
+            photos: true,
+            phoneNumbers: true,
+          },
         });
 
         if (candidateBySource) {
@@ -375,9 +415,22 @@ export async function POST(req: NextRequest) {
                 { mobile: { endsWith: m.slice(-10) } },
               ]),
             },
-            include: {
+            select: {
+              id: true,
+              fullName: true,
+              mobile: true,
+              email: true,
+              gender: true,
               profiles: {
-                include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+                include: {
+                  user: { select: { id: true, fullName: true, mobile: true, email: true, gender: true } },
+                  family: true,
+                  education: true,
+                  occupation: true,
+                  partnerPreference: true,
+                  photos: true,
+                  phoneNumbers: true,
+                },
               },
             },
           });
@@ -391,7 +444,15 @@ export async function POST(req: NextRequest) {
             },
             include: {
               profile: {
-                include: { user: true, family: true, education: true, occupation: true, partnerPreference: true, photos: true, phoneNumbers: true },
+                include: {
+                  user: { select: { id: true, fullName: true, mobile: true, email: true, gender: true } },
+                  family: true,
+                  education: true,
+                  occupation: true,
+                  partnerPreference: true,
+                  photos: true,
+                  phoneNumbers: true,
+                },
               },
             },
           });
@@ -431,7 +492,22 @@ export async function POST(req: NextRequest) {
       if (!existingUser && mobile) {
         existingUser = await prisma.user.findUnique({
           where: { mobile },
-          include: { profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } } },
+          select: {
+            id: true,
+            fullName: true,
+            mobile: true,
+            email: true,
+            gender: true,
+            profiles: {
+              include: {
+                user: { select: { id: true, fullName: true, mobile: true, email: true, gender: true } },
+                family: true,
+                education: true,
+                occupation: true,
+                partnerPreference: true,
+              },
+            },
+          },
         });
 
         if (!existingUser) {
@@ -441,8 +517,21 @@ export async function POST(req: NextRequest) {
               profile: {
                 include: {
                   user: {
-                    include: {
-                      profiles: { include: { user: true, family: true, education: true, occupation: true, partnerPreference: true } },
+                    select: {
+                      id: true,
+                      fullName: true,
+                      mobile: true,
+                      email: true,
+                      gender: true,
+                      profiles: {
+                        include: {
+                          user: { select: { id: true, fullName: true, mobile: true, email: true, gender: true } },
+                          family: true,
+                          education: true,
+                          occupation: true,
+                          partnerPreference: true,
+                        },
+                      },
                     },
                   },
                 },
@@ -624,7 +713,10 @@ export async function POST(req: NextRequest) {
           }
 
           // Initial temporary password for imported members: 'NNVS@RC2026' with mustChangePassword flag
-          const initialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
+          if (!cachedInitialPasswordHash) {
+            cachedInitialPasswordHash = await bcrypt.hash("NNVS@RC2026", 10);
+          }
+          const initialPasswordHash = cachedInitialPasswordHash;
 
           const newUser = await prisma.user.create({
             data: {
@@ -968,7 +1060,7 @@ export async function POST(req: NextRequest) {
         rowResults.push({
           row: rowIndex,
           status: "ERROR",
-          error: rowErr?.message || "Internal database transaction error.",
+          error: "Failed to process this row.",
           mobile,
           legacyProfileId,
         });
@@ -992,7 +1084,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("GOOGLE FORM INTEGRATION API ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Integration error." },
+      { success: false, message: "Google Form integration failed." },
       { status: 500 }
     );
   }
@@ -1054,7 +1146,11 @@ async function handlePhotoRepair(body: any) {
     if (sourceId) {
       const photoCandidate = await prisma.profile.findUnique({
         where: { sourceId },
-        include: { user: true, phoneNumbers: true, photos: true },
+        include: {
+          user: { select: { id: true, fullName: true, mobile: true, gender: true } },
+          phoneNumbers: true,
+          photos: true,
+        },
       });
       if (photoCandidate) {
         const candidateNameInput = String(item.name || item.fullName || "").trim();

@@ -14,10 +14,10 @@ export async function POST(req: NextRequest) {
       success: true,
       ...results,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN GENERATE MISSING PAID PDFS ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to generate missing paid PDFs." },
+      { success: false, message: "Failed to generate missing paid PDFs." },
       { status: 500 }
     );
   }

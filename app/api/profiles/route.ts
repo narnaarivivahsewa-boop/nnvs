@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
     const religion = searchParams.get("religion");
     const caste = searchParams.get("caste");
     const query = searchParams.get("q");
+    const rawLimit = Number(searchParams.get("limit"));
+    const take = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
 
     const whereClause: any = {
       isVisible: true,
@@ -118,6 +120,7 @@ export async function GET(req: NextRequest) {
       orderBy: {
         createdAt: "desc",
       },
+      take,
       select: {
         id: true,
         profileId: true,

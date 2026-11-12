@@ -111,13 +111,15 @@ export async function GET(req: NextRequest) {
       pendingCount: pendingProfiles.length,
       confirmedPayments: confirmedPayments.map((cp) => ({
         ...cp,
-        user: {
-          ...cp.user,
-          profile: cp.user.profiles?.[0] || null,
-        },
+        user: cp.user
+          ? {
+              ...cp.user,
+              profile: cp.user.profiles?.[0] || null,
+            }
+          : null,
       })),
       pendingProfiles: pendingProfiles.map((p) => {
-        const isFemale = p.user.gender === "FEMALE";
+        const isFemale = p.user?.gender === "FEMALE";
         const expectedFee = getRegistrationFee(isFemale ? "FEMALE" : "MALE");
         return {
           ...p,
@@ -125,13 +127,13 @@ export async function GET(req: NextRequest) {
         };
       }),
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN PAYMENTS API ERROR:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Failed to fetch payments.",
+        message: "Failed to fetch payments.",
       },
       {
         status: 500,
@@ -147,7 +149,16 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const {
       paymentId,
       grossAmount,
@@ -173,12 +184,21 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Find existing payment
+    // Find existing payment (omit password from user select)
     const existingPayment = await prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
         user: {
-          include: { profiles: true },
+          select: {
+            id: true,
+            fullName: true,
+            profiles: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
+          },
         },
       },
     });
@@ -195,7 +215,18 @@ export async function PATCH(req: NextRequest) {
     const oldGstAmount = Number(existingPayment.gstAmount || 0);
     const oldGateway = existingPayment.paymentGateway || "MANUAL_ADMIN_CONFIRMATION";
 
-    const updatedPaymentDate = paymentDate ? new Date(paymentDate) : existingPayment.paymentDate;
+    let updatedPaymentDate = existingPayment.paymentDate;
+    if (paymentDate) {
+      const parsedDate = new Date(paymentDate);
+      if (isNaN(parsedDate.getTime())) {
+        return NextResponse.json(
+          { success: false, message: "Invalid payment date provided." },
+          { status: 400 }
+        );
+      }
+      updatedPaymentDate = parsedDate;
+    }
+
     const updatedTransactionId = transactionId !== undefined ? String(transactionId).trim() : existingPayment.transactionId;
     const updatedAdminNotes = adminNotes !== undefined ? String(adminNotes).trim() : existingPayment.adminNotes;
 
@@ -214,10 +245,11 @@ export async function PATCH(req: NextRequest) {
     // ==========================================
     // CASE 1: CONVERT TO PAYMENT-EXEMPT (₹0)
     // ==========================================
-    if (isPaymentExempt || Number(grossAmount) === 0) {
-      const result = await prisma.$transaction(async (tx) => {
+    if (isPaymentExempt || (grossAmount !== undefined && Number(grossAmount) === 0)) {
+      const targetProfile = existingPayment.user?.profiles?.[0];
+      const txOps: any[] = [
         // 1. Update Payment record (Preserve existing invoiceNumber & history, mark PAYMENT_EXEMPT)
-        const updated = await tx.payment.update({
+        prisma.payment.update({
           where: { id: paymentId },
           data: {
             amount: 0,
@@ -230,12 +262,13 @@ export async function PATCH(req: NextRequest) {
             paymentDate: updatedPaymentDate,
             adminNotes: updatedAdminNotes || `Payment Exempt: ${reason}`,
           },
-        });
+        }),
+      ];
 
-        // 2. Ensure Profile remains Live and Approved
-        const targetProfile = existingPayment.user?.profiles?.[0];
-        if (targetProfile?.id) {
-          await tx.profile.update({
+      // 2. Ensure Profile remains Live and Approved
+      if (targetProfile?.id) {
+        txOps.push(
+          prisma.profile.update({
             where: { id: targetProfile.id },
             data: {
               paymentCompleted: true,
@@ -244,11 +277,13 @@ export async function PATCH(req: NextRequest) {
               isVisible: true,
               approvalStatus: "APPROVED",
             },
-          });
-        }
+          })
+        );
+      }
 
-        // 3. Create AuditLog entry with full historical snapshot
-        await tx.auditLog.create({
+      // 3. Create AuditLog entry with full historical snapshot
+      txOps.push(
+        prisma.auditLog.create({
           data: {
             userId: validAdminUserId,
             action: "PAYMENT_EXEMPT_MARKED",
@@ -276,15 +311,15 @@ export async function PATCH(req: NextRequest) {
             }),
             ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
           },
-        });
+        })
+      );
 
-        return updated;
-      });
+      const [updatedPayment] = await prisma.$transaction(txOps);
 
       return NextResponse.json({
         success: true,
         message: `Payment record updated to Payment-Exempt (₹0). Previous statutory invoice history (${existingPayment.invoiceNumber || "None"}) has been preserved in audit logs.`,
-        payment: result,
+        payment: updatedPayment,
         isPaymentExempt: true,
       });
     }
@@ -303,9 +338,9 @@ export async function PATCH(req: NextRequest) {
     const gstRateNum = Number(existingPayment.gstRate || 18);
     const newGstBreakdown = calculateGstFromGross(newGrossAmount, gstRateNum, Boolean(isInterstate));
 
-    const result = await prisma.$transaction(async (tx) => {
+    const [updatedPayment] = await prisma.$transaction([
       // 1. Update Payment record with new recalculated monetary values
-      const updated = await tx.payment.update({
+      prisma.payment.update({
         where: { id: paymentId },
         data: {
           amount: newGrossAmount,
@@ -318,10 +353,9 @@ export async function PATCH(req: NextRequest) {
           paymentDate: updatedPaymentDate,
           adminNotes: updatedAdminNotes,
         },
-      });
-
+      }),
       // 2. Create AuditLog entry
-      await tx.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: validAdminUserId,
           action: "PAYMENT_AMOUNT_UPDATED",
@@ -349,21 +383,19 @@ export async function PATCH(req: NextRequest) {
           }),
           ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
         },
-      });
-
-      return updated;
-    });
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
       message: `Payment updated successfully from ₹${oldGrossAmount.toFixed(2)} to ₹${newGrossAmount.toFixed(2)}. GST breakdown and invoice have been synchronized.`,
-      payment: result,
+      payment: updatedPayment,
       gstBreakdown: newGstBreakdown,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN EDIT PAYMENT ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to edit payment." },
+      { success: false, message: "Failed to edit payment." },
       { status: 500 }
     );
   }

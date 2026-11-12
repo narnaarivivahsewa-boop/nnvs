@@ -30,10 +30,10 @@ export async function GET(req: NextRequest) {
       success: true,
       settings: setting,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN GET SETTINGS ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch settings" },
+      { success: false, message: "Failed to fetch settings" },
       { status: 500 }
     );
   }
@@ -46,16 +46,49 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const { registrationFee, gstPercentage, qrCodeUrl, qrUpiId, registrationEnabled, autoApproveProfiles, maintenanceMode } = body;
+
+    let parsedFee: number | undefined = undefined;
+    if (registrationFee !== undefined) {
+      const feeNum = parseFloat(String(registrationFee));
+      if (!Number.isFinite(feeNum) || feeNum < 0) {
+        return NextResponse.json(
+          { success: false, message: "Invalid registration fee amount." },
+          { status: 400 }
+        );
+      }
+      parsedFee = feeNum;
+    }
+
+    let parsedGst: number | undefined = undefined;
+    if (gstPercentage !== undefined) {
+      const gstNum = parseFloat(String(gstPercentage));
+      if (!Number.isFinite(gstNum) || gstNum < 0 || gstNum > 100) {
+        return NextResponse.json(
+          { success: false, message: "Invalid GST percentage (must be 0 to 100)." },
+          { status: 400 }
+        );
+      }
+      parsedGst = gstNum;
+    }
 
     let setting = await prisma.adminSetting.findFirst();
 
     if (!setting) {
       setting = await prisma.adminSetting.create({
         data: {
-          registrationFee: registrationFee ? parseFloat(registrationFee) : 1100.0,
-          gstPercentage: gstPercentage ? parseFloat(gstPercentage) : 18.0,
+          registrationFee: parsedFee ?? 1100.0,
+          gstPercentage: parsedGst ?? 18.0,
           qrCodeUrl: qrCodeUrl || BUSINESS_INFO.qrCodeUrl,
           qrUpiId: qrUpiId || BUSINESS_INFO.upiId,
           registrationEnabled: registrationEnabled ?? true,
@@ -67,8 +100,8 @@ export async function POST(req: NextRequest) {
       setting = await prisma.adminSetting.update({
         where: { id: setting.id },
         data: {
-          ...(registrationFee !== undefined ? { registrationFee: parseFloat(registrationFee) } : {}),
-          ...(gstPercentage !== undefined ? { gstPercentage: parseFloat(gstPercentage) } : {}),
+          ...(parsedFee !== undefined ? { registrationFee: parsedFee } : {}),
+          ...(parsedGst !== undefined ? { gstPercentage: parsedGst } : {}),
           ...(qrCodeUrl !== undefined ? { qrCodeUrl: String(qrCodeUrl) } : {}),
           ...(qrUpiId !== undefined ? { qrUpiId: String(qrUpiId) } : {}),
           ...(registrationEnabled !== undefined ? { registrationEnabled: Boolean(registrationEnabled) } : {}),
@@ -83,10 +116,10 @@ export async function POST(req: NextRequest) {
       message: "Settings updated successfully",
       settings: setting,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN SAVE SETTINGS ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to save settings" },
+      { success: false, message: "Failed to save settings" },
       { status: 500 }
     );
   }

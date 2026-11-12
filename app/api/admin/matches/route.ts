@@ -29,13 +29,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 1. Fetch Target Profile
+    // 1. Fetch Target Profile (select only required user metadata, omit password)
     const target = await prisma.profile.findFirst({
       where: {
         OR: [{ id: targetProfileId }, { profileId: targetProfileId }],
       },
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            gender: true,
+            mobile: true,
+          },
+        },
         family: true,
         education: true,
         occupation: true,
@@ -54,9 +61,15 @@ export async function GET(req: NextRequest) {
     const oppositeGender = targetGender === "FEMALE" ? "MALE" : "FEMALE";
     const targetAge = calculateAge(target.dateOfBirth);
 
-    // Optional Filter Overrides from Admin
-    const minAge = Number(searchParams.get("minAge") || (targetAge ? Math.max(18, targetAge - 6) : 21));
-    const maxAge = Number(searchParams.get("maxAge") || (targetAge ? targetAge + 6 : 38));
+    // Optional Filter Overrides from Admin (with NaN fallback)
+    const rawMinAge = Number(searchParams.get("minAge"));
+    const rawMaxAge = Number(searchParams.get("maxAge"));
+    const minAge = Number.isFinite(rawMinAge) && searchParams.get("minAge") !== null && searchParams.get("minAge") !== ""
+      ? rawMinAge
+      : (targetAge ? Math.max(18, targetAge - 6) : 21);
+    const maxAge = Number.isFinite(rawMaxAge) && searchParams.get("maxAge") !== null && searchParams.get("maxAge") !== ""
+      ? rawMaxAge
+      : (targetAge ? targetAge + 6 : 38);
     const casteFilter = searchParams.get("caste")?.trim() || "";
     const religionFilter = searchParams.get("religion")?.trim() || "";
 
@@ -69,7 +82,14 @@ export async function GET(req: NextRequest) {
         },
       },
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            gender: true,
+            mobile: true,
+          },
+        },
         family: true,
         education: true,
         occupation: true,
@@ -204,10 +224,10 @@ export async function GET(req: NextRequest) {
       totalMatches: scoredMatches.length,
       matches: scoredMatches,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN MATCHMAKING ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to run matchmaking." },
+      { success: false, message: "Failed to run matchmaking." },
       { status: 500 }
     );
   }

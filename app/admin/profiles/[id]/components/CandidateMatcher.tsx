@@ -13,11 +13,11 @@ import {
   AlertTriangle,
   RotateCcw,
   Loader2,
-  CheckCircle2,
-  ChevronRight,
   HeartHandshake,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
+import ErrorToast from "@/components/ui/ErrorToast";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 interface CandidateMatcherProps {
   targetProfile: any;
@@ -26,12 +26,17 @@ interface CandidateMatcherProps {
 export default function CandidateMatcher({ targetProfile }: CandidateMatcherProps) {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [totalMatches, setTotalMatches] = useState(0);
 
-  // Filters State
-  const [minAge, setMinAge] = useState<string>("");
-  const [maxAge, setMaxAge] = useState<string>("");
-  const [caste, setCaste] = useState<string>("");
+  // Filters State (initialized from target profile preferences)
+  const [minAge, setMinAge] = useState<string>(() =>
+    targetProfile?.partnerPreference?.minAge ? String(targetProfile.partnerPreference.minAge) : ""
+  );
+  const [maxAge, setMaxAge] = useState<string>(() =>
+    targetProfile?.partnerPreference?.maxAge ? String(targetProfile.partnerPreference.maxAge) : ""
+  );
+  const [caste, setCaste] = useState<string>(() =>
+    targetProfile?.partnerPreference?.preferredCaste || ""
+  );
   const [gotra, setGotra] = useState<string>("");
   const [excludeSameGotra, setExcludeSameGotra] = useState<boolean>(true);
   const [manglik, setManglik] = useState<string>("ALL");
@@ -41,27 +46,20 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
   const [kundaliLoading, setKundaliLoading] = useState(false);
   const [kundaliData, setKundaliData] = useState<any | null>(null);
+  const [kundaliError, setKundaliError] = useState<string | null>(null);
+  const [toastError, setToastError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // Auto-initialize partner preferences from target profile
-  useEffect(() => {
-    if (targetProfile) {
-      if (targetProfile.partnerPreference?.minAge) {
-        setMinAge(String(targetProfile.partnerPreference.minAge));
-      }
-      if (targetProfile.partnerPreference?.maxAge) {
-        setMaxAge(String(targetProfile.partnerPreference.maxAge));
-      }
-      if (targetProfile.partnerPreference?.preferredCaste) {
-        setCaste(targetProfile.partnerPreference.preferredCaste);
-      }
-    }
-  }, [targetProfile]);
+  const targetProfileId = targetProfile?.id;
 
   const fetchMatches = useCallback(async () => {
-    if (!targetProfile?.id) return;
+    if (!targetProfileId) return;
     try {
       setLoading(true);
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const params = new URLSearchParams();
       if (minAge) params.set("minAge", minAge);
       if (maxAge) params.set("maxAge", maxAge);
@@ -71,21 +69,35 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
       if (manglik !== "ALL") params.set("manglik", manglik);
       if (search) params.set("search", search);
 
-      const res = await fetch(`/api/admin/profiles/${targetProfile.id}/match?${params.toString()}`);
+      const res = await fetch(`/api/admin/profiles/${targetProfileId}/match?${params.toString()}`, {
+        credentials: "include",
+        headers,
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         setCandidates(data.matches || []);
-        setTotalMatches(data.totalMatches || 0);
+      } else if (!res.ok) {
+        setToastError(data.message || "Failed to fetch matching profiles.");
       }
     } catch (err) {
       console.error("Failed to fetch matches:", err);
+      setToastError("Network error while fetching matching candidates.");
     } finally {
       setLoading(false);
     }
-  }, [targetProfile?.id, minAge, maxAge, caste, gotra, excludeSameGotra, manglik, search]);
+  }, [targetProfileId, minAge, maxAge, caste, gotra, excludeSameGotra, manglik, search]);
 
   useEffect(() => {
-    fetchMatches();
+    let ignore = false;
+    async function runInitial() {
+      if (!ignore) {
+        await fetchMatches();
+      }
+    }
+    runInitial();
+    return () => {
+      ignore = true;
+    };
   }, [fetchMatches]);
 
   const handleResetFilters = () => {
@@ -99,9 +111,14 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
   };
 
   const handleExportExcel = async () => {
-    if (!targetProfile?.id) return;
+    if (!targetProfile?.id || exporting) return;
     try {
       setExporting(true);
+      setToastError(null);
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const params = new URLSearchParams();
       if (minAge) params.set("minAge", minAge);
       if (maxAge) params.set("maxAge", maxAge);
@@ -112,9 +129,12 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
       if (search) params.set("search", search);
       params.set("export", "excel");
 
-      const res = await fetch(`/api/admin/profiles/${targetProfile.id}/match?${params.toString()}`);
+      const res = await fetch(`/api/admin/profiles/${targetProfile.id}/match?${params.toString()}`, {
+        credentials: "include",
+        headers,
+      });
       if (!res.ok) {
-        alert("Failed to export Excel file.");
+        setToastError("Failed to export Excel file.");
         return;
       }
       const blob = await res.blob();
@@ -128,7 +148,7 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export error:", err);
-      alert("Error generating matching biodatas export.");
+      setToastError("Error generating matching biodatas export.");
     } finally {
       setExporting(false);
     }
@@ -138,21 +158,33 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
     setSelectedCandidate(cand);
     setKundaliLoading(true);
     setKundaliData(null);
+    setKundaliError(null);
     try {
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`/api/admin/profiles/${targetProfile.id}/match`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify({ candidateId: cand.id }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setKundaliData(data);
       } else {
-        alert(data.message || "Failed to calculate Kundali Milan.");
+        const msg = data.message || "Failed to calculate Kundali Milan.";
+        setKundaliError(msg);
+        setToastError(msg);
       }
     } catch (err) {
       console.error("Kundali error:", err);
-      alert("Failed to calculate Kundali Milan.");
+      const msg = "Failed to calculate Kundali Milan.";
+      setKundaliError(msg);
+      setToastError(msg);
     } finally {
       setKundaliLoading(false);
     }
@@ -163,6 +195,11 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
 
   return (
     <div className="rounded-3xl border border-[#E8DCC8] bg-white p-6 shadow-sm space-y-6">
+      <ErrorToast
+        message={toastError}
+        onDismiss={() => setToastError(null)}
+        title="Matchmaker Notice"
+      />
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#F0E6D8] pb-5">
         <div>
@@ -564,8 +601,15 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
                 )}
               </div>
             ) : (
-              <div className="py-8 text-center text-xs text-gray-500">
-                Could not retrieve complete Kundali data. Please verify birth date and time details.
+              <div
+                className={`my-4 rounded-2xl p-5 text-center text-xs font-semibold ${
+                  kundaliError
+                    ? "border border-rose-200 bg-rose-50 text-rose-800"
+                    : "py-8 text-gray-500 font-normal"
+                }`}
+              >
+                {kundaliError ||
+                  "Could not retrieve complete Kundali data. Please verify birth date and time details."}
               </div>
             )}
 

@@ -1,25 +1,42 @@
 "use client";
 
+import { useState } from "react";
+import { getAuthSession } from "@/lib/auth/session-storage";
+
 interface ApprovalRowProps {
   profile: any;
   refresh: () => void;
+  onNotify?: (message: string, type: "success" | "error") => void;
 }
 
 export default function ApprovalRow({
   profile,
   refresh,
+  onNotify,
 }: ApprovalRowProps) {
+  const [processingAction, setProcessingAction] = useState<"APPROVE" | "REJECT" | null>(null);
+  const [inlineNotice, setInlineNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
   async function updateStatus(
     action: "APPROVE" | "REJECT"
   ) {
+    if (processingAction) return;
     try {
+      setProcessingAction(action);
+      setInlineNotice(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(
         `/api/admin/approvals/${profile.id}`,
         {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
+          credentials: "include",
           body: JSON.stringify({
             action,
           }),
@@ -28,18 +45,35 @@ export default function ApprovalRow({
 
       const data = await res.json();
 
-      if (!data.success) {
-        alert(data.message);
+      if (!res.ok || !data.success) {
+        const msg = data.message || `Failed to ${action.toLowerCase()} profile.`;
+        if (onNotify) {
+          onNotify(msg, "error");
+        } else {
+          setInlineNotice({ text: msg, type: "error" });
+        }
         return;
       }
 
-      alert(data.message);
+      const msg = data.message || `Profile ${action.toLowerCase()}d successfully.`;
+      if (onNotify) {
+        onNotify(msg, "success");
+      } else {
+        setInlineNotice({ text: msg, type: "success" });
+      }
 
       refresh();
 
     } catch (error) {
       console.error(error);
-      alert("Something went wrong.");
+      const msg = "Something went wrong while updating approval status.";
+      if (onNotify) {
+        onNotify(msg, "error");
+      } else {
+        setInlineNotice({ text: msg, type: "error" });
+      }
+    } finally {
+      setProcessingAction(null);
     }
   }
 
@@ -85,20 +119,33 @@ export default function ApprovalRow({
         <div className="flex gap-2">
 
           <button
+            type="button"
+            disabled={processingAction !== null}
             onClick={() => updateStatus("APPROVE")}
-            className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+            className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
           >
-            Approve
+            {processingAction === "APPROVE" ? "Approving..." : "Approve"}
           </button>
 
           <button
+            type="button"
+            disabled={processingAction !== null}
             onClick={() => updateStatus("REJECT")}
-            className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+            className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50"
           >
-            Reject
+            {processingAction === "REJECT" ? "Rejecting..." : "Reject"}
           </button>
 
         </div>
+        {inlineNotice && (
+          <p
+            className={`mt-1.5 text-xs font-semibold ${
+              inlineNotice.type === "error" ? "text-red-600" : "text-emerald-700"
+            }`}
+          >
+            {inlineNotice.text}
+          </p>
+        )}
 
       </td>
 

@@ -126,10 +126,10 @@ export async function GET(req: NextRequest) {
         TRUST_VERIFIED: generateSocialCaption("TRUST_VERIFIED"),
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Admin Social Automation GET Error]:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch social automation state" },
+      { success: false, message: "Failed to fetch social automation state" },
       { status: 500 }
     );
   }
@@ -142,7 +142,16 @@ export async function POST(req: NextRequest) {
       return auth.response;
     }
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
     const { action } = body;
 
     // Action 1: Toggle Auto-Posting ON/OFF
@@ -266,10 +275,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Admin Social Automation POST Error]:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to process request" },
+      { success: false, message: "Failed to process social automation request." },
       { status: 500 }
     );
   }

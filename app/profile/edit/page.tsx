@@ -4,9 +4,10 @@ import { useEffect, useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Users, User, ArrowLeft, CheckCircle2, Key } from "lucide-react";
+import { Users, ArrowLeft, CheckCircle2, Key, AlertCircle } from "lucide-react";
 
 import { RegisterFormData } from "@/types/register";
+import ErrorToast from "@/components/ui/ErrorToast";
 
 import PhotosForm from "./components/PhotosForm";
 import PersonalForm from "./components/PersonalForm";
@@ -35,6 +36,8 @@ function EditProfileContent() {
   const [uploading, setUploading] = useState(false);
   const [activeProfile, setActiveProfile] = useState<ProfileSummary | null>(null);
   const [allProfiles, setAllProfiles] = useState<ProfileSummary[]>([]);
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<{ type: "error" | "success"; message: string } | null>(null);
 
   const {
     register,
@@ -169,9 +172,15 @@ function EditProfileContent() {
 
   async function handleSwitchProfileToEdit(newProfileId: string) {
     try {
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       await fetch("/api/auth/select-profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         credentials: "include",
         body: JSON.stringify({ profileId: newProfileId }),
       });
@@ -190,22 +199,32 @@ function EditProfileContent() {
     if (errorKeys.length > 0) {
       const firstKey = errorKeys[0];
       const err = formErrors[firstKey];
-      alert(`Please review form inputs: ${err?.message || `Please verify "${firstKey}"`}`);
+      const msg = `Please review form inputs: ${err?.message || `Please verify "${firstKey}"`}`;
+      setToastError(msg);
+      setStatusNotice({ type: "error", message: msg });
     }
   };
 
   async function onSubmit(data: RegisterFormData) {
+    if (saving || uploading) return;
+
     if (!photos || photos.length < 1) {
-      alert("At least 1 photo is mandatory to create/update profile");
+      const msg = "At least 1 photo is mandatory to create or update your profile.";
+      setToastError(msg);
+      setStatusNotice({ type: "error", message: msg });
       return;
     }
     if (photos.length > 3) {
-      alert("Maximum 3 photos allowed.");
+      const msg = "Maximum 3 photos allowed.";
+      setToastError(msg);
+      setStatusNotice({ type: "error", message: msg });
       return;
     }
 
     try {
       setSaving(true);
+      setToastError(null);
+      setStatusNotice(null);
 
       const { token } = await getAuthSession();
       const headers: Record<string, string> = {
@@ -227,15 +246,24 @@ function EditProfileContent() {
       const result = await res.json();
 
       if (!res.ok) {
-        alert(result.message || "Failed to update profile.");
+        const msg = result.message || "Failed to update profile.";
+        setToastError(msg);
+        setStatusNotice({ type: "error", message: msg });
         return;
       }
 
-      alert("Profile updated successfully ✅");
-      router.push(activeProfile?.profileId ? `/profile/${activeProfile.profileId}` : "/dashboard");
+      setStatusNotice({
+        type: "success",
+        message: "Profile updated successfully! Redirecting...",
+      });
+      setTimeout(() => {
+        router.push(activeProfile?.profileId ? `/profile/${activeProfile.profileId}` : "/dashboard");
+      }, 700);
     } catch (error) {
       console.error(error);
-      alert("Unable to update profile.");
+      const msg = "Unable to update profile. Please check your connection and try again.";
+      setToastError(msg);
+      setStatusNotice({ type: "error", message: msg });
     } finally {
       setSaving(false);
     }
@@ -252,6 +280,11 @@ function EditProfileContent() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-10">
+      <ErrorToast
+        message={toastError}
+        onDismiss={() => setToastError(null)}
+        title="Profile Update Notice"
+      />
       <div className="mx-auto max-w-6xl rounded-3xl bg-white p-8 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
           <div>
@@ -309,6 +342,33 @@ function EditProfileContent() {
           </div>
         </div>
 
+        {statusNotice && (
+          <div
+            role="alert"
+            className={`mb-6 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold ${
+              statusNotice.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {statusNotice.type === "success" ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+              ) : (
+                <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
+              )}
+              <span>{statusNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStatusNotice(null)}
+              className="text-xs font-bold uppercase tracking-wider opacity-75 hover:opacity-100 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit, onFormError)} className="space-y-10">
           <PhotosForm
             photos={photos}
@@ -321,7 +381,7 @@ function EditProfileContent() {
           <EducationForm register={register} errors={errors} />
           <OccupationForm register={register} errors={errors} />
           <PartnerPreferenceForm register={register} errors={errors} />
-          <SaveButton loading={saving} />
+          <SaveButton loading={saving} uploading={uploading} />
         </form>
       </div>
     </div>

@@ -127,10 +127,10 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error) {
     console.error("SELECT PROFILE ERROR =>", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Internal server error" },
+      { success: false, message: "Internal server error" },
       { status: 500 }
     );
   }

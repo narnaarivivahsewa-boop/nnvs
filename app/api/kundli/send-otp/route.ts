@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[Kundli OTP] Generated local OTP for ${cleanPhone}: ${otp}`);
+    console.log(`[Kundli OTP] Dispatched OTP request for ${cleanPhone}`);
 
     // 4. Dispatch OTP via Fast2SMS DLT Gateway (Sender ID: NNVS)
     const smsResult = await sendFast2SmsOTP(cleanPhone, otp);

@@ -1,42 +1,57 @@
 "use client";
 
 import { useState } from "react";
+import { getAuthSession } from "@/lib/auth/session-storage";
 
 export default function ImportMembersPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [statusNotice, setStatusNotice] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   async function handleImport() {
+    if (loading) return;
     if (!file) {
-      alert("Please select an Excel file.");
+      setStatusNotice({ text: "Please select an Excel or CSV file first.", type: "error" });
       return;
     }
 
     try {
       setLoading(true);
-      setMessage("");
+      setStatusNotice(null);
+
+      const { token } = await getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
 
       const formData = new FormData();
       formData.append("file", file);
 
       const res = await fetch("/api/admin/import", {
         method: "POST",
+        headers,
+        credentials: "include",
         body: formData,
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message);
+        throw new Error(data.message || "Import failed.");
       }
 
-      setMessage(
-        `✅ Import Successful (${data.imported} Profiles Imported)`
-      );
+      setStatusNotice({
+        text: `Import Successful (${data.imported} Profiles Imported)`,
+        type: "success",
+      });
 
     } catch (error: any) {
-      setMessage(error.message || "Import failed.");
+      setStatusNotice({
+        text: error?.message || "Import failed.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -53,13 +68,15 @@ export default function ImportMembersPage() {
         <input
           type="file"
           accept=".xlsx,.xls,.csv"
-          onChange={(e) =>
-            setFile(e.target.files?.[0] || null)
-          }
+          onChange={(e) => {
+            setFile(e.target.files?.[0] || null);
+            setStatusNotice(null);
+          }}
           className="mb-6 block w-full rounded-xl border p-3"
         />
 
         <button
+          type="button"
           onClick={handleImport}
           disabled={loading}
           className="w-full rounded-xl bg-red-700 py-3 font-semibold text-white hover:bg-red-800 disabled:opacity-50"
@@ -67,9 +84,16 @@ export default function ImportMembersPage() {
           {loading ? "Importing..." : "Import Excel"}
         </button>
 
-        {message && (
-          <div className="mt-6 rounded-xl bg-green-50 p-4 text-green-700">
-            {message}
+        {statusNotice && (
+          <div
+            role="alert"
+            className={`mt-6 rounded-xl border p-4 text-sm font-semibold ${
+              statusNotice.type === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {statusNotice.text}
           </div>
         )}
       </div>

@@ -53,10 +53,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Internal Server Error",
+        message: "Failed to fetch statistics.",
       },
       {
         status: 500,

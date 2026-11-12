@@ -15,23 +15,29 @@ export async function GET(req: NextRequest) {
 
     const importedProfiles = await prisma.profile.findMany({
       where: {
-        OR: [
-          { source: "GOOGLE_FORM" },
-          { source: "GOOGLE_SHEET" },
-          { legacyProfileId: { not: null } },
+        AND: [
+          {
+            OR: [
+              { source: "GOOGLE_FORM" },
+              { source: "GOOGLE_SHEET" },
+              { legacyProfileId: { not: null } },
+            ],
+          },
+          ...(search
+            ? [
+                {
+                  OR: [
+                    { profileId: { contains: search, mode: "insensitive" as const } },
+                    { legacyProfileId: { contains: search, mode: "insensitive" as const } },
+                    { firstName: { contains: search, mode: "insensitive" as const } },
+                    { lastName: { contains: search, mode: "insensitive" as const } },
+                    { user: { fullName: { contains: search, mode: "insensitive" as const } } },
+                    { user: { mobile: { contains: search } } },
+                  ],
+                },
+              ]
+            : []),
         ],
-        ...(search
-          ? {
-              OR: [
-                { profileId: { contains: search, mode: "insensitive" } },
-                { legacyProfileId: { contains: search, mode: "insensitive" } },
-                { firstName: { contains: search, mode: "insensitive" } },
-                { lastName: { contains: search, mode: "insensitive" } },
-                { user: { fullName: { contains: search, mode: "insensitive" } } },
-                { user: { mobile: { contains: search } } },
-              ],
-            }
-          : {}),
       },
       include: {
         user: {
@@ -74,10 +80,10 @@ export async function GET(req: NextRequest) {
       profiles: importedProfiles,
       totalCount: importedProfiles.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ADMIN GOOGLE FORMS API ERROR:", error);
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch imported profiles." },
+      { success: false, message: "Failed to fetch imported profiles." },
       { status: 500 }
     );
   }
