@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useCallback, useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Sparkles, ArrowRight, UserCheck, Heart, RotateCcw, Lock, LogIn, UserPlus } from "lucide-react";
 import { RELIGIONS, getCommunitiesForReligion } from "@/lib/constants/communities";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
@@ -18,6 +18,8 @@ type Profile = {
   caste?: string | null;
   height?: string | number | null;
   dateOfBirth?: string | null;
+  photoUrl?: string | null;
+  isVerified?: boolean;
   user: {
     fullName: string;
     gender: string;
@@ -35,6 +37,9 @@ type Profile = {
   }[];
 };
 
+const SCROLL_STORAGE_KEY = "rishteclub_profiles_scroll_v1";
+const SCROLL_TTL_MS = 30 * 60 * 1000;
+
 function calculateAge(dob?: string | null): number | null {
   if (!dob) return null;
   const birth = new Date(dob);
@@ -47,30 +52,111 @@ function calculateAge(dob?: string | null): number | null {
   return isNaN(age) || age <= 0 ? null : age;
 }
 
+function ProfilesSkeletonGrid() {
+  return (
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading profiles">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-3xl bg-[#FAF5EB] border border-[#DACBB4] shadow-xs animate-pulse flex flex-col"
+        >
+          <div className="h-60 w-full bg-[#E8DCC8]/70 flex items-center justify-center p-4">
+            <div className="h-36 w-32 sm:h-40 sm:w-40 rounded-2xl bg-[#DACBB4]/70" />
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="flex gap-2">
+              <div className="h-5 w-28 rounded-md bg-[#E8DCC8]" />
+              <div className="h-5 w-24 rounded-md bg-[#E8DCC8]" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-6 w-2/3 rounded bg-[#DACBB4]" />
+              <div className="h-3.5 w-1/3 rounded bg-[#E8DCC8]" />
+            </div>
+            <div className="space-y-2 pt-2">
+              <div className="h-4 w-full rounded bg-[#E8DCC8]/80" />
+              <div className="h-4 w-5/6 rounded bg-[#E8DCC8]/80" />
+              <div className="h-4 w-4/6 rounded bg-[#E8DCC8]/80" />
+            </div>
+            <div className="h-10 w-full rounded-xl bg-[#DACBB4]/80 mt-4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProfilesContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialGender = searchParams.get("gender") || "";
-  const initialAge = searchParams.get("age") || "";
-  const initialCaste = searchParams.get("caste") || "";
-  const initialReligion = searchParams.get("religion") || "";
-  const initialQuery = searchParams.get("q") || "";
+
+  // Single Source of Truth derived from URL query parameters
+  const currentQueryString = searchParams.toString();
+  const currentPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  const selectedGender = searchParams.get("gender") || "";
+  const selectedAgeGroup = searchParams.get("age") || "";
+  const selectedReligion = searchParams.get("religion") || "";
+  const selectedCommunity = searchParams.get("caste") || "";
+  const selectedCity = searchParams.get("city") || "";
+  const selectedMaritalStatus = searchParams.get("maritalStatus") || "";
+  const selectedProfession = searchParams.get("profession") || "";
+  const urlQuery = searchParams.get("q") || "";
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
-  const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize] = useState<number>(24);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userGender, setUserGender] = useState<string | null>(null);
 
-  // Filters State
-  const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [selectedGender, setSelectedGender] = useState(initialGender);
-  const [selectedAgeGroup, setSelectedAgeGroup] = useState(initialAge);
-  const [selectedReligion, setSelectedReligion] = useState(initialReligion);
-  const [selectedCommunity, setSelectedCommunity] = useState(initialCaste);
-  const [selectedProfession, setSelectedProfession] = useState("");
+  // Controlled search input state synced cleanly with URL `q`
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery);
+    setSearchQuery(urlQuery);
+  }
+
+  const updateUrlParams = useCallback(
+    (
+      updates: Record<string, string | number | null | undefined>,
+      options?: { resetPage?: boolean }
+    ) => {
+      const next = new URLSearchParams(searchParams.toString());
+
+      if (options?.resetPage) {
+        next.delete("page");
+      }
+
+      for (const [key, rawValue] of Object.entries(updates)) {
+        const value = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+        if (!value || (key === "page" && (parseInt(value, 10) || 1) <= 1)) {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+      }
+
+      const nextQs = next.toString();
+      if (nextQs !== searchParams.toString()) {
+        router.replace(nextQs ? `/profiles?${nextQs}` : "/profiles", { scroll: false });
+      }
+    },
+    [router, searchParams]
+  );
+
+  // Debounce search text into URL without fighting fast typing
+  useEffect(() => {
+    const trimmedInput = searchQuery.trim();
+    const trimmedUrl = urlQuery.trim();
+    if (trimmedInput === trimmedUrl) return;
+
+    const timer = window.setTimeout(() => {
+      updateUrlParams({ q: trimmedInput }, { resetPage: true });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, urlQuery, updateUrlParams]);
 
   // Dynamically compute available communities based on chosen religion
   const availableCommunities = useMemo(() => {
@@ -78,12 +164,48 @@ function ProfilesContent() {
   }, [selectedReligion]);
 
   const handleReligionChange = (newRel: string) => {
-    setSelectedReligion(newRel);
-    setSelectedCommunity("");
-    setCurrentPage(1);
+    updateUrlParams({ religion: newRel, caste: "" }, { resetPage: true });
   };
 
-  // Check auth state and load profiles
+  // Check user auth state once (non-blocking relative to directory listing)
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function checkAuthMeta() {
+      try {
+        const { token } = await getAuthSession();
+        const authHeaders: Record<string, string> = {};
+        if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+        const authRes = await fetch("/api/profiles?metaOnly=1", {
+          credentials: "include",
+          headers: authHeaders,
+        });
+        if (!authRes.ok) {
+          if (!isCancelled) setIsAuthenticated(false);
+          return;
+        }
+        const authData = await authRes.json();
+        if (!isCancelled && authData.authenticated && authData.success) {
+          setIsAuthenticated(true);
+          if (authData.userGender) {
+            setUserGender(authData.userGender);
+          }
+        } else if (!isCancelled) {
+          setIsAuthenticated(false);
+        }
+      } catch {
+        if (!isCancelled) setIsAuthenticated(false);
+      }
+    }
+
+    checkAuthMeta();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // Load paginated profiles from edge-cached directory endpoint whenever URL query state changes
   useEffect(() => {
     let isCancelled = false;
 
@@ -91,57 +213,33 @@ function ProfilesContent() {
       try {
         setLoading(true);
 
-        // Try authenticated endpoint first
-        let authSuccess = false;
-        try {
-          const { token } = await getAuthSession();
-          const authHeaders: Record<string, string> = {};
-          if (token) authHeaders.Authorization = `Bearer ${token}`;
-
-          const authRes = await fetch("/api/profiles?limit=1", {
-            credentials: "include",
-            headers: authHeaders,
-          });
-          if (authRes.ok) {
-            const authData = await authRes.json();
-            if (authData.authenticated && authData.success && Array.isArray(authData.profiles)) {
-              authSuccess = true;
-              if (!isCancelled) {
-                setIsAuthenticated(true);
-                if (authData.userGender) {
-                  setUserGender(authData.userGender);
-                }
-              }
-            }
-          }
-        } catch {
-          authSuccess = false;
-        }
-
-        if (!authSuccess && !isCancelled) {
-          setIsAuthenticated(false);
-        }
-
-        // Fetch from paginated public profiles endpoint
         const params = new URLSearchParams();
         params.set("page", String(currentPage));
         params.set("limit", String(pageSize));
         if (selectedGender) params.set("gender", selectedGender);
+        if (selectedAgeGroup) params.set("age", selectedAgeGroup);
         if (selectedReligion && selectedReligion !== "All") params.set("religion", selectedReligion);
-        if (selectedCommunity && !selectedCommunity.startsWith("All ") && selectedCommunity !== "Other / Open to All") {
+        if (
+          selectedCommunity &&
+          !selectedCommunity.startsWith("All ") &&
+          selectedCommunity !== "Other / Open to All"
+        ) {
           params.set("caste", selectedCommunity);
         }
-        if (searchQuery.trim()) params.set("q", searchQuery.trim());
+        if (selectedCity.trim()) params.set("city", selectedCity.trim());
+        if (selectedMaritalStatus && selectedMaritalStatus !== "All") {
+          params.set("maritalStatus", selectedMaritalStatus);
+        }
+        if (selectedProfession.trim()) params.set("profession", selectedProfession.trim());
+        if (urlQuery.trim()) params.set("q", urlQuery.trim());
 
         const publicRes = await fetch(`/api/public/profiles?${params.toString()}`);
         if (publicRes.ok) {
           const publicData = await publicRes.json();
-          if (publicData.success && Array.isArray(publicData.profiles)) {
-            if (!isCancelled) {
-              setProfiles(publicData.profiles);
-              setTotalCount(publicData.total || publicData.profiles.length);
-              setTotalPages(publicData.totalPages || 1);
-            }
+          if (publicData.success && Array.isArray(publicData.profiles) && !isCancelled) {
+            setProfiles(publicData.profiles);
+            setTotalCount(publicData.total ?? publicData.profiles.length);
+            setTotalPages(Math.max(1, publicData.totalPages || 1));
           }
         }
       } catch (error) {
@@ -158,49 +256,87 @@ function ProfilesContent() {
     return () => {
       isCancelled = true;
     };
-  }, [currentPage, pageSize, selectedGender, selectedReligion, selectedCommunity, searchQuery]);
+  }, [
+    currentPage,
+    pageSize,
+    selectedGender,
+    selectedAgeGroup,
+    selectedReligion,
+    selectedCommunity,
+    selectedCity,
+    selectedMaritalStatus,
+    selectedProfession,
+    urlQuery,
+  ]);
 
-  // Client-side supplementary filters (Age & Profession)
-  const filteredProfiles = useMemo(() => {
-    return profiles.filter((p) => {
-      // Age Group Filter
-      if (selectedAgeGroup) {
-        const age = calculateAge(p.dateOfBirth);
-        if (age === null) return true;
+  // Restore exact scroll position when returning via Back button once matching page finishes loading
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
 
-        if (selectedAgeGroup === "18-24" && (age < 18 || age > 24)) return false;
-        if (selectedAgeGroup === "25-30" && (age < 25 || age > 30)) return false;
-        if (selectedAgeGroup === "31-35" && (age < 31 || age > 35)) return false;
-        if (selectedAgeGroup === "36-40" && (age < 36 || age > 40)) return false;
-        if (selectedAgeGroup === "41-50" && (age < 41 || age > 50)) return false;
-        if (selectedAgeGroup === "51+" && age < 51) return false;
+    try {
+      const raw = window.sessionStorage.getItem(SCROLL_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as {
+        query?: string;
+        scrollY?: number;
+        timestamp?: number;
+      };
+
+      const isFresh =
+        typeof parsed.timestamp === "number" && Date.now() - parsed.timestamp < SCROLL_TTL_MS;
+
+      if (parsed.query === currentQueryString && isFresh && typeof parsed.scrollY === "number") {
+        window.sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+        const targetY = parsed.scrollY;
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.scrollTo({ top: targetY, behavior: "auto" });
+          });
+        });
       }
+    } catch {
+      // Ignore storage parse errors
+    }
+  }, [loading, profiles.length, currentQueryString]);
 
-      // Profession Filter
-      if (selectedProfession) {
-        const prof = (p.occupation?.profession || "").toLowerCase();
-        if (!prof.includes(selectedProfession.toLowerCase())) {
-          return false;
-        }
-      }
+  const saveScrollPosition = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(
+        SCROLL_STORAGE_KEY,
+        JSON.stringify({
+          query: currentQueryString,
+          scrollY: window.scrollY,
+          timestamp: Date.now(),
+        })
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [currentQueryString]);
 
-      return true;
-    });
-  }, [profiles, selectedAgeGroup, selectedProfession]);
+  const clearSavedScroll = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  const filteredProfiles = profiles;
 
   const resetFilters = () => {
+    clearSavedScroll();
     setSearchQuery("");
-    setSelectedGender("");
-    setSelectedAgeGroup("");
-    setSelectedReligion("");
-    setSelectedCommunity("");
-    setSelectedProfession("");
-    setCurrentPage(1);
+    router.replace("/profiles", { scroll: false });
   };
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      clearSavedScroll();
+      updateUrlParams({ page: newPage });
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -292,8 +428,8 @@ function ProfilesContent() {
                 placeholder="Search by Name, Profile ID, or Caste (e.g. Jat, Gujjar, Yadav, Brahmin...)"
                 value={searchQuery}
                 onChange={(e) => {
+                  clearSavedScroll();
                   setSearchQuery(e.target.value);
-                  setCurrentPage(1);
                 }}
                 className="w-full rounded-2xl border border-[#DACBB4] bg-white py-3 pl-11 pr-4 text-xs sm:text-sm font-medium text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]"
               />
@@ -304,8 +440,11 @@ function ProfilesContent() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedGender(selectedGender === "FEMALE" ? "" : "FEMALE");
-                  setCurrentPage(1);
+                  clearSavedScroll();
+                  updateUrlParams(
+                    { gender: selectedGender === "FEMALE" ? "" : "FEMALE" },
+                    { resetPage: true }
+                  );
                 }}
                 className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 border ${
                   selectedGender === "FEMALE"
@@ -320,8 +459,11 @@ function ProfilesContent() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedGender(selectedGender === "MALE" ? "" : "MALE");
-                  setCurrentPage(1);
+                  clearSavedScroll();
+                  updateUrlParams(
+                    { gender: selectedGender === "MALE" ? "" : "MALE" },
+                    { resetPage: true }
+                  );
                 }}
                 className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 border ${
                   selectedGender === "MALE"
@@ -340,7 +482,10 @@ function ProfilesContent() {
             {/* Age Filter */}
             <select
               value={selectedAgeGroup}
-              onChange={(e) => setSelectedAgeGroup(e.target.value)}
+              onChange={(e) => {
+                clearSavedScroll();
+                updateUrlParams({ age: e.target.value }, { resetPage: true });
+              }}
               className="rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs sm:text-sm font-medium text-[#2D221E] outline-none focus:border-[#C5A059]"
             >
               <option value="">Any Age</option>
@@ -355,7 +500,10 @@ function ProfilesContent() {
             {/* Religion Filter */}
             <select
               value={selectedReligion}
-              onChange={(e) => handleReligionChange(e.target.value)}
+              onChange={(e) => {
+                clearSavedScroll();
+                handleReligionChange(e.target.value);
+              }}
               className="rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs sm:text-sm font-medium text-[#2D221E] outline-none focus:border-[#C5A059]"
             >
               <option value="">All Religions</option>
@@ -370,8 +518,8 @@ function ProfilesContent() {
             <select
               value={selectedCommunity}
               onChange={(e) => {
-                setSelectedCommunity(e.target.value);
-                setCurrentPage(1);
+                clearSavedScroll();
+                updateUrlParams({ caste: e.target.value }, { resetPage: true });
               }}
               className="rounded-xl border border-[#DACBB4] bg-white p-2.5 text-xs sm:text-sm font-medium text-[#2D221E] outline-none focus:border-[#C5A059]"
             >
@@ -400,13 +548,7 @@ function ProfilesContent() {
         </div>
 
         {/* Loading State */}
-        {loading && (
-          <div className="py-20 text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C5A059] border-t-transparent mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-[#2D221E]">Loading Profiles...</h3>
-            <p className="text-xs text-[#5A4E48] mt-1">Fetching verified profiles from database.</p>
-          </div>
-        )}
+        {loading && <ProfilesSkeletonGrid />}
 
         {/* Empty State */}
         {!loading && filteredProfiles.length === 0 && (
@@ -434,6 +576,7 @@ function ProfilesContent() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProfiles.map((profile) => {
                 const age = calculateAge(profile.dateOfBirth);
+                const cardPhotoUrl = profile.photoUrl || profile.photos?.[0]?.imageUrl;
 
                 return (
                   <div
@@ -443,10 +586,11 @@ function ProfilesContent() {
                     {/* Card Header & Photo */}
                     <Link
                       href={`/profile/${profile.profileId}`}
+                      onClick={saveScrollPosition}
                       className="relative h-60 w-full bg-gradient-to-br from-[#4A121A] via-[#5C1924] to-[#7A1F2D] overflow-hidden flex items-center justify-center p-4 cursor-pointer block"
                     >
                       <MatrimonyAvatar
-                        imageUrl={profile.photos?.[0]?.imageUrl}
+                        imageUrl={cardPhotoUrl}
                         fullName={profile.user.fullName}
                         gender={profile.user.gender}
                         size="lg"
@@ -494,7 +638,7 @@ function ProfilesContent() {
 
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <Link href={`/profile/${profile.profileId}`}>
+                            <Link href={`/profile/${profile.profileId}`} onClick={saveScrollPosition}>
                               <h3 className="font-serif-luxury text-xl font-bold text-[#2D221E] group-hover:text-[#4A121A] transition-colors hover:underline cursor-pointer">
                                 {profile.user.fullName}
                               </h3>
@@ -543,6 +687,7 @@ function ProfilesContent() {
 
                       <Link
                         href={`/profile/${profile.profileId}`}
+                        onClick={saveScrollPosition}
                         className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-[#C5A059] py-2.5 px-4 text-xs sm:text-sm font-bold text-white shadow-xs transition duration-200 hover:bg-[#B88E4C] hover:shadow-md"
                       >
                         <span>View Full Profile</span>

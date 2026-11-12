@@ -387,13 +387,18 @@ export default function ProfileDetailsPage() {
         <p className="mt-2 text-gray-500 max-w-md">
           The requested profile does not exist or may have been updated.
         </p>
-        <Link
-          href="/profiles"
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#4A121A] px-8 py-3 text-sm font-bold text-white shadow hover:bg-[#380D13] transition"
+        <button
+          type="button"
+          onClick={() =>
+            typeof window !== "undefined" && window.history.length > 1
+              ? router.back()
+              : router.push("/profiles")
+          }
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#4A121A] px-8 py-3 text-sm font-bold text-white shadow hover:bg-[#380D13] transition cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Back to Profiles</span>
-        </Link>
+        </button>
       </div>
     );
   }

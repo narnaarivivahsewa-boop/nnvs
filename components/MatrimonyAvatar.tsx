@@ -31,7 +31,7 @@ export default function MatrimonyAvatar({
     hero: "h-full w-full min-h-[320px] text-xl",
   };
 
-  // If real Cloudinary photo exists, render the real photo with gold border
+  // If real photo exists, render the real photo with gold border
   if (imageUrl && imageUrl.trim() !== "") {
     return (
       <div className={`relative overflow-hidden rounded-2xl bg-[#FAF0DC] border-2 border-[#DFBA73] shadow-sm flex items-center justify-center ${sizeClasses[size]} ${className}`}>
@@ -40,6 +40,7 @@ export default function MatrimonyAvatar({
           alt={fullName || (isFemale ? "Bride Profile" : "Groom Profile")}
           className="h-full w-full object-cover object-top transition-transform duration-500 hover:scale-105"
           loading="lazy"
+          decoding="async"
         />
       </div>
     );

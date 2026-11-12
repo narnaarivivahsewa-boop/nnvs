@@ -87,6 +87,8 @@ model User {
   vendor Vendor?
 
   auditLogs AuditLog[]
+
+  @@index([gender])
 }
 
 model Profile {
@@ -165,6 +167,9 @@ model Profile {
   @@index([oldNnvsId])
   @@index([source])
   @@index([sourceId])
+  @@index([approvalStatus, isVisible, createdAt])
+  @@index([isVisible, approvalStatus, paymentCompleted, isPaymentExempted, createdAt])
+  @@index([isVisible, approvalStatus, religion, createdAt])
 }
 
 model ProfilePhoto {
@@ -182,6 +187,8 @@ model ProfilePhoto {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([profileId, isPrimary])
 }
 
 model OTP {

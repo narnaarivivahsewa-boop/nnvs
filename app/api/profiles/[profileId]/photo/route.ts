@@ -59,19 +59,30 @@ export async function GET(
       const base64Data = dataMatch[2];
       const buffer = Buffer.from(base64Data, "base64");
 
+      const headers: Record<string, string> = {
+        "Content-Type": mimeType,
+        "Content-Length": String(buffer.byteLength),
+        "Cache-Control": isPubliclyVisible
+          ? "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
+          : "private, max-age=300",
+      };
+      if (!isPubliclyVisible) {
+        headers.Vary = "Cookie, Authorization";
+      }
+
       return new NextResponse(buffer, {
         status: 200,
-        headers: {
-          "Content-Type": mimeType,
-          "Content-Length": String(buffer.byteLength),
-          "Cache-Control": "private, max-age=300",
-          Vary: "Cookie, Authorization",
-        },
+        headers,
       });
     }
 
     if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-      return NextResponse.redirect(rawUrl, { status: 307 });
+      return NextResponse.redirect(rawUrl, {
+        status: 307,
+        headers: isPubliclyVisible
+          ? { "Cache-Control": "public, max-age=3600, s-maxage=86400" }
+          : { "Cache-Control": "private, no-store" },
+      });
     }
 
     if (rawUrl.startsWith("/")) {

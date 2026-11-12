@@ -1,5 +1,112 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+function getDobRangeForAgeGroup(ageGroup: string): { gte?: Date; lte?: Date } | null {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const day = now.getUTCDate();
+
+  const yearsAgo = (yrs: number) => new Date(Date.UTC(year - yrs, month, day, 23, 59, 59, 999));
+
+  switch (ageGroup) {
+    case "18-24":
+      return { gte: yearsAgo(25), lte: yearsAgo(18) };
+    case "25-30":
+      return { gte: yearsAgo(31), lte: yearsAgo(25) };
+    case "31-35":
+      return { gte: yearsAgo(36), lte: yearsAgo(31) };
+    case "36-40":
+      return { gte: yearsAgo(41), lte: yearsAgo(36) };
+    case "41-50":
+      return { gte: yearsAgo(51), lte: yearsAgo(41) };
+    case "51+":
+      return { lte: yearsAgo(51) };
+    default:
+      return null;
+  }
+}
+
+const publicProfileSelect = {
+  id: true,
+  profileId: true,
+  legacyProfileId: true,
+  dateOfBirth: true,
+  height: true,
+  maritalStatus: true,
+  religion: true,
+  caste: true,
+  birthPlace: true,
+  user: {
+    select: {
+      fullName: true,
+      gender: true,
+      // Strictly NO mobile, email, or sensitive contact info
+    },
+  },
+  education: {
+    select: {
+      highestQualification: true,
+    },
+  },
+  occupation: {
+    select: {
+      profession: true,
+    },
+  },
+  _count: {
+    select: {
+      photos: true,
+    },
+  },
+  photos: {
+    where: {
+      NOT: {
+        imageUrl: {
+          startsWith: "data:",
+        },
+      },
+    },
+    orderBy: {
+      isPrimary: "desc" as const,
+    },
+    take: 1,
+    select: {
+      imageUrl: true,
+      isPrimary: true,
+    },
+  },
+} satisfies Prisma.ProfileSelect;
+
+type SelectedPublicProfile = Prisma.ProfileGetPayload<{
+  select: typeof publicProfileSelect;
+}>;
+
+function formatPublicProfileCard(profile: SelectedPublicProfile) {
+  const externalPhoto = profile.photos?.[0]?.imageUrl?.trim() || null;
+  const hasAnyPhoto = (profile._count?.photos ?? 0) > 0;
+  const resolvedPhotoUrl =
+    externalPhoto || (hasAnyPhoto ? `/api/profiles/${encodeURIComponent(profile.profileId)}/photo` : null);
+
+  return {
+    id: profile.id,
+    profileId: profile.profileId,
+    legacyProfileId: profile.legacyProfileId,
+    dateOfBirth: profile.dateOfBirth,
+    height: profile.height,
+    maritalStatus: profile.maritalStatus,
+    religion: profile.religion,
+    caste: profile.caste,
+    birthPlace: profile.birthPlace,
+    user: profile.user,
+    education: profile.education,
+    occupation: profile.occupation,
+    isVerified: true,
+    photoUrl: resolvedPhotoUrl,
+    photos: resolvedPhotoUrl ? [{ imageUrl: resolvedPhotoUrl, isPrimary: true }] : [],
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,109 +119,115 @@ export async function GET(req: NextRequest) {
     const religion = searchParams.get("religion");
     const caste = searchParams.get("caste");
     const query = searchParams.get("q");
+    const ageGroup = searchParams.get("age");
+    const city = searchParams.get("city");
+    const maritalStatus = searchParams.get("maritalStatus");
+    const profession = searchParams.get("profession");
 
     const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
     // Allow custom limit, default to 24 per page for clean grid (2x, 3x, 4x compatible)
-    const limit = limitParam === "all" ? 1000 : Math.min(100, Math.max(1, parseInt(limitParam || "24", 10) || 24));
+    const limit =
+      limitParam === "all"
+        ? 100
+        : Math.min(100, Math.max(1, parseInt(limitParam || "24", 10) || 24));
     const skip = (page - 1) * limit;
 
     // STRICT VISIBILITY GATE:
     // A profile can ONLY be visible if APPROVED AND (paymentCompleted OR isPaymentExempted)
-    const whereClause: any = {
+    const andConditions: Prisma.ProfileWhereInput[] = [];
+
+    if (gender && (gender.toUpperCase() === "MALE" || gender.toUpperCase() === "FEMALE")) {
+      andConditions.push({
+        user: {
+          gender: gender.toUpperCase() as "MALE" | "FEMALE",
+        },
+      });
+    }
+
+    if (religion && religion !== "All") {
+      andConditions.push({
+        religion: {
+          equals: religion,
+          mode: "insensitive",
+        },
+      });
+    }
+
+    if (caste && !caste.startsWith("All ") && caste !== "Other / Open to All") {
+      const cleanCaste = caste.replace(" (all)", "").trim();
+      andConditions.push({
+        caste: {
+          contains: cleanCaste,
+          mode: "insensitive",
+        },
+      });
+    }
+
+    if (ageGroup) {
+      const dobRange = getDobRangeForAgeGroup(ageGroup);
+      if (dobRange) {
+        andConditions.push({
+          dateOfBirth: dobRange,
+        });
+      }
+    }
+
+    if (city && city.trim()) {
+      andConditions.push({
+        birthPlace: {
+          contains: city.trim(),
+          mode: "insensitive",
+        },
+      });
+    }
+
+    if (maritalStatus && maritalStatus !== "All") {
+      andConditions.push({
+        maritalStatus: {
+          equals: maritalStatus.trim(),
+          mode: "insensitive",
+        },
+      });
+    }
+
+    if (profession && profession.trim()) {
+      andConditions.push({
+        occupation: {
+          profession: {
+            contains: profession.trim(),
+            mode: "insensitive",
+          },
+        },
+      });
+    }
+
+    if (query && query.trim()) {
+      const q = query.trim();
+      andConditions.push({
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { profileId: { contains: q, mode: "insensitive" } },
+          { legacyProfileId: { contains: q, mode: "insensitive" } },
+          { caste: { contains: q, mode: "insensitive" } },
+          { birthPlace: { contains: q, mode: "insensitive" } },
+          { user: { fullName: { contains: q, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    const whereClause: Prisma.ProfileWhereInput = {
       isVisible: true,
       approvalStatus: "APPROVED",
       OR: [
         { paymentCompleted: true },
         { isPaymentExempted: true },
       ],
+      ...(andConditions.length > 0 ? { AND: andConditions } : {}),
     };
-
-    if (gender && (gender.toUpperCase() === "MALE" || gender.toUpperCase() === "FEMALE")) {
-      whereClause.user = {
-        gender: gender.toUpperCase(),
-      };
-    }
-
-    if (religion && religion !== "All") {
-      whereClause.religion = {
-        equals: religion,
-        mode: "insensitive",
-      };
-    }
-
-    if (caste && !caste.startsWith("All ") && caste !== "Other / Open to All") {
-      const cleanCaste = caste.replace(" (all)", "").trim();
-      whereClause.caste = {
-        contains: cleanCaste,
-        mode: "insensitive",
-      };
-    }
-
-    if (query && query.trim()) {
-      const q = query.trim();
-      whereClause.AND = [
-        {
-          OR: [
-            { firstName: { contains: q, mode: "insensitive" } },
-            { lastName: { contains: q, mode: "insensitive" } },
-            { profileId: { contains: q, mode: "insensitive" } },
-            { legacyProfileId: { contains: q, mode: "insensitive" } },
-            { caste: { contains: q, mode: "insensitive" } },
-            { user: { fullName: { contains: q, mode: "insensitive" } } },
-          ],
-        },
-      ];
-    }
 
     const isFeatured = searchParams.get("featured") === "true";
     const sort = searchParams.get("sort") || "";
-
-    const profileSelect = {
-      id: true,
-      profileId: true,
-      legacyProfileId: true,
-      firstName: true,
-      lastName: true,
-      dateOfBirth: true,
-      height: true,
-      maritalStatus: true,
-      religion: true,
-      caste: true,
-      motherTongue: true,
-      birthPlace: true,
-      diet: true,
-      manglik: true,
-      user: {
-        select: {
-          fullName: true,
-          gender: true,
-          // Strictly NO mobile, email, or sensitive contact info
-        },
-      },
-      education: {
-        select: {
-          highestQualification: true,
-          occupationField: true,
-        },
-      },
-      occupation: {
-        select: {
-          profession: true,
-          company: true,
-          annualIncome: true,
-        },
-      },
-      photos: {
-        where: {
-          isPrimary: true,
-        },
-        take: 1,
-        select: {
-          imageUrl: true,
-          isPrimary: true,
-        },
-      },
-    };
 
     // DYNAMIC & FEMALE-FIRST FEATURED ROTATION:
     // When featured=true or sort=female-first (and no explicit gender filter was passed), prioritize female (Bride) profiles at the top
@@ -134,7 +247,7 @@ export async function GET(req: NextRequest) {
           },
           orderBy: { createdAt: "desc" },
           take: poolTake,
-          select: profileSelect,
+          select: publicProfileSelect,
         }),
         prisma.profile.findMany({
           where: {
@@ -143,7 +256,7 @@ export async function GET(req: NextRequest) {
           },
           orderBy: { createdAt: "desc" },
           take: poolTake,
-          select: profileSelect,
+          select: publicProfileSelect,
         }),
       ]);
 
@@ -180,7 +293,7 @@ export async function GET(req: NextRequest) {
           limit,
           totalPages: Math.ceil(total / limit),
           hasMore: false,
-          profiles: combined,
+          profiles: combined.map(formatPublicProfileCard),
         },
         {
           headers: {
@@ -201,21 +314,28 @@ export async function GET(req: NextRequest) {
         },
         skip,
         take: limit,
-        select: profileSelect,
+        select: publicProfileSelect,
       }),
     ]);
 
     const totalPages = Math.ceil(total / limit);
 
-    return NextResponse.json({
-      success: true,
-      total,
-      page,
-      limit,
-      totalPages,
-      hasMore: page < totalPages,
-      profiles,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        total,
+        page,
+        limit,
+        totalPages,
+        hasMore: page < totalPages,
+        profiles: profiles.map(formatPublicProfileCard),
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("PUBLIC PROFILES API ERROR =>", error);
 
