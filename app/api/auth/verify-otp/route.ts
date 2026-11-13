@@ -185,11 +185,19 @@ async function completeOtpVerificationResponse(params: {
     return regResponse;
   }
 
-  let user = await prisma.user.findFirst({
+  const mobileVariants = [
+    cleanMobile,
+    `+91${cleanMobile}`,
+    `91${cleanMobile}`,
+    `0${cleanMobile}`,
+  ];
+
+  let user: any = await prisma.user.findFirst({
     where: {
       OR: [
-        { mobile: cleanMobile },
-        { profiles: { some: { phoneNumbers: { some: { phone: cleanMobile } } } } },
+        { mobile: { in: mobileVariants } },
+        { mobile: { contains: cleanMobile } },
+        { profiles: { some: { phoneNumbers: { some: { phone: { in: mobileVariants } } } } } },
       ],
     },
   });
@@ -200,30 +208,44 @@ async function completeOtpVerificationResponse(params: {
 
   if (!user) {
     if (isAdmin) {
-      user = await prisma.user.create({
-        data: {
+      try {
+        user = await prisma.user.create({
+          data: {
+            mobile: cleanMobile,
+            fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
+            role: "ADMIN",
+            status: "ACTIVE",
+            mobileVerified: true,
+          },
+        });
+      } catch {
+        user = {
+          id: `admin-${cleanMobile}`,
           mobile: cleanMobile,
           fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
           role: "ADMIN",
           status: "ACTIVE",
-          mobileVerified: true,
-        },
-      });
+        };
+      }
     } else {
+      const msg = "Account not found with this mobile number.";
       return NextResponse.json(
         {
           success: false,
-          message: "Account not found with this mobile number.",
+          error: msg,
+          message: msg,
         },
         { status: 404 }
       );
     }
   } else {
     if (!isAdmin && (user.status === "BLOCKED" || user.status === "DELETED")) {
+      const msg = "Your account is currently suspended. Please contact RishteClub support.";
       return NextResponse.json(
         {
           success: false,
-          message: "Your account is currently suspended. Please contact RishteClub support.",
+          error: msg,
+          message: msg,
         },
         { status: 403 }
       );

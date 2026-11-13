@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
-  Sparkles,
   ArrowRight,
 } from "lucide-react";
 import ErrorToast from "@/components/ui/ErrorToast";
@@ -25,7 +24,6 @@ import {
 } from "@/lib/fetch-with-timeout";
 
 function LoginContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirectUrl = searchParams.get("redirect") || "";
   const redirectUrl =
@@ -148,9 +146,18 @@ function LoginContent() {
 
       if (!res.ok) {
         const msg =
-          data.message || "Invalid credentials. Please check your mobile/password.";
+          data.error ||
+          data.message ||
+          "Invalid credentials. Please check your mobile/password.";
         setMessage(msg);
         setToastError(msg);
+        if (data.requiresOtpLogin) {
+          setLoginMode("OTP");
+          const candidateMobile = cleanUsername.replace(/\D/g, "").slice(-10);
+          if (candidateMobile) {
+            setMobile(candidateMobile);
+          }
+        }
         return;
       }
 
@@ -229,7 +236,7 @@ function LoginContent() {
         if (data.notRegistered || res.status === 404) {
           setIsNotRegistered(true);
         }
-        const msg = data.message || "Failed to send OTP.";
+        const msg = data.error || data.message || "Failed to send OTP.";
         setMessage(msg);
         setToastError(msg);
         return;
@@ -282,7 +289,7 @@ function LoginContent() {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
-        const msg = data.message || "Failed to resend OTP.";
+        const msg = data.error || data.message || "Failed to resend OTP.";
         setMessage(msg);
         setToastError(msg);
         return;
@@ -341,8 +348,8 @@ function LoginContent() {
 
       const data = await safeParseJson<any>(res);
 
-      if (!res.ok) {
-        const msg = data.message || "OTP verification failed.";
+      if (!res.ok || data.success === false) {
+        const msg = data.error || data.message || "OTP verification failed.";
         setMessage(msg);
         setToastError(msg);
         return;

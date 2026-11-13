@@ -12,6 +12,9 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  Eye,
+  EyeOff,
+  User,
 } from "lucide-react";
 import ErrorToast from "@/components/ui/ErrorToast";
 import { saveAuthSession } from "@/lib/auth/session-storage";
@@ -26,26 +29,34 @@ import {
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialMode?: "LOGIN" | "REGISTER";
+  initialMode?: "LOGIN" | "REGISTER" | "PASSWORD";
   redirectUrl?: string;
   onSuccess?: () => void;
 }
 
-export default function AuthModal({
-  isOpen,
+function AuthModalDialog({
   onClose,
   initialMode = "LOGIN",
   redirectUrl = "/dashboard",
   onSuccess,
-}: AuthModalProps) {
+}: Omit<AuthModalProps, "isOpen">) {
   const router = useRouter();
 
-  const [mode, setMode] = useState<"LOGIN" | "REGISTER">(initialMode);
+  const [mode, setMode] = useState<"LOGIN" | "REGISTER" | "PASSWORD">(initialMode);
+  const [prevInitialMode, setPrevInitialMode] = useState(initialMode);
+  if (initialMode !== prevInitialMode) {
+    setPrevInitialMode(initialMode);
+    setMode(initialMode);
+  }
+
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const otpActionInFlightRef = useRef(false);
+  const authActionInFlightRef = useRef(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [toastError, setToastError] = useState<string | null>(null);
   const [status, setStatus] = useState<{
@@ -57,11 +68,6 @@ export default function AuthModal({
     setToastError(null);
   }, []);
 
-  // Sync mode with prop
-  useEffect(() => {
-    setMode(initialMode);
-  }, [initialMode]);
-
   // Resend OTP countdown effect
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -71,22 +77,8 @@ export default function AuthModal({
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // Reset state on open/close
-  useEffect(() => {
-    if (!isOpen) {
-      setMobile("");
-      setOtp("");
-      setOtpSent(false);
-      setLoading(false);
-      setResendTimer(0);
-      setToastError(null);
-      setStatus({ type: null, message: "" });
-    }
-  }, [isOpen]);
-
   // Close modal on Escape key
   useEffect(() => {
-    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -94,13 +86,99 @@ export default function AuthModal({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
-  if (!isOpen) return null;
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (authActionInFlightRef.current || loading) return;
+
+    setStatus({ type: null, message: "" });
+    setToastError(null);
+
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanUsername) {
+      const msg = "Please enter your registered mobile number or username.";
+      setStatus({ type: "error", message: msg });
+      setToastError(msg);
+      return;
+    }
+
+    if (!cleanPassword) {
+      const msg = "Please enter your password.";
+      setStatus({ type: "error", message: msg });
+      setToastError(msg);
+      return;
+    }
+
+    try {
+      authActionInFlightRef.current = true;
+      setLoading(true);
+      setStatus({ type: "info", message: "Signing in with password..." });
+
+      const res = await fetchWithTimeout("/api/auth/login-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username: cleanUsername,
+          password: cleanPassword,
+        }),
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+      });
+
+      const data = await safeParseJson<any>(res);
+
+      if (!res.ok || data.success === false) {
+        const msg = data.error || data.message || "Invalid credentials. Please check your mobile/password.";
+        setStatus({ type: "error", message: msg });
+        setToastError(msg);
+        if (data.requiresOtpLogin) {
+          setMode("LOGIN");
+          const candidateMobile = cleanUsername.replace(/\D/g, "").slice(-10);
+          if (candidateMobile) setMobile(candidateMobile);
+        }
+        return;
+      }
+
+      if (data.token) {
+        await saveAuthSession(data.token, data.activeProfileId, {
+          userId: data.userId,
+          fullName: data.fullName,
+          role: data.role,
+        });
+      }
+
+      setStatus({ type: "success", message: "Login successful! Redirecting..." });
+
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      setTimeout(() => {
+        onClose();
+        const dest =
+          data.redirectTo ||
+          (data.role === "ADMIN" ? "/admin" : redirectUrl || "/dashboard");
+        window.location.href = dest;
+      }, 300);
+    } catch (err) {
+      const msg = getFriendlyFetchErrorMessage(
+        err,
+        "An unexpected error occurred during password login."
+      );
+      setStatus({ type: "error", message: msg });
+      setToastError(msg);
+    } finally {
+      authActionInFlightRef.current = false;
+      setLoading(false);
+    }
+  };
 
   const handleSendOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (otpActionInFlightRef.current || loading) return;
+    if (authActionInFlightRef.current || loading) return;
 
     setStatus({ type: null, message: "" });
     setToastError(null);
@@ -117,7 +195,7 @@ export default function AuthModal({
     setMobile(cleanMobile);
 
     try {
-      otpActionInFlightRef.current = true;
+      authActionInFlightRef.current = true;
       setLoading(true);
       setStatus({ type: "info", message: "Sending OTP via SMS..." });
 
@@ -127,18 +205,18 @@ export default function AuthModal({
         credentials: "include",
         body: JSON.stringify({
           mobile: cleanMobile,
-          type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
+          type: mode === "REGISTER" ? "REGISTRATION" : "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
       const data = await safeParseJson<any>(res);
 
-      if (!res.ok) {
+      if (!res.ok || data.success === false) {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
-        const msg = data.message || "Failed to send SMS OTP.";
+        const msg = data.error || data.message || "Failed to send SMS OTP.";
         setStatus({
           type: "error",
           message: msg,
@@ -164,13 +242,13 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
-      otpActionInFlightRef.current = false;
+      authActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
-    if (otpActionInFlightRef.current || loading) return;
+    if (authActionInFlightRef.current || loading) return;
 
     setStatus({ type: null, message: "" });
     setToastError(null);
@@ -184,7 +262,7 @@ export default function AuthModal({
     }
 
     try {
-      otpActionInFlightRef.current = true;
+      authActionInFlightRef.current = true;
       setLoading(true);
       setStatus({ type: "info", message: "Resending OTP via Fast2SMS..." });
 
@@ -194,18 +272,18 @@ export default function AuthModal({
         credentials: "include",
         body: JSON.stringify({
           mobile: cleanMobile,
-          type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
+          type: mode === "REGISTER" ? "REGISTRATION" : "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
 
       const data = await safeParseJson<any>(res);
 
-      if (!res.ok) {
+      if (!res.ok || data.success === false) {
         if (data.cooldownRemaining) {
           setResendTimer(data.cooldownRemaining);
         }
-        const msg = data.message || "Failed to resend SMS OTP.";
+        const msg = data.error || data.message || "Failed to resend SMS OTP.";
         setStatus({
           type: "error",
           message: msg,
@@ -230,14 +308,14 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
-      otpActionInFlightRef.current = false;
+      authActionInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpActionInFlightRef.current || loading) return;
+    if (authActionInFlightRef.current || loading) return;
 
     setStatus({ type: null, message: "" });
     setToastError(null);
@@ -254,7 +332,7 @@ export default function AuthModal({
     }
 
     try {
-      otpActionInFlightRef.current = true;
+      authActionInFlightRef.current = true;
       setLoading(true);
       setStatus({ type: "info", message: "Verifying OTP..." });
 
@@ -265,7 +343,7 @@ export default function AuthModal({
         body: JSON.stringify({
           mobile: cleanMobile,
           otp: cleanOtp,
-          type: mode === "LOGIN" ? "LOGIN" : "REGISTRATION",
+          type: mode === "REGISTER" ? "REGISTRATION" : "LOGIN",
         }),
         timeoutMs: DEFAULT_API_TIMEOUT_MS,
       });
@@ -273,7 +351,7 @@ export default function AuthModal({
       const data = await safeParseJson<any>(res);
 
       if (!res.ok || data.success === false) {
-        const msg = data.message || "Invalid OTP. Please try again.";
+        const msg = data.error || data.message || "Invalid OTP. Please try again.";
         setStatus({
           type: "error",
           message: msg,
@@ -335,7 +413,7 @@ export default function AuthModal({
       });
       setToastError(msg);
     } finally {
-      otpActionInFlightRef.current = false;
+      authActionInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -345,219 +423,327 @@ export default function AuthModal({
       <ErrorToast
         message={toastError}
         onDismiss={dismissToastError}
-        title="OTP Verification Error"
+        title="Authentication Notice"
       />
       <div
         onClick={onClose}
         className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity"
       >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md rounded-3xl bg-[#FAF6EF] p-6 sm:p-8 shadow-2xl border border-[#DACBB4] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-      >
-        {/* Decorative Top Accent Bar */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#4A121A] via-[#C5A059] to-[#4A121A]" />
-
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-[#4A3E39] hover:bg-[#FAF0DC] hover:text-[#4A121A] transition cursor-pointer"
-          aria-label="Close modal"
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-md rounded-3xl bg-[#FAF6EF] p-6 sm:p-8 shadow-2xl border border-[#DACBB4] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          role="dialog"
+          aria-modal="true"
         >
-          <X className="h-5 w-5" />
-        </button>
+          {/* Decorative Top Accent Bar */}
+          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#4A121A] via-[#C5A059] to-[#4A121A]" />
 
-        {/* Header */}
-        <div className="text-center pt-2 pb-5">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#4A121A]/10 text-[#4A121A] mb-3">
-            <ShieldCheck className="h-6 w-6 text-[#4A121A]" />
-          </div>
-          <h2 className="text-2xl font-serif-luxury font-bold text-[#4A121A]">
-            {mode === "LOGIN" ? "Fast OTP Sign In" : "Quick OTP Register"}
-          </h2>
-          <p className="text-xs text-[#7A5835] mt-1 font-medium">
-            Fast2SMS Verified SMS Authentication
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-2 rounded-2xl bg-[#E8DCC8]/50 p-1 mb-5">
+          {/* Close Button */}
           <button
             type="button"
-            onClick={() => {
-              setMode("LOGIN");
-              setOtpSent(false);
-              setOtp("");
-              setStatus({ type: null, message: "" });
-            }}
-            className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-              mode === "LOGIN"
-                ? "bg-white text-[#4A121A] shadow-sm"
-                : "text-[#7A5835] hover:text-[#4A121A]"
-            }`}
+            onClick={onClose}
+            className="absolute top-5 right-5 p-2 rounded-full text-[#4A3E39] hover:bg-[#FAF0DC] hover:text-[#4A121A] transition cursor-pointer"
+            aria-label="Close modal"
           >
-            Login with Mobile
+            <X className="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("REGISTER");
-              setOtpSent(false);
-              setOtp("");
-              setStatus({ type: null, message: "" });
-            }}
-            className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-              mode === "REGISTER"
-                ? "bg-white text-[#4A121A] shadow-sm"
-                : "text-[#7A5835] hover:text-[#4A121A]"
-            }`}
-          >
-            New Registration
-          </button>
-        </div>
 
-        {/* Status Message */}
-        {status.message && (
-          <div
-            className={`mb-4 flex items-start gap-2 rounded-xl p-3 text-xs leading-relaxed ${
-              status.type === "success"
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                : status.type === "error"
-                ? "bg-rose-50 text-rose-800 border border-rose-200"
-                : "bg-amber-50 text-amber-800 border border-amber-200"
-            }`}
-          >
-            {status.type === "success" && (
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
-            )}
-            {status.type === "error" && (
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
-            )}
-            {status.type === "info" && (
-              <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
-            )}
-            <span>{status.message}</span>
-          </div>
-        )}
-
-        {/* OTP Request / Verification Forms */}
-        {!otpSent ? (
-          <form onSubmit={handleSendOTP} className="space-y-4">
-            <div>
-              <label
-                htmlFor="auth-modal-mobile"
-                className="block text-xs font-bold text-[#4A3E39] mb-1.5 uppercase tracking-wide"
-              >
-                10-Digit Mobile Number
-              </label>
-              <div className="relative flex items-center">
-                <span className="absolute left-3 text-sm font-semibold text-[#7A5835]">
-                  +91
-                </span>
-                <input
-                  id="auth-modal-mobile"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  maxLength={20}
-                  value={mobile}
-                  onChange={(e) =>
-                    setMobile(e.target.value.replace(/\D/g, "").slice(-10))
-                  }
-                  placeholder="9876543210"
-                  required
-                  className="w-full rounded-xl border border-[#DACBB4] bg-white pl-12 pr-4 py-3 text-base font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
-                />
-              </div>
+          {/* Header */}
+          <div className="text-center pt-2 pb-5">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#4A121A]/10 text-[#4A121A] mb-3">
+              <ShieldCheck className="h-6 w-6 text-[#4A121A]" />
             </div>
+            <h2 className="text-2xl font-serif-luxury font-bold text-[#4A121A]">
+              {mode === "PASSWORD"
+                ? "Sign In with Password"
+                : mode === "LOGIN"
+                ? "Fast OTP Sign In"
+                : "Quick OTP Register"}
+            </h2>
+            <p className="text-xs text-[#7A5835] mt-1 font-medium">
+              {mode === "PASSWORD"
+                ? "Login with registered mobile/username & password"
+                : "Fast2SMS Verified SMS Authentication"}
+            </p>
+          </div>
 
+          {/* Tab Switcher */}
+          <div className="grid grid-cols-3 rounded-2xl bg-[#E8DCC8]/50 p-1 mb-5">
             <button
-              type="submit"
-              disabled={loading || mobile.trim().replace(/\D/g, "").slice(-10).length !== 10}
-              className="w-full rounded-xl bg-[#4A121A] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#6B1F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              type="button"
+              onClick={() => {
+                setMode("LOGIN");
+                setOtpSent(false);
+                setOtp("");
+                setStatus({ type: null, message: "" });
+              }}
+              className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                mode === "LOGIN"
+                  ? "bg-white text-[#4A121A] shadow-sm"
+                  : "text-[#7A5835] hover:text-[#4A121A]"
+              }`}
             >
-              <Phone className="h-4 w-4" />
-              <span>{loading ? "Sending SMS OTP..." : "Get SMS OTP"}</span>
-              <ArrowRight className="h-4 w-4" />
+              OTP Login
             </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOTP} className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("PASSWORD");
+                setStatus({ type: null, message: "" });
+              }}
+              className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                mode === "PASSWORD"
+                  ? "bg-white text-[#4A121A] shadow-sm"
+                  : "text-[#7A5835] hover:text-[#4A121A]"
+              }`}
+            >
+              Password
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("REGISTER");
+                setOtpSent(false);
+                setOtp("");
+                setStatus({ type: null, message: "" });
+              }}
+              className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                mode === "REGISTER"
+                  ? "bg-white text-[#4A121A] shadow-sm"
+                  : "text-[#7A5835] hover:text-[#4A121A]"
+              }`}
+            >
+              Register
+            </button>
+          </div>
+
+          {/* Status Message */}
+          {status.message && (
+            <div
+              className={`mb-4 flex items-start gap-2 rounded-xl p-3 text-xs leading-relaxed ${
+                status.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : status.type === "error"
+                  ? "bg-rose-50 text-rose-800 border border-rose-200"
+                  : "bg-amber-50 text-amber-800 border border-amber-200"
+              }`}
+            >
+              {status.type === "success" && (
+                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+              )}
+              {status.type === "error" && (
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
+              )}
+              {status.type === "info" && (
+                <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+              )}
+              <span>{status.message}</span>
+            </div>
+          )}
+
+          {/* 1. Password Login Form */}
+          {mode === "PASSWORD" && (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div>
                 <label
-                  htmlFor="auth-modal-otp"
-                  className="text-xs font-bold text-[#4A3E39] uppercase tracking-wide"
+                  htmlFor="auth-modal-username"
+                  className="block text-xs font-bold text-[#4A3E39] mb-1.5 uppercase tracking-wide"
                 >
-                  Enter SMS OTP
+                  Mobile Number / Username
                 </label>
+                <div className="relative flex items-center">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
+                  <input
+                    id="auth-modal-username"
+                    type="text"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter 10-digit mobile or username"
+                    required
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-4 py-3 text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="auth-modal-password"
+                  className="block text-xs font-bold text-[#4A3E39] mb-1.5 uppercase tracking-wide"
+                >
+                  Password
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A7972]" />
+                  <input
+                    id="auth-modal-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-11 pr-11 py-3 text-sm font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A7972] hover:text-[#4A121A] cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !username.trim() || !password.trim()}
+                className="w-full rounded-xl bg-[#4A121A] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#6B1F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Lock className="h-4 w-4" />
+                <span>{loading ? "Signing in..." : "Sign In with Password"}</span>
+              </button>
+
+              <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => {
-                    setOtpSent(false);
-                    setOtp("");
+                    setMode("LOGIN");
+                    setMobile(username.replace(/\D/g, "").slice(-10));
                     setStatus({ type: null, message: "" });
                   }}
-                  className="text-xs font-semibold text-[#C5A059] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4A121A] hover:text-[#C5A059] transition hover:underline cursor-pointer"
                 >
-                  Change (+91 {mobile})
+                  <Phone className="h-3.5 w-3.5" />
+                  <span>Prefer Login with Mobile OTP?</span>
                 </button>
               </div>
+            </form>
+          )}
 
-              <input
-                id="auth-modal-otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={12}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="• • • • • •"
-                className="w-full rounded-xl border border-[#DACBB4] bg-white px-4 py-3 text-center text-xl font-mono font-bold tracking-[0.3em] text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
-                autoFocus
-              />
-            </div>
+          {/* 2. OTP Request / Verification Forms */}
+          {mode !== "PASSWORD" && !otpSent && (
+            <form onSubmit={handleSendOTP} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="auth-modal-mobile"
+                  className="block text-xs font-bold text-[#4A3E39] mb-1.5 uppercase tracking-wide"
+                >
+                  10-Digit Mobile Number
+                </label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-sm font-semibold text-[#7A5835]">
+                    +91
+                  </span>
+                  <input
+                    id="auth-modal-mobile"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    maxLength={20}
+                    value={mobile}
+                    onChange={(e) =>
+                      setMobile(e.target.value.replace(/\D/g, "").slice(-10))
+                    }
+                    placeholder="9876543210"
+                    required
+                    className="w-full rounded-xl border border-[#DACBB4] bg-white pl-12 pr-4 py-3 text-base font-semibold text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
+                  />
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading || otp.trim().replace(/\D/g, "").length < 4}
-              aria-busy={loading}
-              className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              <span>{loading ? "Verifying..." : "Verify OTP & Continue"}</span>
-            </button>
-
-            {/* Resend Controls */}
-            <div className="flex items-center justify-between pt-1 text-xs">
               <button
-                type="button"
-                disabled={loading || resendTimer > 0}
-                onClick={handleResendOTP}
-                className="font-bold text-[#4A121A] hover:underline flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline cursor-pointer"
+                type="submit"
+                disabled={loading || mobile.trim().replace(/\D/g, "").slice(-10).length !== 10}
+                className="w-full rounded-xl bg-[#4A121A] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#6B1F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
               >
-                <RotateCcw className="h-3 w-3" />
-                <span>
-                  {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
-                </span>
+                <Phone className="h-4 w-4" />
+                <span>{loading ? "Sending SMS OTP..." : "Get SMS OTP"}</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
+          )}
+
+          {mode !== "PASSWORD" && otpSent && (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label
+                    htmlFor="auth-modal-otp"
+                    className="text-xs font-bold text-[#4A3E39] uppercase tracking-wide"
+                  >
+                    Enter SMS OTP
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp("");
+                      setStatus({ type: null, message: "" });
+                    }}
+                    className="text-xs font-semibold text-[#C5A059] hover:underline cursor-pointer"
+                  >
+                    Change (+91 {mobile})
+                  </button>
+                </div>
+
+                <input
+                  id="auth-modal-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={12}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="• • • • • •"
+                  className="w-full rounded-xl border border-[#DACBB4] bg-white px-4 py-3 text-center text-xl font-mono font-bold tracking-[0.3em] text-[#2D221E] outline-none transition focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30"
+                  autoFocus
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || otp.trim().replace(/\D/g, "").length < 4}
+                aria-busy={loading}
+                className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span>{loading ? "Verifying..." : "Verify OTP & Continue"}</span>
               </button>
 
-              <span className="text-[11px] text-[#7A5835]">
-                Strictly SMS OTP
-              </span>
-            </div>
-          </form>
-        )}
+              {/* Resend Controls */}
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <button
+                  type="button"
+                  disabled={loading || resendTimer > 0}
+                  onClick={handleResendOTP}
+                  className="font-bold text-[#4A121A] hover:underline flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline cursor-pointer"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>
+                    {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
+                  </span>
+                </button>
 
-        {/* Footer Note */}
-        <div className="mt-6 pt-4 border-t border-[#E8DCC8] text-center text-[11px] text-[#7A5835]">
-          🔒 100% Confidential & Secure Matrimonial Portal
+                <span className="text-[11px] text-[#7A5835]">
+                  Strictly SMS OTP
+                </span>
+              </div>
+            </form>
+          )}
+
+          {/* Footer Note */}
+          <div className="mt-6 pt-4 border-t border-[#E8DCC8] text-center text-[11px] text-[#7A5835]">
+            🔒 100% Confidential & Secure Matrimonial Portal
+          </div>
         </div>
       </div>
-    </div>
     </>
   );
+}
+
+export default function AuthModal(props: AuthModalProps) {
+  if (!props.isOpen) return null;
+  return <AuthModalDialog {...props} />;
 }

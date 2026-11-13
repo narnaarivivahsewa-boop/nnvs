@@ -11,6 +11,23 @@ import { isPermanentAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
+function getDatabaseErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("exceeded the quota") || msg.includes("quota")) {
+    return "Database service quota exceeded. Please contact support or upgrade Neon plan.";
+  }
+  if (
+    msg.includes("Can't reach database server") ||
+    msg.includes("Connection refused") ||
+    msg.includes("connection closed") ||
+    msg.includes("timeout") ||
+    msg.includes("Timed out")
+  ) {
+    return "Unable to connect to database service. Please try again in a few moments.";
+  }
+  return "Database service unavailable. Please try again shortly.";
+}
+
 export async function POST(req: NextRequest) {
   try {
     let body: any;
@@ -18,97 +35,205 @@ export async function POST(req: NextRequest) {
       body = await req.json();
     } catch {
       return NextResponse.json(
-        { success: false, message: "Invalid JSON payload." },
+        {
+          success: false,
+          error: "Invalid JSON payload.",
+          message: "Invalid JSON payload.",
+        },
         { status: 400 }
       );
     }
-    const username = String(body.username || body.mobile || "").trim();
+
+    const rawUsername = String(body.username || body.mobile || body.phone || "").trim();
     const password = String(body.password || "").trim();
 
-    if (!username || !password) {
+    if (!rawUsername || !password) {
+      const msg = "Username/Mobile and Password are required.";
       return NextResponse.json(
-        { success: false, message: "Username/Mobile and Password are required." },
+        {
+          success: false,
+          error: msg,
+          message: msg,
+        },
         { status: 400 }
       );
     }
 
-    const digitsOnly = username.replace(/\D/g, "");
-    const mobileLookup = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+    // 1. Mobile & Identifier Normalization
+    const digitsOnly = rawUsername.replace(/\D/g, "");
+    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : (digitsOnly.length > 0 ? digitsOnly : null);
 
-    // 1. Find user by mobile or email
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { mobile: mobileLookup },
-          { mobile: username },
-          { email: username.toLowerCase() },
-          { profiles: { some: { phoneNumbers: { some: { phone: mobileLookup } } } } },
-        ],
-      },
-    });
+    const mobileCandidates = new Set<string>();
+    mobileCandidates.add(rawUsername);
+    if (digitsOnly) mobileCandidates.add(digitsOnly);
+    if (last10) {
+      mobileCandidates.add(last10);
+      mobileCandidates.add(`+91${last10}`);
+      mobileCandidates.add(`91${last10}`);
+      mobileCandidates.add(`0${last10}`);
+    }
+    const mobileVariants = Array.from(mobileCandidates).filter(Boolean);
 
-    // Special Master Admin check for permanent admin numbers (9871592002, 9577540005)
-    const isAdminAccount = isPermanentAdmin(mobileLookup) || (user && user.role === "ADMIN");
+    // 2. Query user with robust normalization across mobile variants, email, phoneNumbers & profileIds
+    let user: any = null;
+    let dbError: any = null;
+
+    try {
+      const orConditions: any[] = [
+        { mobile: { in: mobileVariants } },
+        { email: { equals: rawUsername.toLowerCase(), mode: "insensitive" } },
+      ];
+
+      if (last10 && last10.length === 10) {
+        orConditions.push({ mobile: { contains: last10 } });
+        orConditions.push({
+          profiles: {
+            some: {
+              phoneNumbers: {
+                some: {
+                  OR: [
+                    { phone: { in: mobileVariants } },
+                    { phone: { contains: last10 } },
+                  ],
+                },
+              },
+            },
+          },
+        });
+      }
+
+      orConditions.push({
+        profiles: {
+          some: {
+            OR: [
+              { profileId: rawUsername },
+              { legacyProfileId: rawUsername },
+              { oldNnvsId: rawUsername },
+            ],
+          },
+        },
+      });
+
+      user = await prisma.user.findFirst({
+        where: {
+          OR: orConditions,
+        },
+      });
+    } catch (err) {
+      console.error("Prisma user query error during password login:", err);
+      dbError = err;
+    }
+
+    // Special Master Admin fallback: if database is down or over quota, emergency admin token can still authenticate
+    const isAdminAccount = isPermanentAdmin(last10 || rawUsername) || (user && user.role === "ADMIN");
     const isMasterPassword = password === "Ritika@0612";
 
     if (isAdminAccount && isMasterPassword) {
       if (!user) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        user = await prisma.user.create({
-          data: {
-            fullName: mobileLookup === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
-            mobile: mobileLookup,
-            password: hashedPassword,
+        try {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          user = await prisma.user.create({
+            data: {
+              fullName: (last10 === "9577540005" || rawUsername === "9577540005") ? "Rahul Dhamija" : "NNVS Admin",
+              mobile: last10 || "9871592002",
+              password: hashedPassword,
+              role: "ADMIN",
+              status: "ACTIVE",
+              mobileVerified: true,
+            },
+          });
+        } catch {
+          // If DB create fails (e.g. quota exceeded), use fallback master admin session
+          user = {
+            id: `admin-${last10 || "9871592002"}`,
+            fullName: (last10 === "9577540005" || rawUsername === "9577540005") ? "Rahul Dhamija" : "NNVS Admin",
+            mobile: last10 || "9871592002",
             role: "ADMIN",
             status: "ACTIVE",
-            mobileVerified: true,
-          },
-        });
+            mustChangePassword: false,
+          };
+        }
       } else {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            role: "ADMIN",
-            status: "ACTIVE",
-            mobileVerified: true,
-          },
-        });
+        try {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              role: "ADMIN",
+              status: "ACTIVE",
+              mobileVerified: true,
+            },
+          });
+        } catch {
+          // Keep existing user object if update fails
+        }
       }
     } else {
-      if (!user) {
+      // If DB error occurred for regular user, return clear database service error
+      if (dbError) {
+        const friendlyDbError = getDatabaseErrorMessage(dbError);
         return NextResponse.json(
-          { success: false, message: "Invalid username or mobile number." },
+          {
+            success: false,
+            error: friendlyDbError,
+            message: friendlyDbError,
+          },
+          { status: 503 }
+        );
+      }
+
+      if (!user) {
+        const msg = "Invalid username or mobile number. Please check your credentials.";
+        return NextResponse.json(
+          {
+            success: false,
+            error: msg,
+            message: msg,
+          },
           { status: 401 }
         );
       }
 
-      if (!user.password) {
+      // Check null/missing password (e.g., OTP-only users trying password login)
+      if (!user.password || user.password.trim() === "") {
+        const msg = "Password not set for this account. Please use OTP Login.";
         return NextResponse.json(
-          { success: false, message: "Password not configured. Please login using Mobile OTP." },
-          { status: 400 }
+          {
+            success: false,
+            error: msg,
+            message: msg,
+            requiresOtpLogin: true,
+          },
+          { status: 401 }
         );
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
+        const msg = "Incorrect password. Please try again or use OTP Login.";
         return NextResponse.json(
-          { success: false, message: "Incorrect password. Please try again." },
+          {
+            success: false,
+            error: msg,
+            message: msg,
+          },
           { status: 401 }
         );
       }
 
       if (!isAdminAccount && (user.status === "BLOCKED" || user.status === "DELETED")) {
+        const msg = "Your account is currently suspended. Please contact RishteClub support.";
         return NextResponse.json(
           {
             success: false,
-            message: "Your account is currently suspended. Please contact RishteClub support.",
+            error: msg,
+            message: msg,
           },
           { status: 403 }
         );
       }
     }
 
-    const effectiveRole = (isAdminAccount || user.role === "ADMIN") ? "ADMIN" : user.role;
+    const effectiveRole = (isAdminAccount || user.role === "ADMIN") ? "ADMIN" : (user.role || "MEMBER");
     const mustChange = Boolean(user.mustChangePassword);
 
     let profiles: any[] = [];
@@ -121,81 +246,95 @@ export async function POST(req: NextRequest) {
     } else if (effectiveRole === "ADMIN") {
       redirectTo = "/admin";
     } else {
-      const userProfiles = await prisma.profile.findMany({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          profileId: true,
-          firstName: true,
-          lastName: true,
-          dateOfBirth: true,
-          paymentCompleted: true,
-          approvalStatus: true,
-          photos: {
-            select: { imageUrl: true, isPrimary: true },
-            orderBy: { isPrimary: "desc" },
-            take: 1,
+      try {
+        const userProfiles = await prisma.profile.findMany({
+          where: { userId: user.id },
+          select: {
+            id: true,
+            profileId: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            paymentCompleted: true,
+            approvalStatus: true,
+            photos: {
+              where: {
+                NOT: {
+                  imageUrl: {
+                    startsWith: "data:",
+                  },
+                },
+              },
+              select: { imageUrl: true, isPrimary: true },
+              orderBy: { isPrimary: "desc" },
+              take: 1,
+            },
+            user: {
+              select: { gender: true },
+            },
           },
-          user: {
-            select: { gender: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      });
+          orderBy: { createdAt: "desc" },
+        });
 
-      profiles = userProfiles.map((p) => ({
-        id: p.id,
-        profileId: p.profileId,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        gender: p.user?.gender || user.gender || null,
-        photo: sanitizeProfilePhotoUrl(p.photos?.[0]?.imageUrl, p.profileId),
-        dateOfBirth: p.dateOfBirth,
-        paymentCompleted: p.paymentCompleted,
-        approvalStatus: p.approvalStatus,
-      }));
+        profiles = userProfiles.map((p) => ({
+          id: p.id,
+          profileId: p.profileId,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          gender: p.user?.gender || user.gender || null,
+          photo: sanitizeProfilePhotoUrl(p.photos?.[0]?.imageUrl, p.profileId),
+          dateOfBirth: p.dateOfBirth,
+          paymentCompleted: p.paymentCompleted,
+          approvalStatus: p.approvalStatus,
+        }));
 
-      if (profiles.length === 1) {
-        activeProfileId = profiles[0].id;
-        redirectTo = !profiles[0].paymentCompleted
-          ? `/payment?profileId=${encodeURIComponent(profiles[0].profileId)}&name=${encodeURIComponent(
-              user.fullName || ""
-            )}&gender=${encodeURIComponent(user.gender || "")}`
-          : "/dashboard";
-      } else if (profiles.length > 1) {
-        requiresProfileSelection = true;
-        redirectTo = "/select-profile";
-      } else {
+        if (profiles.length === 1) {
+          activeProfileId = profiles[0].id;
+          redirectTo = !profiles[0].paymentCompleted
+            ? `/payment?profileId=${encodeURIComponent(profiles[0].profileId)}&name=${encodeURIComponent(
+                user.fullName || ""
+              )}&gender=${encodeURIComponent(user.gender || "")}`
+            : "/dashboard";
+        } else if (profiles.length > 1) {
+          requiresProfileSelection = true;
+          redirectTo = "/select-profile";
+        } else {
+          redirectTo = "/dashboard";
+        }
+      } catch (err) {
+        console.warn("Could not query user profiles on login, defaulting to dashboard:", err);
         redirectTo = "/dashboard";
       }
     }
 
-    // Record login activity
+    // Record login activity in background (non-blocking)
     const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
     const now = new Date();
 
-    await Promise.allSettled([
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          lastLoginAt: now,
-          ...(user.status === "PENDING" ? { status: "ACTIVE" } : {}),
-        },
-      }),
-      prisma.loginHistory.create({
-        data: {
-          userId: user.id,
-          ipAddress,
-          userAgent,
-          device: "Web Browser",
-          loginAt: now,
-        },
-      }),
-    ]);
+    if (user.id && !user.id.startsWith("admin-fallback")) {
+      Promise.allSettled([
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lastLoginAt: now,
+            ...(user.status === "PENDING" ? { status: "ACTIVE" } : {}),
+          },
+        }),
+        prisma.loginHistory.create({
+          data: {
+            userId: user.id,
+            ipAddress,
+            userAgent,
+            device: "Web Browser",
+            loginAt: now,
+          },
+        }),
+      ]).catch(() => {});
+    }
 
     // Generate JWT token
-    const token = await generateToken(user.id, user.mobile, effectiveRole, activeProfileId);
+    const token = await generateToken(user.id, user.mobile || last10 || rawUsername, effectiveRole, activeProfileId);
 
     const response = NextResponse.json(
       {
@@ -252,8 +391,13 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error) {
     console.error("Password Login Error:", error);
+    const friendlyMsg = getDatabaseErrorMessage(error);
     return NextResponse.json(
-      { success: false, message: "An unexpected error occurred during login." },
+      {
+        success: false,
+        error: friendlyMsg,
+        message: friendlyMsg,
+      },
       { status: 500 }
     );
   }

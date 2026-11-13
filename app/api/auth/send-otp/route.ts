@@ -74,30 +74,44 @@ export async function POST(req: NextRequest) {
     // 1. Validate 10-Digit Mobile
     // ===========================
     if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      const msg = "Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).";
       return NextResponse.json(
         {
           success: false,
-          message: "Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).",
+          error: msg,
+          message: msg,
         },
         { status: 400 }
       );
     }
 
+    const mobileVariants = [
+      cleanMobile,
+      `+91${cleanMobile}`,
+      `91${cleanMobile}`,
+      `0${cleanMobile}`,
+    ];
+
     // ===========================
     // 2. Registration Check
     // ===========================
     if (otpType === "REGISTRATION") {
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await prisma.user.findFirst({
         where: {
-          mobile: cleanMobile,
+          OR: [
+            { mobile: { in: mobileVariants } },
+            { mobile: { contains: cleanMobile } },
+          ],
         },
       });
 
       if (existingUser) {
+        const msg = "This mobile number is already registered. Please login.";
         return NextResponse.json(
           {
             success: false,
-            message: "This mobile number is already registered. Please login.",
+            error: msg,
+            message: msg,
           },
           { status: 400 }
         );
@@ -111,41 +125,55 @@ export async function POST(req: NextRequest) {
       let existingUser = await prisma.user.findFirst({
         where: {
           OR: [
-            { mobile: cleanMobile },
-            { profiles: { some: { phoneNumbers: { some: { phone: cleanMobile } } } } },
+            { mobile: { in: mobileVariants } },
+            { mobile: { contains: cleanMobile } },
+            { profiles: { some: { phoneNumbers: { some: { phone: { in: mobileVariants } } } } } },
           ],
         },
       });
 
       const { isPermanentAdmin } = await import("@/lib/admin-auth");
       if (!existingUser && isPermanentAdmin(cleanMobile)) {
-        existingUser = await prisma.user.create({
-          data: {
+        try {
+          existingUser = await prisma.user.create({
+            data: {
+              mobile: cleanMobile,
+              fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
+              role: "ADMIN",
+              status: "ACTIVE",
+              mobileVerified: true,
+            },
+          });
+        } catch {
+          existingUser = {
+            id: `admin-${cleanMobile}`,
             mobile: cleanMobile,
-            fullName: cleanMobile === "9577540005" ? "Rahul Dhamija" : "NNVS Admin",
             role: "ADMIN",
             status: "ACTIVE",
-            mobileVerified: true,
-          },
-        });
+          } as any;
+        }
       }
 
       if (!existingUser) {
+        const msg = "Your mobile number is not registered. Please register first.";
         return NextResponse.json(
           {
             success: false,
             notRegistered: true,
-            message: "Your mobile number is not registered. Please register first.",
+            error: msg,
+            message: msg,
           },
           { status: 404 }
         );
       }
 
       if (existingUser.status === "BLOCKED" || existingUser.status === "DELETED") {
+        const msg = "Your account is currently suspended. Please contact RishteClub support.";
         return NextResponse.json(
           {
             success: false,
-            message: "Your account is currently suspended. Please contact RishteClub support.",
+            error: msg,
+            message: msg,
           },
           { status: 403 }
         );
