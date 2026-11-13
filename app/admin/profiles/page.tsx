@@ -668,14 +668,15 @@ function AdminProfilesContent() {
                   </Link>
 
                   <a
-                    href={`/api/profiles/${profile.id}/pdf`}
+                    href={`/api/profiles/${profile.id}/biodata`}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-1 rounded-xl bg-red-800 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition"
+                    title="Download Biodata"
                   >
                     <FileDown className="h-3.5 w-3.5" />
-                    <span>PDF</span>
+                    <span>Biodata</span>
                   </a>
 
                   <a
@@ -917,15 +918,15 @@ function AdminProfilesContent() {
                         </Link>
 
                         <a
-                          href={`/api/profiles/${profile.id}/pdf`}
+                          href={`/api/profiles/${profile.id}/biodata`}
                           download
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 rounded-lg bg-red-800 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition shadow-xs"
-                          title="Download Biodata PDF"
+                          title="Download Biodata"
                         >
                           <FileDown className="h-3.5 w-3.5" />
-                          <span>PDF</span>
+                          <span>Biodata</span>
                         </a>
 
                         <a

@@ -547,17 +547,17 @@ export default function AdminProfileViewPage({
             <span>Confirm Pay</span>
           </button>
 
-          {/* 6. Download Biodata PDF */}
+          {/* 6. Download Biodata */}
           <a
-            href={`/api/profiles/${profile.id}/pdf`}
+            href={`/api/profiles/${profile.id}/biodata`}
             download
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-800 to-rose-900 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold hover:from-red-700 hover:to-rose-800 transition shadow-sm"
-            title="Download verified printable matrimonial biodata PDF"
+            title="Download verified matrimonial biodata high-resolution image"
           >
             <FileDown className="h-4 w-4" />
-            <span>Download Biodata PDF</span>
+            <span>Download Biodata</span>
           </a>
 
           {/* 7. Invoice Link */}

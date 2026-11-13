@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateBiodataPdfBuffer, saveBiodataPdfLocally } from "@/lib/pdf/biodata-generator";
+import {
+  generateBiodataJpegBuffer,
+  saveBiodataJpegLocally,
+} from "@/lib/pdf/biodata-jpeg-generator";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(
@@ -38,6 +42,7 @@ export async function GET(
           select: {
             imageUrl: true,
             isPrimary: true,
+            status: true,
           },
         },
         family: true,
@@ -57,7 +62,7 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Strict Payment Gate: Biodata PDF MUST ONLY be generated for profiles with confirmed payment
+    // Strict Payment Gate: Biodata MUST ONLY be generated for profiles with confirmed payment
     // 100% Free & Unrestricted for Admin users
     let isAdmin = false;
     try {
@@ -72,7 +77,7 @@ export async function GET(
     if (!isAdmin && !profile.paymentCompleted && !profile.isPaymentExempted) {
       return NextResponse.json(
         {
-          error: "Biodata PDF is only available for profiles with confirmed payment.",
+          error: "Biodata is only available for profiles with confirmed payment.",
           profileId: profile.profileId,
           paymentCompleted: false,
         },
@@ -86,37 +91,64 @@ export async function GET(
     const withoutContact =
       searchParams.get("withoutContact") === "true" ||
       searchParams.get("hideContact") === "true";
+    const format = (searchParams.get("format") || "jpeg").toLowerCase();
 
-    // Generate PDF Buffer
-    const pdfBuffer = await generateBiodataPdfBuffer(profile as any, {
+    const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    // If explicitly requested format=pdf, provide PDF
+    if (format === "pdf") {
+      const pdfBuffer = await generateBiodataPdfBuffer(profile as any, {
+        hideContactDetails: withoutContact,
+      });
+
+      saveBiodataPdfLocally(profile as any, pdfBuffer, { withoutContact }).catch((err) => {
+        console.error("[PDF Local Save Warning]:", err);
+      });
+
+      const candidateName = (
+        [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() ||
+        profile.user?.fullName ||
+        "Biodata"
+      ).replace(/[^a-zA-Z0-9_-]/g, "_");
+      const pdfFileName = `Biodata_${code ? `${code}_` : ""}${candidateName}${withoutContact ? "_NoContact" : ""}.pdf`;
+
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${pdfFileName}"`,
+          "Cache-Control": withoutContact
+            ? "public, max-age=3600, s-maxage=3600"
+            : "private, no-cache, no-store, must-revalidate",
+        },
+      });
+    }
+
+    // Default: Return high-resolution JPEG Biodata
+    const jpegBuffer = await generateBiodataJpegBuffer(profile as any, {
       hideContactDetails: withoutContact,
     });
 
-    // Asynchronously save copy to D:\NNVS\Website Bio PDF
-    saveBiodataPdfLocally(profile as any, pdfBuffer, { withoutContact }).catch((err) => {
-      console.error("[PDF Local Save Warning]:", err);
+    saveBiodataJpegLocally(profile as any, jpegBuffer, { withoutContact }).catch((err) => {
+      console.error("[Biodata JPEG Local Save Warning]:", err);
     });
 
-    const candidateName = (
-      [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() ||
-      profile.user?.fullName ||
-      "Biodata"
-    ).replace(/[^a-zA-Z0-9_-]/g, "_");
-    const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const fileName = `Biodata_${code ? `${code}_` : ""}${candidateName}${withoutContact ? "_NoContact" : ""}.pdf`;
+    const fileName = `RishteClub-Biodata-${code || "Profile"}${withoutContact ? "-NoContact" : ""}.jpg`;
 
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(new Uint8Array(jpegBuffer), {
       status: 200,
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": "image/jpeg",
         "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${fileName}"`,
-        "Cache-Control": "public, max-age=3600, s-maxage=3600",
+        "Cache-Control": withoutContact
+          ? "public, max-age=3600, s-maxage=3600"
+          : "private, no-cache, no-store, must-revalidate",
       },
     });
   } catch (error: any) {
-    console.error("Error generating biodata PDF:", error);
+    console.error("Error generating biodata:", error);
     return NextResponse.json(
-      { error: "Failed to generate biodata PDF." },
+      { error: "Failed to generate biodata." },
       { status: 500 }
     );
   }

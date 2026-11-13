@@ -344,7 +344,7 @@ export async function GET(
         "Father Name": m.family?.fatherName || "-",
         "Registered Mobile": m.user?.mobile || "-",
         "Secondary Phone": m.phoneNumbers?.[0]?.phone || "-",
-        "Biodata PDF URL": `https://rishteclub.com/api/profiles/${m.id}/pdf`,
+        "Biodata URL": `https://rishteclub.com/api/profiles/${m.id}/biodata`,
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(rows);

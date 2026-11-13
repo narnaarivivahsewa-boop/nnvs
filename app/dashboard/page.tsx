@@ -16,6 +16,8 @@ import {
   Users,
   Bot,
   Key,
+  FileDown,
+  Loader2,
 } from "lucide-react";
 import AIMatchmakerModal from "@/components/AIMatchmakerModal";
 import {
@@ -63,6 +65,8 @@ function DashboardContent() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState("");
   const [showAiModal, setShowAiModal] = useState(false);
+  const [downloadingBiodata, setDownloadingBiodata] = useState(false);
+  const [biodataError, setBiodataError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,6 +220,42 @@ function DashboardContent() {
   const profile = profilesList.find((p) => p.id === selectedProfileId || p.profileId === selectedProfileId) || profilesList[0] || null;
   const completion = profile?.profileCompletion ?? (profile ? 70 : 0);
 
+  const handleDownloadBiodata = async () => {
+    if (!profile?.profileId) return;
+    try {
+      setBiodataError(null);
+      setDownloadingBiodata(true);
+      const res = await fetch(`/api/profiles/${encodeURIComponent(profile.profileId)}/biodata`);
+      if (!res.ok) {
+        let msg = "Failed to download biodata.";
+        try {
+          const data = await res.json();
+          if (data.error) msg = data.error;
+        } catch {
+          // ignore
+        }
+        setBiodataError(msg);
+        return;
+      }
+      const blob = await res.blob();
+      const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `RishteClub-Biodata-${code || "Profile"}.jpg`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Biodata download error:", err);
+      setBiodataError(err?.message || "An error occurred while downloading biodata.");
+    } finally {
+      setDownloadingBiodata(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50/70 py-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
@@ -350,7 +390,7 @@ function DashboardContent() {
               {!(profile?.paymentCompleted || profile?.isPaymentExempted) && (
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                   <div>
-                    <span className="font-bold">⚠️ Unpaid Draft:</span> Official RishteClub Profile ID and Biodata PDF are assigned upon confirmed payment.
+                    <span className="font-bold">⚠️ Unpaid Draft:</span> Official RishteClub Profile ID and Biodata are assigned upon confirmed payment.
                   </div>
                   <Link
                     href={`/payment?profileId=${encodeURIComponent(profile?.profileId || "")}`}
@@ -358,6 +398,18 @@ function DashboardContent() {
                   >
                     Pay & Activate
                   </Link>
+                </div>
+              )}
+
+              {biodataError && (
+                <div className="mt-2 p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-800 flex items-center justify-between gap-2">
+                  <span>{biodataError}</span>
+                  <button
+                    onClick={() => setBiodataError(null)}
+                    className="text-xs uppercase font-bold tracking-wider underline ml-2 shrink-0"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               )}
             </div>
@@ -394,20 +446,31 @@ function DashboardContent() {
 
                 {profile?.paymentCompleted || profile?.isPaymentExempted ? (
                   profile?.profileId && (
-                    <a
-                      href={`/api/profiles/${encodeURIComponent(profile.profileId)}/pdf`}
-                      download
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+                    <button
+                      onClick={handleDownloadBiodata}
+                      disabled={downloadingBiodata}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-70"
+                      title="Download high-resolution matrimonial biodata image"
                     >
-                      <span>Download PDF</span>
-                    </a>
+                      {downloadingBiodata ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+                          <span>Preparing Biodata...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-3.5 w-3.5" />
+                          <span>Download Biodata</span>
+                        </>
+                      )}
+                    </button>
                   )
                 ) : (
                   <Link
                     href={`/payment?profileId=${encodeURIComponent(profile?.profileId || "")}`}
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-amber-700 transition"
                   >
-                    <span>Unlock PDF</span>
+                    <span>Unlock Biodata</span>
                   </Link>
                 )}
               </div>

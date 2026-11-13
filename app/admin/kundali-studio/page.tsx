@@ -20,8 +20,6 @@ import {
   Printer,
   X,
   Heart,
-  ChevronDown,
-  Info,
 } from "lucide-react";
 import { calculateAuthenticGunaMilan } from "@/lib/astrology/vedic-match";
 import CityCombobox from "@/components/ui/CityCombobox";
@@ -422,7 +420,7 @@ export default function AdminKundaliStudioPage() {
               Dual Kundali Milan & Matchmaking Studio
             </h1>
             <p className="text-xs sm:text-sm text-[#E8D8C0] max-w-2xl leading-relaxed">
-              Select any registered Groom & Bride from the database, auto-fill verified birth parameters, make manual adjustments, and calculate authentic 36 Guna Ashtakoota compatibility with 1-click Biodata PDF downloads.
+              Select any registered Groom & Bride from the database, auto-fill verified birth parameters, make manual adjustments, and calculate authentic 36 Guna Ashtakoota compatibility with 1-click Biodata downloads.
             </p>
           </div>
 
@@ -603,14 +601,14 @@ export default function AdminKundaliStudioPage() {
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={`/api/profiles/${groomForm.profile.id}/pdf`}
+                  href={`/api/profiles/${groomForm.profile.id}/biodata`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#4A121A] text-white hover:bg-[#3A0C13] text-[11px] font-bold transition shadow-xs"
-                  title="Download Groom Biodata PDF"
+                  title="Download Groom Biodata"
                 >
                   <Download className="h-3 w-3 text-[#DFBA73]" />
-                  <span>Biodata PDF</span>
+                  <span>Biodata</span>
                 </a>
                 <Link
                   href={`/profiles/${groomForm.profile.id}`}
@@ -870,14 +868,14 @@ export default function AdminKundaliStudioPage() {
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={`/api/profiles/${brideForm.profile.id}/pdf`}
+                  href={`/api/profiles/${brideForm.profile.id}/biodata`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#4A121A] text-white hover:bg-[#3A0C13] text-[11px] font-bold transition shadow-xs"
-                  title="Download Bride Biodata PDF"
+                  title="Download Bride Biodata"
                 >
                   <Download className="h-3 w-3 text-[#DFBA73]" />
-                  <span>Biodata PDF</span>
+                  <span>Biodata</span>
                 </a>
                 <Link
                   href={`/profiles/${brideForm.profile.id}`}
@@ -1325,13 +1323,13 @@ export default function AdminKundaliStudioPage() {
               <span className="text-xs text-gray-600 font-medium">1-Click Biodatas:</span>
               {groomForm.profile ? (
                 <a
-                  href={`/api/profiles/${groomForm.profile.id}/pdf`}
+                  href={`/api/profiles/${groomForm.profile.id}/biodata`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  <span>Download Groom PDF ({groomForm.profile.displayId})</span>
+                  <span>Download Groom Biodata ({groomForm.profile.displayId})</span>
                 </a>
               ) : (
                 <span className="text-xs text-gray-400 italic">No Groom selected</span>
@@ -1339,13 +1337,13 @@ export default function AdminKundaliStudioPage() {
 
               {brideForm.profile ? (
                 <a
-                  href={`/api/profiles/${brideForm.profile.id}/pdf`}
+                  href={`/api/profiles/${brideForm.profile.id}/biodata`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  <span>Download Bride PDF ({brideForm.profile.displayId})</span>
+                  <span>Download Bride Biodata ({brideForm.profile.displayId})</span>
                 </a>
               ) : (
                 <span className="text-xs text-gray-400 italic">No Bride selected</span>

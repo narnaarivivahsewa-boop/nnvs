@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Edit, GraduationCap, Users2, HeartHandshake, FileDown } from "lucide-react";
+import { ArrowLeft, Edit, GraduationCap, Users2, HeartHandshake, FileDown, Loader2 } from "lucide-react";
 
 type ProfileData = {
   profileId: string;
@@ -54,6 +54,44 @@ type ProfileData = {
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [downloadingBiodata, setDownloadingBiodata] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleDownloadBiodata = async () => {
+    if (!profile) return;
+    try {
+      setErrorMessage(null);
+      setDownloadingBiodata(true);
+      const res = await fetch(`/api/profiles/${encodeURIComponent(profile.profileId)}/biodata`);
+      if (!res.ok) {
+        let msg = "Failed to download biodata.";
+        try {
+          const data = await res.json();
+          if (data.error) msg = data.error;
+        } catch {
+          // ignore
+        }
+        setErrorMessage(msg);
+        return;
+      }
+      const blob = await res.blob();
+      const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `RishteClub-Biodata-${code || "Profile"}.jpg`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Biodata download error:", err);
+      setErrorMessage(err?.message || "An error occurred while downloading biodata.");
+    } finally {
+      setDownloadingBiodata(false);
+    }
+  };
 
   useEffect(() => {
     async function loadProfile() {
@@ -118,17 +156,24 @@ export default function ProfilePage() {
           </Link>
 
           <div className="flex items-center gap-2.5">
-            <a
-              href={`/api/profiles/${profile.profileId}/pdf`}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-bold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition"
-              title="Download your printable matrimonial biodata with RishteClub verified branding"
+            <button
+              onClick={handleDownloadBiodata}
+              disabled={downloadingBiodata}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-bold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition disabled:opacity-70"
+              title="Download high-resolution matrimonial biodata image"
             >
-              <FileDown className="h-4 w-4" />
-              <span>Download Biodata (PDF)</span>
-            </a>
+              {downloadingBiodata ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Preparing Biodata...</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-4 w-4" />
+                  <span>Download Biodata</span>
+                </>
+              )}
+            </button>
 
             <Link
               href="/profile/edit"
@@ -139,6 +184,19 @@ export default function ProfilePage() {
             </Link>
           </div>
         </div>
+
+        {/* Error Notification */}
+        {errorMessage && (
+          <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm font-semibold text-red-800 shadow-sm flex items-center justify-between">
+            <span>{errorMessage}</span>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-xs uppercase font-bold tracking-wider underline ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Master Profile Card */}
         <div className="rounded-3xl bg-white p-8 shadow-xl border border-gray-100 mb-8">

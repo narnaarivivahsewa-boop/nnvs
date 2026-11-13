@@ -25,6 +25,7 @@ import {
   FileDown,
   Key,
   Edit3,
+  Loader2,
 } from "lucide-react";
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import ErrorToast from "@/components/ui/ErrorToast";
@@ -161,11 +162,47 @@ export default function ProfileDetailsPage() {
   const [astroQuestion, setAstroQuestion] = useState("");
   const [astroAnswer, setAstroAnswer] = useState<string | null>(null);
   const [askingAstro, setAskingAstro] = useState(false);
+  const [downloadingBiodata, setDownloadingBiodata] = useState(false);
   const [toastError, setToastError] = useState<string | null>(null);
 
   const dismissToastError = useCallback(() => {
     setToastError(null);
   }, []);
+
+  const handleDownloadBiodata = async () => {
+    if (!profile) return;
+    try {
+      setDownloadingBiodata(true);
+      const res = await fetch(`/api/profiles/${encodeURIComponent(profile.id || profile.profileId)}/biodata`);
+      if (!res.ok) {
+        let errMsg = "Failed to download biodata.";
+        try {
+          const data = await res.json();
+          if (data.error) errMsg = data.error;
+        } catch {
+          // ignore
+        }
+        setToastError(errMsg);
+        return;
+      }
+      const blob = await res.blob();
+      const code = (profile.legacyProfileId || profile.profileId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `RishteClub-Biodata-${code || "Profile"}.jpg`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Biodata download error:", err);
+      setToastError(err?.message || "An error occurred while downloading biodata.");
+    } finally {
+      setDownloadingBiodata(false);
+    }
+  };
 
   const handleAskAstro = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -443,17 +480,24 @@ export default function ProfileDetailsPage() {
               <span>Edit Profile</span>
             </Link>
 
-            <a
-              href={`/api/profiles/${profile.id}/pdf`}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition"
-              title="Download formatted matrimonial biodata PDF with contact details and verified stamp"
+            <button
+              onClick={handleDownloadBiodata}
+              disabled={downloadingBiodata}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-red-700 hover:to-rose-800 transition disabled:opacity-70"
+              title="Download high-resolution matrimonial biodata image"
             >
-              <FileDown className="h-4 w-4" />
-              <span>Download Biodata (PDF)</span>
-            </a>
+              {downloadingBiodata ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Preparing Biodata...</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-4 w-4" />
+                  <span>Download Biodata</span>
+                </>
+              )}
+            </button>
 
             <button
               onClick={handleShare}

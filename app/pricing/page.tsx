@@ -67,7 +67,7 @@ export default function PricingPage() {
     "100% Mobile & Family Background-Reviewed Biodata",
     "Direct Contact Access to Matching Families (Zero Commission)",
     "Complimentary 36 Guna Ashtakoota Kundali Milan Tool",
-    "Auto-Generated Official GST Tax Invoice & PDF Biodata",
+    "Auto-Generated Official GST Tax Invoice & Downloadable Biodata",
     "No Monthly Subscriptions or Hidden Renewal Charges",
   ];
 

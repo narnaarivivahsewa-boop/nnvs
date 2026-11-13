@@ -431,12 +431,12 @@ export default function CandidateMatcher({ targetProfile }: CandidateMatcherProp
                   </button>
 
                   <a
-                    href={`/api/profiles/${cand.id}/pdf`}
+                    href={`/api/profiles/${cand.id}/biodata`}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-lg bg-white border border-gray-300 p-1.5 text-gray-600 hover:text-red-700 hover:border-red-300 transition"
-                    title="Download Candidate PDF"
+                    title="Download Candidate Biodata"
                   >
                     <FileDown className="h-3.5 w-3.5" />
                   </a>
