@@ -153,7 +153,7 @@ export function formatBirthTime(val?: string | null): string {
   // Extract hours and minutes
   const timeMatch = trimmed.match(/(\d{1,2})[:.](\d{1,2})/);
   if (timeMatch) {
-    let hours = parseInt(timeMatch[1], 10);
+    const hours = parseInt(timeMatch[1], 10);
     const minutes = timeMatch[2].padStart(2, "0");
 
     if (explicitAmPm) {
@@ -174,11 +174,60 @@ export function formatBirthTime(val?: string | null): string {
   // Check if just hour like "10AM" or "4 pm"
   const hourOnlyMatch = trimmed.match(/(\d{1,2})\s*(am|pm)/i);
   if (hourOnlyMatch) {
-    let hours = parseInt(hourOnlyMatch[1], 10);
+    const hours = parseInt(hourOnlyMatch[1], 10);
     const ampm = hourOnlyMatch[2].toUpperCase();
     const hours12 = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
     return `${hours12}:00 ${ampm}`;
   }
 
   return trimmed;
-}
+}
+
+/**
+ * Builds the WhatsApp message template for admin communication with candidates.
+ * Unpaid / draft profiles receive a polite payment & activation reminder in Hindi-English.
+ * Paid / live profiles receive the standard greeting message.
+ */
+export function buildAdminProfileWhatsAppMessage(profile: {
+  profileId: string;
+  legacyProfileId?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  paymentCompleted?: boolean | null;
+  isPaymentExempted?: boolean | null;
+  approvalStatus?: string | null;
+  user?: {
+    fullName?: string | null;
+    payments?: { id?: string; amount?: number; grossAmount?: number | null }[];
+  } | null;
+}): string {
+  const candidateName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() ||
+    profile.user?.fullName ||
+    "Candidate";
+
+  const displayProfileId = profile.legacyProfileId || profile.profileId;
+
+  const isPaidOrExempt = Boolean(profile.paymentCompleted || profile.isPaymentExempted);
+  const latestPayment = profile.user?.payments?.[0];
+  const hasSuccessfulPayment = Boolean(latestPayment?.id);
+  const isDraftStatus = profile.approvalStatus === "DRAFT";
+  const isPaymentUnrecorded = !hasSuccessfulPayment && !isPaidOrExempt;
+
+  const isUnpaidOrDraft = !isPaidOrExempt || isDraftStatus || isPaymentUnrecorded;
+
+  if (isUnpaidOrDraft) {
+    return `Namaste ${candidateName},
+
+Aapne RishteClub (NNVS Matrimony) par apni matrimonial profile (${displayProfileId}) banayi hai, lekin abhi tak payment complete nahi ki hai — isliye aapki profile abhi Draft mein hai aur website par live nahi hui hai.
+
+Kripya https://www.rishteclub.com/login par jakar apne registered mobile number aur Password / OTP se login karein aur payment complete karein.
+
+Payment complete hote hi aapki profile website par Live kar di jayegi aur aapko NNVS ke official WhatsApp groups mein bhi add kar diya jayega!
+
+— Team RishteClub (Nar Naari Vivah Sewa)`;
+  }
+
+  return `Namaste ${candidateName}! This is regarding your matrimonial profile (${displayProfileId}) on RishteClub.`;
+}
+

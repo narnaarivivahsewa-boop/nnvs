@@ -26,6 +26,7 @@ import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import ErrorToast from "@/components/ui/ErrorToast";
 import { getAuthSession } from "@/lib/auth/session-storage";
 import { getRegistrationPricingDetails } from "@/lib/pricing";
+import { buildAdminProfileWhatsAppMessage } from "@/lib/utils";
 
 type Profile = {
   id: string;
@@ -37,6 +38,7 @@ type Profile = {
 
   isVisible: boolean;
   paymentCompleted: boolean;
+  isPaymentExempted?: boolean;
   approvalStatus: string;
   isDuplicateFlagged: boolean | null;
   duplicateNotes: string | null;
@@ -445,9 +447,8 @@ function AdminProfilesContent() {
 
       {/* Filter Bar (Responsive on desktop, collapsible on mobile) */}
       <div
-        className={`rounded-2xl bg-white p-4 shadow-sm border border-gray-100 ${
-          mobileFilterOpen ? "block" : "hidden sm:block"
-        }`}
+        className={`rounded-2xl bg-white p-4 shadow-sm border border-gray-100 ${mobileFilterOpen ? "block" : "hidden sm:block"
+          }`}
       >
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-7 text-xs">
           <div className="sm:col-span-2 relative">
@@ -546,7 +547,7 @@ function AdminProfilesContent() {
             const latestPayment = profile.user?.payments?.[0];
             const candidateMobile = profile.user.mobile.replace(/\D/g, "").slice(-10);
             const whatsappMsg = encodeURIComponent(
-              `Namaste ${profile.user.fullName || profile.firstName}! This is regarding your matrimonial profile (${profile.profileId}) on RishteClub.`
+              buildAdminProfileWhatsAppMessage(profile)
             );
 
             return (
@@ -573,11 +574,10 @@ function AdminProfilesContent() {
                         {[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || profile.user.fullName || "Member"}
                       </h3>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                          profile.isVisible
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-gray-200 text-gray-700"
-                        }`}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${profile.isVisible
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-gray-200 text-gray-700"
+                          }`}
                       >
                         {profile.isVisible ? "Live" : "Hidden"}
                       </span>
@@ -603,21 +603,19 @@ function AdminProfilesContent() {
                 {/* Badges Row */}
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] pt-1 border-t border-gray-100">
                   <span
-                    className={`px-2 py-0.5 rounded-md font-bold ${
-                      profile.user.gender === "FEMALE"
-                        ? "bg-pink-100 text-pink-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}
+                    className={`px-2 py-0.5 rounded-md font-bold ${profile.user.gender === "FEMALE"
+                      ? "bg-pink-100 text-pink-800"
+                      : "bg-blue-100 text-blue-800"
+                      }`}
                   >
                     {profile.user.gender || "Gender N/A"}
                   </span>
 
                   <span
-                    className={`px-2 py-0.5 rounded-md font-bold ${
-                      isFormImport
-                        ? "bg-purple-100 text-purple-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}
+                    className={`px-2 py-0.5 rounded-md font-bold ${isFormImport
+                      ? "bg-purple-100 text-purple-800"
+                      : "bg-blue-100 text-blue-800"
+                      }`}
                   >
                     {isFormImport ? "Google Form" : "Website Direct"}
                   </span>
@@ -799,7 +797,7 @@ function AdminProfilesContent() {
                 const latestPayment = profile.user?.payments?.[0];
                 const candidateMobile = profile.user.mobile.replace(/\D/g, "").slice(-10);
                 const whatsappMsg = encodeURIComponent(
-                  `Namaste ${profile.user.fullName || profile.firstName}! This is regarding your matrimonial profile (${profile.profileId}) on RishteClub.`
+                  buildAdminProfileWhatsAppMessage(profile)
                 );
 
                 return (
@@ -847,13 +845,12 @@ function AdminProfilesContent() {
 
                     <td className="px-4 py-3.5 text-xs">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-1 font-bold ${
-                          profile.approvalStatus === "APPROVED"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : profile.approvalStatus === "REJECTED"
+                        className={`inline-block rounded-full px-2.5 py-1 font-bold ${profile.approvalStatus === "APPROVED"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : profile.approvalStatus === "REJECTED"
                             ? "bg-red-100 text-red-700"
                             : "bg-amber-100 text-amber-800"
-                        }`}
+                          }`}
                       >
                         {profile.approvalStatus.replace("_", " ")}
                       </span>
@@ -1190,8 +1187,8 @@ function AdminProfilesContent() {
                   {confirmingPayment
                     ? "Saving..."
                     : isPaymentExempt
-                    ? "Confirm Payment Exemption"
-                    : "Confirm & Generate GST Invoice"}
+                      ? "Confirm Payment Exemption"
+                      : "Confirm & Generate GST Invoice"}
                 </button>
               </div>
             </form>
@@ -1489,11 +1486,10 @@ function AdminProfilesContent() {
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-start gap-3">
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                  pendingConfirm.type === "REJECT"
-                    ? "bg-red-100 text-red-700"
-                    : "bg-emerald-100 text-emerald-700"
-                }`}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${pendingConfirm.type === "REJECT"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-emerald-100 text-emerald-700"
+                  }`}
               >
                 {pendingConfirm.type === "REJECT" ? (
                   <XCircle className="h-5 w-5" />
@@ -1510,19 +1506,19 @@ function AdminProfilesContent() {
                   {pendingConfirm.type === "APPROVE"
                     ? "Approve Profile?"
                     : pendingConfirm.type === "REJECT"
-                    ? "Reject Profile?"
-                    : pendingConfirm.profile.isVisible
-                    ? "Hide Profile?"
-                    : "Make Profile Live?"}
+                      ? "Reject Profile?"
+                      : pendingConfirm.profile.isVisible
+                        ? "Hide Profile?"
+                        : "Make Profile Live?"}
                 </h3>
                 <p className="mt-1 text-xs text-gray-600 leading-relaxed">
                   {pendingConfirm.type === "APPROVE"
                     ? `Approve profile ${pendingConfirm.profile.profileId} (${pendingConfirm.profile.user.fullName || "Candidate"}) and make it live?`
                     : pendingConfirm.type === "REJECT"
-                    ? `Reject profile ${pendingConfirm.profile.profileId} (${pendingConfirm.profile.user.fullName || "Candidate"}) and hide it from public listings?`
-                    : pendingConfirm.profile.isVisible
-                    ? `Hide profile ${pendingConfirm.profile.profileId} from the public website?`
-                    : `Make profile ${pendingConfirm.profile.profileId} LIVE on the public website?`}
+                      ? `Reject profile ${pendingConfirm.profile.profileId} (${pendingConfirm.profile.user.fullName || "Candidate"}) and hide it from public listings?`
+                      : pendingConfirm.profile.isVisible
+                        ? `Hide profile ${pendingConfirm.profile.profileId} from the public website?`
+                        : `Make profile ${pendingConfirm.profile.profileId} LIVE on the public website?`}
                 </p>
               </div>
             </div>
@@ -1540,11 +1536,10 @@ function AdminProfilesContent() {
                 type="button"
                 onClick={executePendingConfirm}
                 disabled={processingProfileId !== null}
-                className={`rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 ${
-                  pendingConfirm.type === "REJECT"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-[#4A121A] hover:bg-[#350d13]"
-                }`}
+                className={`rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 ${pendingConfirm.type === "REJECT"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-[#4A121A] hover:bg-[#350d13]"
+                  }`}
               >
                 {processingProfileId ? "Updating..." : "Confirm Action"}
               </button>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getAuthSession } from "@/lib/auth/session-storage";
 import ErrorToast from "@/components/ui/ErrorToast";
+import { buildAdminProfileWhatsAppMessage } from "@/lib/utils";
 
 export default function ApprovalsPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -284,7 +285,7 @@ export default function ApprovalsPage() {
                     {cleanPhone ? (
                       <a
                         href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
-                          `Namaste ${p.user?.fullName}, regarding your RishteClub profile (${p.profileId}): We are reviewing your registration details.`
+                          buildAdminProfileWhatsAppMessage(p)
                         )}`}
                         target="_blank"
                         rel="noreferrer"
@@ -393,7 +394,9 @@ export default function ApprovalsPage() {
 
                           {cleanPhone && (
                             <a
-                              href={`https://wa.me/91${cleanPhone}`}
+                              href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
+                                buildAdminProfileWhatsAppMessage(p)
+                              )}`}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition"

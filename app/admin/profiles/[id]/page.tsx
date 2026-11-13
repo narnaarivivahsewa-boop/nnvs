@@ -28,7 +28,7 @@ import {
 import MatrimonyAvatar from "@/components/MatrimonyAvatar";
 import ErrorToast from "@/components/ui/ErrorToast";
 import { getAuthSession } from "@/lib/auth/session-storage";
-import { formatBirthTime, formatDOB } from "@/lib/utils";
+import { formatBirthTime, formatDOB, buildAdminProfileWhatsAppMessage } from "@/lib/utils";
 import { getRegistrationPricingDetails } from "@/lib/pricing";
 import CandidateMatcher from "./components/CandidateMatcher";
 
@@ -477,7 +477,7 @@ export default function AdminProfileViewPage({
           {cleanPhone ? (
             <a
               href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
-                `Namaste ${candidateName}, regarding your RishteClub profile (${profile.profileId}): How can we assist you today?`
+                buildAdminProfileWhatsAppMessage(profile)
               )}`}
               target="_blank"
               rel="noreferrer"
